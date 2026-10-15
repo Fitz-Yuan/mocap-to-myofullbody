@@ -1085,7 +1085,7 @@ async function main() {
       err: 1 - cal,
       follow: ramp(u, 2.9, 3.05),
       lift: ramp(u, 3.08, 3.5) * (1 - ramp(u, 3.72, 4.12)),
-      yaw: lerp(-26 + 16 * Math.sin(t * 0.32), keys(YAW, u), hb),
+      yaw: lerp(-26 + 16 * Math.sin(t * 0.52), keys(YAW, u), hb),
       el: lerp(5, keys(EL, u), hb), dmul: lerp(1, keys(DM, u), hb), zt: lerp(0.9, keys(ZT, u), hb),
       hb,
     };
