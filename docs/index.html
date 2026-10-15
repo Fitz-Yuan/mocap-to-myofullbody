@@ -92,10 +92,16 @@ h1, h2, h3, p, figure { margin: 0; }
 }
 .brand { font: 600 15px/1 var(--font-display); letter-spacing: -0.01em; text-decoration: none; white-space: nowrap; }
 .brand span { color: var(--fg-3); font-weight: 500; }
-.nav nav { display: flex; gap: clamp(16px, 2.6vw, 34px); }
-.nav nav a { font: 400 13px/1 var(--font-text); color: var(--fg-2); text-decoration: none; letter-spacing: 0.01em; transition: color .2s; }
-.nav nav a:hover { color: var(--fg); }
-@media (max-width: 379px) { .brand { font-size: 14px; } .nav nav { gap: 12px; } .nav nav a { font-size: 12.5px; } }
+.nav nav { display: flex; align-items: center; gap: clamp(6px, 1.2vw, 14px); }
+.nav nav a { font: 500 14.5px/1 var(--font-text); color: rgba(255, 255, 255, 0.86); text-decoration: none; letter-spacing: 0;
+  padding: 9px 12px; border-radius: 999px; transition: color .2s, background-color .2s; }
+.nav nav a:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.nav nav a.cta { color: #111; background: #f5f5f7; padding: 9px 16px; font-weight: 600; }
+.nav nav a.cta:hover { background: #fff; }
+.nav nav a.gh { display: inline-flex; align-items: center; gap: 7px; }
+.nav nav a.gh svg { width: 16px; height: 16px; }
+@media (max-width: 479px) { .nav nav a.gh span { display: none; } }
+@media (max-width: 379px) { .brand { font-size: 14px; } .nav nav { gap: 2px; } .nav nav a { font-size: 13px; padding: 8px 9px; } .nav nav a.cta { padding: 8px 12px; } }
 
 /* ---------- 3D layer ---------- */
 .gl-wrap {
@@ -347,8 +353,8 @@ footer a { color: var(--fg-2); }
   <a class="brand" href="./">Mocap <span>to</span> MyoFullBody</a>
   <nav aria-label="Site">
     <a href="handbook/">Handbook</a>
-    <a href="viewer/">Viewer</a>
-    <a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody">GitHub</a>
+    <a class="gh" href="https://github.com/Fitz-Yuan/mocap-to-myofullbody"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+    <a class="cta" href="viewer/">Open the viewer</a>
   </nav>
 </header>
 
