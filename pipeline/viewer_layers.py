@@ -3,10 +3,14 @@ and the OpenSim comparison (stick figure, markers, dashed curves). Positions go 
 clip's frame: the reference's model space (subject x scale) raised by the reference's
 human shift.
 
-layers(m, Q, idx, scale, human_dz, kin=None, osim=None, osim_markers=None)
+layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_markers=None)
   m: MuJoCo model (joint names), Q: reference qpos for the clip frames [n, nq],
-  idx: clip frame indices into the trial, kin / osim: npz of our kinetics and of the
-  OpenSim stage (optional). Returns (arrays, meta) to merge into the clip.
+  idx: clip frame indices into the trial, scale: subject scale of the IK, human_dz: the
+  reference's vertical shift of the body, q16 / ps: export_viewer's int16 position
+  encoder and its metres per unit, kin / osim: npz of our kinetics and of the OpenSim
+  stage (optional), osim_markers: OpenSim's model markers [T, n, 3] (optional).
+  Returns (arrays, meta) to merge into the clip. Without task loads in the kinetics
+  (M2M_TASK=none: no hand_force) the hand-load plot and arrows are left out.
 """
 
 import numpy as np
@@ -24,6 +28,7 @@ ANGLES = [  # id, title, [(our joint, OpenSim coordinate or None)], note
 ]
 UNCERTAIN = ("Grey: the carried load is touching a surface while held (or the IK left the frame "
              "unsolved), so the share it puts on the hands is not known")
+UNSOLVED = "Grey: frames the IK left unsolved (interpolated)"
 DOUBLE = "Grey: both feet on the ground; the left / right split of the ground reaction is estimated"
 LOADS = [  # id, title, unit, [(label, our key, side)], shade, refs, note
   ("L5S1_ext", "Low back (L5/S1) extension moment", "N·m", [("L5/S1", "L5S1_ext", "")], "unc", [],
@@ -72,8 +77,11 @@ def layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_marker
     ii = np.minimum(idx, T - 1)
     arrays["kin"] = np.stack([kin[k][ii] for k in keys], 1).astype(np.float32)
     grf, share = kin["grf"][ii], kin["foot_share"][ii]
-    arrays["grf"] = np.stack([grf[:, 2], share[:, 0] * grf[:, 2], share[:, 1] * grf[:, 2],
-                              -kin["hand_force"][ii, 0, 2], -kin["hand_force"][ii, 1, 2]], 1).astype(np.float32)
+    hands = "hand_force" in kin.files  # the task's load on the hands (none without a task)
+    gcols = [grf[:, 2], share[:, 0] * grf[:, 2], share[:, 1] * grf[:, 2]]
+    if hands:
+      gcols += [-kin["hand_force"][ii, 0, 2], -kin["hand_force"][ii, 1, 2]]
+    arrays["grf"] = np.stack(gcols, 1).astype(np.float32)
     arrays["shade_unc"] = kin["uncertain"][ii].astype(np.uint8)
     arrays["shade_dbl"] = (kin["foot_contact"][ii].sum(1) != 1).astype(np.uint8)
     okeys = []
@@ -89,25 +97,29 @@ def layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_marker
         series=[dict(label=lab, array="kin", col=keys.index(k), side=sd) for lab, k, sd in ser],
         cmp=[dict(label="OpenSim", array="osim_kin", col=okeys.index(k), side=sd)
              for lab, k, sd in ser if k in okeys] or None,
-        shade=dict(array=f"shade_{shade}", label=UNCERTAIN if shade == "unc" else DOUBLE),
+        shade=dict(array=f"shade_{shade}",
+                   label=(UNCERTAIN if hands else UNSOLVED) if shade == "unc" else DOUBLE),
         refs=[dict(value=v, label=l) for v, l in refs], note=note))
     plots.append(dict(id="grf_z", group="Ground reaction", title="Vertical ground force", unit="N",
                       series=[dict(label="Total", array="grf", col=0, side=""),
                               dict(label="Right foot", array="grf", col=2, side="r"),
                               dict(label="Left foot", array="grf", col=1, side="l")],
                       shade=dict(array="shade_dbl", label=DOUBLE),
-                      note="From the whole-body motion and the carried load (no force plates)."))
-    plots.append(dict(id="box_hands", group="Ground reaction", title="Carried load on each hand (vertical)", unit="N",
-                      series=[dict(label="Right", array="grf", col=4, side="r"), dict(label="Left", array="grf", col=3, side="l")],
-                      shade=dict(array="shade_unc", label=UNCERTAIN), note=""))
-    palm = to_clip(kin["palm"][ii])
+                      note="From the whole-body motion and the carried load (no force plates)." if hands
+                      else "From the whole-body motion (no force plates)."))
+    if hands:
+      plots.append(dict(id="box_hands", group="Ground reaction", title="Carried load on each hand (vertical)", unit="N",
+                        series=[dict(label="Right", array="grf", col=4, side="r"), dict(label="Left", array="grf", col=3, side="l")],
+                        shade=dict(array="shade_unc", label=UNCERTAIN), note=""))
+      palm = to_clip(kin["palm"][ii])
+      arrays["arr_hand_o"], arrays["arr_hand_v"] = q16(palm, ps), kin["hand_force"][ii].astype(np.float32)
     fcop = to_clip(np.nan_to_num(kin["foot_cop"][ii]))
-    arrays["arr_hand_o"], arrays["arr_hand_v"] = q16(palm, ps), kin["hand_force"][ii].astype(np.float32)
     arrays["arr_foot_o"] = q16(fcop, ps)
     arrays["arr_foot_v"] = (share[..., None] * grf[:, None, :]).astype(np.float32)
     for h, nm in enumerate(("left", "right")):
-      arrows.append(dict(name=f"Carried load on the {nm} hand", origin="arr_hand_o", vector="arr_hand_v", col=h,
-                         m_per_N=0.004, color="--force", anchor="head", min_N=3))
+      if hands:
+        arrows.append(dict(name=f"Carried load on the {nm} hand", origin="arr_hand_o", vector="arr_hand_v", col=h,
+                           m_per_N=0.004, color="--force", anchor="head", min_N=3))
       arrows.append(dict(name=f"Ground reaction, {nm} foot", origin="arr_foot_o", vector="arr_foot_v", col=h,
                          m_per_N=0.0008, color="--accent-2", anchor="tail", min_N=10))
   if osim is not None and "joints" in osim.files:

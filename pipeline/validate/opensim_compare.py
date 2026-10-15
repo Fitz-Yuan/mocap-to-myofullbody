@@ -11,12 +11,13 @@ Per trial and method:
   residual     body markers (head excluded), median / 95th pct over marker-frames, mm
   stand knee / hip   median flexion over quiet upright standing (mocap2myo.ik.standing)
   flips        share of frames with any joint faster than 15 rad/s
-and for the Xsens trial (M2M_XSENS_TRIAL, if its c3d exists) the knee against Xsens
-(xsens.py): offset and RMS after the offset, from the joint centres (femur, tibia,
-talus origins) of each model. Also the frame-by-frame difference between the last
-of our runs and OpenSim for hip / knee / ankle flexion.
+and for the Xsens trial (M2M_XSENS_TRIAL, if its c3d exists and ezc3d is installed;
+skipped otherwise) the knee against Xsens (xsens.py): offset and RMS after the offset,
+from the joint centres (femur, tibia, talus origins) of each model. Also the
+frame-by-frame difference between the last of our runs and OpenSim for hip / knee /
+ankle flexion.
 
-  python pipeline/validate/opensim_compare.py ["LABEL=IK_DIR" ...]    (needs ezc3d)
+  python pipeline/validate/opensim_compare.py ["LABEL=IK_DIR" ...]
 Writes <M2M_ROOT>/compare_osim/compare.json and compare.md.
 """
 
@@ -87,6 +88,15 @@ def osim(trial, P, st, rate):
               flips=flips(np.radians(A[:, rot]), rate))
 
 
+def have_ezc3d():
+  try:
+    import ezc3d  # noqa: F401
+  except ImportError:
+    print("Xsens comparison skipped: ezc3d is not installed (pip install -e \".[xsens]\")")
+    return False
+  return True
+
+
 def xsens_knee(knee_by_method):
   """Offset and RMS after the offset of each method's knee against Xsens (XC.TRIAL)."""
   xa, xr = XC.xsens_angles(XC.C3D)
@@ -128,7 +138,7 @@ def main():
       d = a[j][:n] - b[j][:n]
       diffs[j].append(d[~np.isnan(d)])
     rows[trial] = {k: {kk: vv for kk, vv in v.items() if kk != "angles"} for k, v in r.items()}
-    if trial == XC.TRIAL and os.path.exists(XC.C3D):
+    if trial == XC.TRIAL and os.path.exists(XC.C3D) and have_ezc3d():
       geo = {}
       for name, ikd in OURS.items():
         ia, rate_ik = XC.ik_angles(ikd)

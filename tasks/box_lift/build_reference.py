@@ -1,14 +1,15 @@
-"""Per-trial reference of the box-lifting trials (input to the replay videos, the
-viewer and the training dataset): human IK + measured box + scene, one frame.
+"""Per-trial reference of the box-lifting trials (input to the viewer and the motion
+dataset): human IK + measured box + scene, in one frame.
 
 Frame: scaled subject (markers x scale, see mocap2myo.ik.load_trial), floor at z = 0.
   Scene and box: shifted by -floor (the elevator markers' floor).
   Human: shifted so the median lowest sole point is on the floor while the
   feet are on the elevator platform (kinematics.sole_height); elsewhere the
-  feet are up to ~1.5 cm above z = 0 (the force plates are raised). The subjects wore thick-soled
-  slides: the barefoot model fitted to their markers floats 2.5-5.5 cm
-  (pipeline/qa.py), so the human moves down by that much relative to the box; the
-  hands hold the end faces, so this moves the grip down along those faces.
+  feet are up to ~1.5 cm above z = 0 (the force plates are raised). The subjects
+  wore thick-soled slides, and the barefoot model's soles end up -1.3 to +2.6 cm
+  from the platform before this shift (case study, static-trial calibration;
+  sole_float_mm in summary.json, also pipeline/qa.py); the human moves by that much
+  relative to the box, and as the hands hold the end faces, the grip moves along them.
 Box: Kabsch pose of the 6 markers (box_fit.py), centre moved along x to the
   middle between the palms (median over trials). Size: width / height from the
   marker layout (box_fit.BOX_SIZE); length from the palms -- the palm

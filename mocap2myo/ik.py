@@ -40,7 +40,6 @@ FREE = [f"{j}_{s}" for s in ("r", "l") for j in
          "deviation", "flexion")]
 
 
-LUMBAR = ("flex_extension", "lat_bending", "axial_rotation")
 # Optional neck (MarkerModel(neck=True)): MyoFullBody has no neck joint, so the head is
 # rigid on the trunk and its markers miss by ~3 cm (9 cm in the worst frames) whenever
 # the subject nods or turns. Three hinges at the neck body, pivot at about C7/T1,
@@ -54,9 +53,9 @@ _NECK_RANGE = ((-1.2, 1.0), (-0.8, 0.8), (-1.4, 1.4))
 
 def load_trial(path, max_gap_s=0.25, lowpass_hz=None):
   """Markers [T, n, 3] (LABELS order) scaled to the model; short gaps interpolated.
-  lowpass_hz (opt-in, default off = MMH / OMOMO unchanged): zero-phase 2nd-order
-  Butterworth (filtfilt) per marker coordinate over each gap-free run, the usual
-  marker filtering before IK (Winter: ~6 Hz for whole-body motion)."""
+  lowpass_hz (optional, default off; the stages pass M2M_LOWPASS_HZ, 6 Hz): zero-phase
+  2nd-order Butterworth (filtfilt) per marker coordinate over each gap-free run, the
+  usual marker filtering before IK (Winter: ~6 Hz for whole-body motion)."""
   d = np.load(path)
   labs = list(d["marker_labels"])
   P = np.full((d["markers"].shape[0], len(LABELS), 3), np.nan, np.float64)
@@ -77,6 +76,9 @@ def load_trial(path, max_gap_s=0.25, lowpass_hz=None):
       if len(r) and len(r) <= max_gap_s * rate and r[0] > 0 and r[-1] < len(P) - 1:
         P[r, k] = filled[r]
   if lowpass_hz:
+    if not 0 < lowpass_hz < rate / 2:
+      raise ValueError(f"{path}: low-pass {lowpass_hz} Hz must lie between 0 and half the "
+                       f"marker rate ({rate:g} Hz)")
     bb, aa = butter(2, lowpass_hz / (rate / 2))
     pad = 3 * max(len(aa), len(bb))
     for k in range(len(LABELS)):
@@ -216,27 +218,28 @@ class MarkerModel:
     decays like 1 / d). The outlier re-solve switches markers fully in or out:
     a marker hovering at the threshold flipped between frames, the fit jumped,
     and since only the joints are smoothed / speed-limited the root took the
-    jump (MMH Elevator: root acceleration p99 80 m/s^2, >100 m/s^2 in 0.7 % of
-    frames, 10x enriched at outlier-set changes; MMH 8 m/s^2). With robust,
+    jump (case study: root acceleration p99 80 m/s^2, >100 m/s^2 in 0.7 % of
+    frames, 10x enriched at outlier-set changes). With robust,
     `outlier` only marks 1-3 markers farther than it as NaN in the returned
     error (mislabels, as the re-solve; more = a bad solve, kept for the QA); the
     solve is untouched. The 4 pelvis markers keep the squared loss (bony
     landmarks on the root body, made rigid in the conversion): with their pull
     capped too, a deep stoop could leave the pelvis behind -- the hips ran to
     their 120 deg limit with the pelvis markers 16 cm off, then the fit snapped
-    back, the pelvis turning 50 deg in 0.1 s against the lumbar (MMH Elevator
-    IK v9: pelvis markers > 5 cm off in 0.36 % of frames, S10 / S11 / S06 /
-    S01 most; 650 frames of pelvis rotation > 300 deg/s).
+    back, the pelvis turning 50 deg in 0.1 s against the lumbar (case study, with
+    the root warm-started from the previous frame: pelvis markers > 5 cm off in
+    0.36 % of frames; 650 frames of pelvis rotation > 300 deg/s).
 
     outlier (optional, m): if 1-3 markers end up farther than this from the
     model, they are treated as mislabelled for this frame and the frame is
     solved again without them; their error is returned as NaN. More than 3 is
     taken as a bad solve, not bad labels, and left as it is. Head markers are
-    never rejected (no neck joint: they are off by design, at low weight).
+    never rejected (no neck joint in the model: they are off by design, at low
+    weight).
 
     mtp_prior (optional, per rad): pulls both toe joints toward 0. No marker
     sits on the toes (TOE is on calcn), so without it mtp drifts to its limit
-    (Elevator v1: -30 deg in nearly every frame, toe tips 5-8 cm up while
+    (case study: -30 deg in nearly every frame, toe tips 5-8 cm up while
     standing); the floor term still bends the toes when the heel rises.
 
     flat (optional, per m): pulls each foot's heel and toe-tip sole points to
@@ -297,16 +300,6 @@ class MarkerModel:
               r.append(contact["w_anchor"] * (fp[aid[sel]].mean(0) - atg[sel].mean(0)))
         elif len(aid):
           r.append(contact["w_anchor"] * (fp[aid] - atg).ravel())
-        if contact.get("grasp2h"):
-          # two-handed carry: palms face each other and the fingers run along
-          # the side faces (finger axis _|_ the line between the hands).
-          # 3 markers per hand leave the hand orientation loose; the IK
-          # otherwise splayed the fingers outward (hands in a V, wrists
-          # inboard of the palms) -> forearms inside the carried box.
-          c, n, f = self.palms()
-          u = c[0] - c[1]
-          u /= max(np.linalg.norm(u), 1e-6)  # right -> left hand
-          r.append(contact["w_grasp"] * np.r_[n[0] + u, n[1] - u, f @ u])
       return np.concatenate(r)
 
     sol = scipy.optimize.least_squares(res, np.clip(x0, lo + 1e-9, hi - 1e-9),
@@ -361,20 +354,6 @@ def root_from_pelvis(mm, P):
   return pos, sRot.from_matrix(R).as_quat()[[3, 0, 1, 2]]
 
 
-def pelvis_frame(P):
-  """Root guess from pelvis markers: yaw + position (model faces -y, left +x)."""
-  lasi, rasi, lpsi, rpsi = (P[LABELS.index(l)] for l in PELVIS_LABELS)
-  asis = (lasi + rasi) / 2
-  psis = (lpsi + rpsi) / 2
-  fwd = asis - psis
-  fwd[2] = 0
-  fwd /= np.linalg.norm(fwd)
-  yaw = np.arctan2(fwd[1], fwd[0]) - np.arctan2(-1.0, 0.0)  # model faces -y
-  q = sRot.from_euler("z", yaw).as_quat()[[3, 0, 1, 2]]
-  pos = (asis + psis) / 2 + np.array([0, 0, -0.03])
-  return pos, q
-
-
 # Joints held near 0 in the static (anatomical) standing trial, see calibrate(static=...)
 STATIC_NEUTRAL = [f"{j}_{s}" for s in ("r", "l") for j in
                   ("hip_flexion", "hip_adduction", "hip_rotation", "knee_angle", "ankle_angle",
@@ -386,7 +365,7 @@ STATIC_NEUTRAL = [f"{j}_{s}" for s in ("r", "l") for j in
 STATIC_SEGMENTS_LEGS = ("pelvis", "femur_r", "femur_l", "tibia_r", "tibia_l", "calcn_r", "calcn_l")
 # legs only: the pelvis markers stay with the motion trials (skin over the iliac
 # crests slides in deep stoops; placed from the upright static pose they made the
-# pelvis jump in S01 / S06 when both ASIS were hidden by the box)
+# pelvis jump in two case-study subjects when both ASIS were hidden by the box)
 STATIC_SEGMENTS_LEGS_ONLY = STATIC_SEGMENTS_LEGS[1:]
 
 
@@ -406,13 +385,13 @@ def calibrate(mm, trials, n_frames=24, iters=5, prior=2.0, max_shift=0.06, seed=
   weight of every offset update. Without them the offsets and the pose are not
   separable: a knee marker a few cm further back on the femur fits as well as a
   knee bent 20 deg, and the dynamic frames alone settled on bent knees / tilted
-  pelvis in some subjects (MMH Elevator 2026-10-15: quiet-standing knee flexion
-  10-24 deg in 16 of 22 trials, confirmed against Xsens on S11). With the
-  static trial: knee ~0 deg, residual unchanged or lower (S08, S09) to +2 mm
-  (S01). static_segments (optional): only markers on these bodies take their
-  placement from the static frames (e.g. STATIC_SEGMENTS_LEGS); with all markers,
-  the hand markers were fitted to the loose hanging wrists of the static pose and
-  their leave-one-out prediction got worse (finger 33 -> 48 mm)."""
+  pelvis in some subjects (case study: quiet-standing knee flexion 10-24 deg in 16
+  of 22 trials, confirmed against Xsens on one trial). With the static trial: knee
+  ~0 deg, residual unchanged or lower in most subjects, at most +2 mm.
+  static_segments (optional): only markers on these bodies take their placement
+  from the static frames (e.g. STATIC_SEGMENTS_LEGS); with all markers, the hand
+  markers were fitted to the loose hanging wrists of the static pose and their
+  leave-one-out prediction got worse (finger 33 -> 48 mm)."""
   rng = np.random.default_rng(seed)
   m, d = mm.m, mm.d
   off0 = anat_offsets(mm)
@@ -529,34 +508,40 @@ def standing(P, rate):
 
 
 def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
-             v_joint=15.0, w_floor=10.0, w_anchor=3.0, grasp2h=None, w_grasp=0.3,
+             v_joint=15.0, w_floor=10.0, w_anchor=3.0,
              ankle_smooth=0.3, outlier=None, mtp_prior=0.0, anchor_centroid=False,
              pelvis_gap="carry", robust=None, root_init="prev"):
   """Per-frame IK over a whole trial. Returns qpos [T, nq] and marker err [T, n]
   (NaN where a marker is missing or was rejected, see MarkerModel.solve).
+
+  Unsolved frames have an all-NaN row in marker err (that is how to find them):
+  the frames before the first one with all 4 pelvis markers, and with
+  pelvis_gap="carry" every later frame with a pelvis marker missing. Their qpos is
+  not left empty: the frames before the first solved one hold its pose, and a
+  carried frame repeats the previous pose.
+
   anchor_centroid: lock each stance foot at the centroid of its anchored sole
   points instead of every point, so it may turn about it. MyoFullBody's knee
-  has no axial rotation: in a pivot turn on a planted foot (MMH Elevator) the
+  has no axial rotation: in a pivot turn on a planted foot (case study) the
   whole twist went into hip rotation, which sat on its -40 deg limit and
   snapped back when the foot lifted (500-860 deg/s).
 
   pelvis_gap: what a frame with a missing pelvis marker gets once the first
-  frame is solved. "carry" (default, MMH / OMOMO) repeats the previous pose;
-  "solve" solves it from the markers that are there (the root then rests on the
-  thigh / trunk markers and the warm start). MMH Elevator: the carried box hides
-  the front pelvis markers for 0.3-1.4 s per bend, and carrying froze the
-  reference there, then jumped it 0.1-0.6 m in one frame (15 of 107 clips).
-  Frames before the first full pelvis stay unsolved (zeros, marker_err NaN).
+  frame is solved. "carry" (the function's default) repeats the previous pose;
+  "solve" (the pipeline's default, M2M_PELVIS_GAP) solves it from the markers
+  that are there (the root then rests on the thigh / trunk markers and the warm
+  start). Case study: the carried box hides the front pelvis markers for 0.3-1.4 s
+  per bend, and carrying froze the reference there, then jumped it 0.1-0.6 m in
+  one frame (15 of 107 clips).
 
   root_init: warm start of the root in each frame. "prev" (default): the previous
   frame's solution, like the joints. "pelvis": the rigid fit of this frame's 4
   pelvis markers (root_from_pelvis) when all 4 are there, else "prev". Warm-
   starting the root from the previous frame let the fit slide into a wrong
-  basin during a deep stoop and stay there (MMH Elevator IK v9: the root sank
-  9 cm, the hips ran to their 120 deg limit, pelvis markers 16 cm off for up to
-  0.4 s, then a 50 deg snap back; the same frames solved from scratch fit).
+  basin during a deep stoop and stay there (case study: the root sank 9 cm, the
+  hips ran to their 120 deg limit, pelvis markers 16 cm off for up to 0.4 s, then
+  a 50 deg snap back; the same frames solved from scratch fit).
 
-  grasp2h [T] bool (optional): two-handed carry frames -> palms face each other.
   contact=True (needs rate): sole points kept above the floor (the lowest sole
   point of the first, standing frame), sole points in marker-detected stance
   locked where they touched down (no skating), joint speed <= v_joint rad/s.
@@ -593,9 +578,8 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
     for i, (side, kind) in enumerate(mm.fp_kind):
       if kind == "-" or not stance[(side, kind)][t]:
         anchors.pop(i, None)
-    return dict(floor=floor, anchors=dict(anchors), w_floor=w_floor, w_grasp=w_grasp,
+    return dict(floor=floor, anchors=dict(anchors), w_floor=w_floor,
                 centroid=anchor_centroid,
-                grasp2h=grasp2h is not None and bool(grasp2h[t]),
                 w_anchor=w_anchor, max_step=v_joint * (t - last_t) / rate)
 
   def touch_down(t):

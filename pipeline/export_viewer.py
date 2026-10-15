@@ -17,8 +17,9 @@ Two kinds of file, both in the ELVW container (below):
                     platform, each hand's contact with the box and what supports
                     the box, tasks/box_lift/viewer_scene.py). Without a task
                     (M2M_TASK=none) the clip is read from the IK output instead of
-                    the reference and has no objects. Optional ghost: the same frames
-                    from a second run (e.g. another calibration) for an overlay.
+                    the reference and has no objects (and --clip is not available).
+                    Optional ghost: the same frames from a second run (e.g. another
+                    calibration) for an overlay.
                     With the inverse dynamics (pipeline/kinetics.py) the clip also gets
                     joint-load and ground-reaction plots and force arrows, and with the
                     OpenSim comparison (validate/opensim_ik.py, pipeline/opensim_id.py)
@@ -35,10 +36,22 @@ z), missing markers -32768.
 
   python pipeline/export_viewer.py model OUT_DIR
   python pipeline/export_viewer.py clip TRIAL OUT_DIR [--clip K] [--fps 50]
-      [--ik-dir DIR --ref-dir DIR --npz-dir DIR] [--ghost-ref-dir DIR --ghost-label L]
-      [--kin-dir DIR] [--osim-id-dir DIR --osim-ik-dir DIR] [--public NAME]
-  --public NAME: a clip for a public page: the trial name, the clip's position in the
-  trial, the subject's scale and the worst-gap marker are left out.
+      [--ik-dir DIR] [--ref-dir DIR] [--npz-dir DIR] [--run-label TEXT]
+      [--ghost-ref-dir DIR [--ghost-label TEXT]]
+      [--kin-dir DIR] [--osim-id-dir DIR] [--osim-ik-dir DIR] [--public NAME]
+  --clip K           clip K (1..n) of the task's reference (box_lift: carry cycle K);
+                     0 (default) = the whole trial
+  --ik-dir, --ref-dir, --npz-dir   inputs (default M2M_IK_DIR, M2M_REF_DIR, M2M_NPZ_DIR)
+  --run-label TEXT   name of the run shown in the viewer (default: the IK folder's name)
+  --ghost-ref-dir DIR, --ghost-label TEXT   overlay a second run's reference (labelled
+                     TEXT, default "second run")
+  --kin-dir DIR      inverse dynamics (pipeline/kinetics.py; default M2M_KIN_DIR)
+  --osim-id-dir DIR, --osim-ik-dir DIR   the OpenSim comparison (pipeline/opensim_id.py,
+                     validate/opensim_ik.py)
+  --public NAME      a de-identified clip for a public page, named NAME: the trial name,
+                     the clip's position in the trial, the subject's scale and the QA
+                     grades are left out, and the run is labelled --run-label or "demo"
+                     (never a folder name)
 """
 
 import argparse
@@ -172,6 +185,11 @@ def export_clip(a):
   rate, s = float(ref["rate"]), float(ref["scale"])
   T = len(ref["qpos"])
   if a.clip:
+    if "clips" not in ref.files:
+      raise SystemExit("--clip needs the task's reference (clips); without a task "
+                       "(M2M_TASK=none) export the whole trial")
+    if not 1 <= a.clip <= len(ref["clips"]):
+      raise SystemExit(f"--clip {a.clip}: {trial} has clips 1..{len(ref['clips'])}")
     lo, hi = (int(x) for x in ref["clips"][a.clip - 1])
   else:
     lo, hi = 0, T
@@ -219,7 +237,7 @@ def export_clip(a):
     gp, gq = body_poses(m, d, gQ)
     arrays["ghost_pos"], arrays["ghost_quat"] = q16(gp, ps), q16(gq, 1 / 32767)
     arrays["ghost_curves"] = np.degrees(gQ[:, adr]).astype(np.float32)
-    ghost = a.ghost_label or os.path.basename(os.path.normpath(a.ghost_ref_dir))
+    ghost = a.ghost_label or "second run"
   # inverse dynamics and the OpenSim comparison, when their files exist
   opt = lambda d, f: np.load(os.path.join(d, f)) if d and os.path.exists(os.path.join(d, f)) else None
   kin = opt(a.kin_dir, f"{trial}.npz")
@@ -241,10 +259,10 @@ def export_clip(a):
     qa={k: qa[k] for k in ("verdict", "resid_med_mm", "resid_p95_mm", "lomo_med_mm",
                            "stand_knee_deg", "stand_hip_deg", "gap_max", "gap_worst")
         if k in qa})
-  if a.public:
+  if a.public:  # nothing that identifies the trial or the subject
     meta.update(trial=a.public, clip=0, start_s=0.0, run=a.run_label or "demo")
     meta.pop("subject_scale")
-    meta["qa"].pop("gap_worst", None)
+    meta.pop("qa")  # its values match the published per-trial QA table
   os.makedirs(a.out_dir, exist_ok=True)
   name = f"{trial}{f'_c{a.clip}' if a.clip else ''}.elvw"
   if a.public:
@@ -256,7 +274,7 @@ def export_clip(a):
 
 
 def main():
-  ap = argparse.ArgumentParser()
+  ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
   sub = ap.add_subparsers(dest="cmd", required=True)
   pm = sub.add_parser("model")
   pm.add_argument("out_dir")
@@ -265,13 +283,13 @@ def main():
   pc.add_argument("out_dir")
   pc.add_argument("--clip", type=int, default=0,
                   help="clip of the task's reference 1..n (box_lift: carry cycle; 0 = whole trial)")
-  pc.add_argument("--fps", type=float, default=50.0)
+  pc.add_argument("--fps", type=float, default=50.0, help="frame rate of the clip")
   pc.add_argument("--ik-dir", default=config.IK_DIR)
   pc.add_argument("--ref-dir", default=config.REF_DIR)
   pc.add_argument("--npz-dir", default=config.NPZ_DIR)
-  pc.add_argument("--run-label", default="")
-  pc.add_argument("--ghost-ref-dir", default="")
-  pc.add_argument("--ghost-label", default="")
+  pc.add_argument("--run-label", default="", help="run name shown in the viewer")
+  pc.add_argument("--ghost-ref-dir", default="", help="a second run's reference to overlay")
+  pc.add_argument("--ghost-label", default="", help='its name in the viewer (default "second run")')
   pc.add_argument("--kin-dir", default=config.KIN_DIR, help="inverse dynamics (kinetics.py)")
   pc.add_argument("--osim-id-dir", default=config.OSIM_ID_DIR, help="OpenSim joints / ID (opensim_id.py)")
   pc.add_argument("--osim-ik-dir", default=config.OSIM_DIR, help="OpenSim IK (validate/opensim_ik.py)")

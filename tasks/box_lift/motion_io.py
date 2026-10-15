@@ -1,6 +1,7 @@
-"""Motion-dataset writer of the lift datasets (the format the imitation environment
-reads: one npz with all clips concatenated + their initial poses; box pose, grasp
-and phase per frame)."""
+"""Motion-dataset writer of the box-lifting task: one npz with all clips concatenated
+(body positions and velocities, root pose, box pose, grasp and phase per frame, clip
+bounds) plus one npz with the joint angles. Clips are at FPS (100 Hz):
+build_dataset.py checks the reference's rate before it writes."""
 
 import os
 
@@ -12,8 +13,10 @@ TRACKED = ("pelvis", "tibia_l", "tibia_r", "talus_l", "talus_r", "toes_l", "toes
            "humerus_r", "ulna_r", "thirdmc_r")
 
 
-def write(out_dir, tag, out, index, m, keep=None, stem="lift_mmh"):
-  """Save clips (all, or the `keep` ids in order) in our motion format."""
+def write(out_dir, tag, out, index, m, keep, stem, box_mass):
+  """Save clips (all for keep=None, or the `keep` ids in order) as
+  motion_<stem><tag>_100hz.npz and initial_poses_<stem><tag>_100hz.npz.
+  box_mass: kg of the carried box."""
   keep = list(range(len(index))) if keep is None else keep
   sel = lambda k: [out[k][i] for i in keep]
   n = np.array([index[i]["frames"] for i in keep])
@@ -32,7 +35,7 @@ def write(out_dir, tag, out, index, m, keep=None, stem="lift_mmh"):
            motion_lengths=(n / FPS).astype(np.float32), tracked_bodies=np.array(TRACKED),
            obj_kind=np.array([index[i]["object"] for i in keep]),
            obj_size=np.array([index[i]["obj_size"] for i in keep], np.float32),
-           box_mass=np.float32(2.0),
+           box_mass=np.float32(box_mass),
            grab_step=np.array([index[i]["grab_step"] for i in keep]),
            place_step=np.array([index[i]["place_step"] for i in keep]),
            clip_technique=np.array([index[i]["technique"] for i in keep]),

@@ -66,7 +66,8 @@ def kinetics_loads(trial, kin, K, scale, rate):
   near = (np.abs(bottom) < 0.02) | (np.abs(bottom - float(ref["shelf_top"])) < 0.02)
   loads, F, M = box_hand_loads(centre, ref["box_quat"].astype(np.float64),
                                ref["box_size"].astype(np.float64) * k, float(ref["box_mass"]),
-                               held, ref["grasp"] > 0.5, palm, kin.hand_b, rate)
+                               held, ref["grasp"] > 0.5, palm, kin.hand_b, rate,
+                               lp_hz=config.KIN_LOWPASS_HZ)
   extra = dict(held=held, uncertain=held & near, box_force_on_hands=F, box_couple=M,
                box_centre=centre, box_kg=float(ref["box_mass"]), palm=palm,
                hand_force=np.stack([l["force"] for l in loads], 1),

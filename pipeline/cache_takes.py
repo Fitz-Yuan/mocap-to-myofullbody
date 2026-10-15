@@ -1,9 +1,9 @@
-""".tak -> npz cache for prepare_markers.py with M2M_SOURCE=tak (no Motive, no export).
+""".tak -> npz cache for prepare_markers.py (no Motive, no export).
 
 Reads the raw Motive takes of the trials (raw_tak/<trial>.tak, trials matching
-M2M_TRIAL_GLOB) with mocap2myo.tak and writes tak_cache/<trial>.npz in the
-xlsx_cache layout (names [n], data [T, 2 + 3n] = Frame#, Time, X/Y/Z per marker,
-Motive world Y-up, metres; NaN = not seen) plus assets [n] (skeleton / rigid body
+M2M_TRIAL_GLOB) with mocap2myo.tak and writes tak_cache/<trial>.npz: names [n],
+data [T, 2 + 3n] = Frame#, Time, X/Y/Z per marker (Motive world Y-up, metres;
+NaN = not seen), rate (Hz), plus assets [n] (skeleton / rigid body
 each marker is labelled to) and the rigid-body definitions (rb_<name> [k, 3],
 marker k in the body frame). Marker names: the labels from Motive's live skeleton
 labelling (Plug-in-Gait in the case study); rigid-body markers <body>_<k> (case

@@ -69,14 +69,13 @@ _PIG_ANAT_L = {
 _PIG_ANAT_MID = {"C7": (0, 0.17, 1.47), "T10": (0, 0.16, 1.23), "CLAV": (0, 0.04, 1.44),
                  "STRN": (0, 0.0, 1.26), "RBAK": (-0.08, 0.18, 1.36)}
 
-# Plug-in-Gait markers labelled live in Motive with a skeleton template that uses
-# ISB landmark names (in the case study: one subject, recorded with the firefighter-
-# study template). Same physical markers, other names; the template's single elbow
-# marker took either epicondyle name (the static trial also has a real medial one:
-# the lateral HLE wins, see "prefer", as Plug-in-Gait's ELB is the lateral
-# epicondyle), and its head names were rotated on that subject (assigned by
-# position instead). LHGT (left counterpart of RBAK) and TV2 are not in the
-# model's marker set.
+# Plug-in-Gait markers labelled live with a Motive skeleton template with ISB
+# landmark names (in the case study: one subject). Same physical markers, other
+# names; the template's single elbow marker took either epicondyle name (the static
+# trial also has a real medial one: the lateral HLE wins, see "prefer", as
+# Plug-in-Gait's ELB is the lateral epicondyle), and its head names were rotated on
+# that subject (assigned by position instead). LHGT (left counterpart of RBAK) and
+# TV2 are not in the model's marker set.
 ISB_TO_PIG = {
   "CV7": "C7", "SJN": "CLAV", "SXS": "STRN", "TV7": "T10", "RHGT": "RBAK",
   "LCAJ": "LSHO", "RCAJ": "RSHO", "LUA": "LUPA", "RUA": "RUPA",

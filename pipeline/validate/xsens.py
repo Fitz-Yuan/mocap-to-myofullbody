@@ -22,7 +22,6 @@ systems), so this is supporting evidence, not ground truth.
 import os
 import sys
 
-import ezc3d
 import mujoco
 import numpy as np
 
@@ -65,6 +64,7 @@ def harrington_hjc(rasi, lasi, rpsi, lpsi):
 
 
 def xsens_angles(path):
+  import ezc3d  # optional dependency (pip install -e ".[xsens]"), only needed here
   c = ezc3d.c3d(path)
   lab = c["parameters"]["POINT"]["LABELS"]["value"]
   rate = float(c["parameters"]["POINT"]["RATE"]["value"][0])

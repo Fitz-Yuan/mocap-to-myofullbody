@@ -74,7 +74,7 @@ def trial(name):
 def main():
   E.usage(__doc__)
   names = sys.argv[1:] or E.trials(IKD)
-  workers = E.workers(12)
+  workers = E.workers()
   res = {}
   with mp.get_context("spawn").Pool(min(len(names), workers)) as pool:
     for name, out in pool.imap_unordered(trial, names):

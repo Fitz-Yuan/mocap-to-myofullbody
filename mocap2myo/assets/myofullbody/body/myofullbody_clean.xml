@@ -18,9 +18,9 @@
                        limitations under the License.
 ====================================================== -->
 
-    <!-- Robot-only copy of musclemimic_models 1.0.5 myofullbody.xml: the scene
-         include (floor + skybox) is dropped because mjlab's terrain supplies
-         the ground. Everything else is unchanged. -->
+    <!-- Copy of musclemimic_models 1.0.5 body/myofullbody.xml (mocap-to-myofullbody):
+         the scene include (floor + skybox) is dropped and this headlight /
+         offscreen-size block added. Everything else is unchanged. -->
     <visual>
         <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3" specular="0 0 0"/>
         <global offwidth="1280" offheight="720"/>

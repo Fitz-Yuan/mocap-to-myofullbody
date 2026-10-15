@@ -3,8 +3,10 @@ the OpenSim IK baseline (validate/opensim_ik.py: Scale + Marker Placer + IK with
 Rajagopal 2016 model), the joint centres per frame (body origins, drawn by the viewer as
 a stick figure) and OpenSim Inverse Dynamics with the same external loads as our
 kinetics (pipeline/kinetics.py): each hand's share of the carried load at our palm
-points, and the ground reaction under each foot at our estimated centres of pressure,
-plus the same worn equipment mass on the torso.
+points (when the task has one; none with M2M_TASK=none), and the ground reaction under
+each foot at our estimated centres of pressure, plus the same worn equipment mass on
+the torso. The ID low-passes the coordinates at M2M_KIN_LOWPASS_HZ, as our kinetics
+does the body positions.
 
 Outputs: <OSIM_ID_DIR>/<trial>.npz (joints [T, nb, 3] Z up, lab frame, m; bodies; links;
 angle_<coordinate> in deg; moment_<our name> in N m with our sign conventions) and the
@@ -16,12 +18,11 @@ import os
 import sys
 
 import numpy as np
-import opensim as osim
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from pipeline import config  # noqa: E402
 
-osim.Logger.setLevelString("error")
+osim = None  # the opensim package (from conda), imported in main()
 
 BODIES = ["pelvis", "femur_r", "tibia_r", "talus_r", "calcn_r", "toes_r", "femur_l", "tibia_l",
           "talus_l", "calcn_l", "toes_l", "torso", "humerus_r", "ulna_r", "radius_r", "hand_r",
@@ -103,15 +104,17 @@ def links(model):
 
 
 def inverse_dynamics(model_path, mot, kin, out, trial, t):
-  F = kin["hand_force"]  # [T, 2, 3] (l, r) box on each hand
-  P = kin["palm"]
-  Th = kin["hand_couple"] if "hand_couple" in kin else np.zeros_like(F)
   g, share, fcop, free = kin["grf"], kin["foot_share"], kin["foot_cop"], kin["grf_free_moment"]
+  ext = []
+  if "hand_force" in kin:  # the task's load on each hand [T, 2, 3] (l, r)
+    F = kin["hand_force"]
+    P = kin["palm"]
+    Th = kin["hand_couple"] if "hand_couple" in kin else np.zeros_like(F)
+    ext += [("hand_l", "hand_l", F[:, 0], P[:, 0], Th[:, 0]), ("hand_r", "hand_r", F[:, 1], P[:, 1], Th[:, 1])]
+  ext += [("foot_l", "calcn_l", share[:, 0, None] * g, fcop[:, 0], share[:, 0, None] * free[:, None] * [0, 0, 1]),
+          ("foot_r", "calcn_r", share[:, 1, None] * g, fcop[:, 1], share[:, 1, None] * free[:, None] * [0, 0, 1])]
   cols, data, forces = [], [], []
-  for name, body, f, p, tq in (
-      ("hand_l", "hand_l", F[:, 0], P[:, 0], Th[:, 0]), ("hand_r", "hand_r", F[:, 1], P[:, 1], Th[:, 1]),
-      ("foot_l", "calcn_l", share[:, 0, None] * g, fcop[:, 0], share[:, 0, None] * free[:, None] * [0, 0, 1]),
-      ("foot_r", "calcn_r", share[:, 1, None] * g, fcop[:, 1], share[:, 1, None] * free[:, None] * [0, 0, 1])):
+  for name, body, f, p, tq in ext:
     cols += [f"{name}_v{a}" for a in "xyz"] + [f"{name}_p{a}" for a in "xyz"] + [f"{name}_t{a}" for a in "xyz"]
     data += [to_yup(f), to_yup(np.nan_to_num(p)), to_yup(tq)]
     forces.append((name, body))
@@ -140,7 +143,7 @@ def inverse_dynamics(model_path, mot, kin, out, trial, t):
   tool = osim.InverseDynamicsTool()
   tool.setModel(model)
   tool.setCoordinatesFileName(mot)
-  tool.setLowpassCutoffFrequency(6.0)
+  tool.setLowpassCutoffFrequency(config.KIN_LOWPASS_HZ)
   tool.setExternalLoadsFileName(lx)
   tool.setStartTime(float(t[0]))
   tool.setEndTime(float(t[-1]))
@@ -155,7 +158,10 @@ def inverse_dynamics(model_path, mot, kin, out, trial, t):
 
 
 def main():
+  global osim
   config.usage(__doc__)
+  import opensim as osim
+  osim.Logger.setLevelString("error")
   out = config.OSIM_ID_DIR
   os.makedirs(out, exist_ok=True)
   trials = sys.argv[1:] or [t for t in config.trials(config.KIN_DIR)

@@ -3,7 +3,7 @@ name = "mocap2myo"
 version = "0.1.0"
 description = "Optical motion capture (OptiTrack takes, Plug-in-Gait markers) to MyoFullBody musculoskeletal motions"
 readme = "README.md"
-license = { text = "Apache-2.0" }
+license = { text = "Apache-2.0 for the code; the model files in mocap2myo/assets/myofullbody are under their own LICENSE and NOTICE (arm and hand parts: non-commercial use only)" }
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.24", "scipy>=1.10", "mujoco==3.11.0"]
 

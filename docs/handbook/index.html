@@ -234,9 +234,9 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
       <li><a href="#bottom-line">Summary</a></li>
       <li><a href="#status">Work-item status</a></li>
       <li><a href="#pipeline">Pipeline overview</a></li>
-      <li><a href="#sources">Input routes</a></li>
+      <li><a href="#sources">Input: raw takes</a></li>
       <li><a href="#steps">Processing stages</a></li>
-      <li><a href="#routes">Raw-take vs v10 IK</a></li>
+      <li><a href="#routes">Raw take vs export (before the fix)</a></li>
       <li><a href="#validation">Joint-angle validation</a></li>
       <li class="sub"><a href="#lomo">LOMO cross-validation</a></li>
       <li class="sub"><a href="#xsens">Xsens agreement</a></li>
@@ -250,7 +250,7 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
       <li><a href="#next">Open issues & fixes</a></li>
       <li><a href="#effort">Compute & effort</a></li>
       <li><a href="#run">CLI usage</a></li>
-      <li><a href="#code">Code changes</a></li>
+      <li><a href="#code">Code map</a></li>
       <li><a href="#terms">Glossary</a></li>
       <li><a href="#reading">Code reading order</a></li>
     </ol>
@@ -259,16 +259,16 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
 <header>
   <div class="eyebrow">mocap-to-myofullbody · MMH Elevator case study · updated 15 Oct 2026</div>
   <h1>Mocap to MyoFullBody Handbook</h1>
-  <p class="lede"><a href="../">Repository home</a> · <a href="../viewer/">Motion viewer</a> · <a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody">Source on GitHub</a></p>
-  <p class="lede">How the motion-capture marker trajectories of the elevator lifting study become reference motions the MyoFullBody musculoskeletal model can track: joint angles plus the box and the scene. This page covers each step, the scripts, how every step was checked, what the checks found, and what is still open. Muscle activations are not produced here; they come later, when an RL controller is trained to track these references.</p>
+  <p class="lede"><a href="../">Website home</a> · <a href="../viewer/">Motion viewer</a> · <a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody">Source on GitHub</a></p>
+  <p class="lede">How the motion-capture marker trajectories of the elevator lifting study become reference motions the MyoFullBody musculoskeletal model can track: joint angles plus the box and the scene. This page covers each step, the scripts, how every step was checked, what the checks found, and what is still open. Muscle activations and forces are not produced here: they need a muscle-level method on top of these motions, such as static optimisation or a controller trained to track them.</p>
 </header>
 
 <div class="bottom">
   <h2 id="bottom-line">Summary: status and key findings</h2>
   <ul class="plain">
     <li>The pipeline runs from the <b>raw OptiTrack takes</b> to motion clips with no Motive, no OpenSim and no file processed by hand. One command, CPU only, about an hour for the 22 trials of the case study.</li>
-    <li>Against the earlier version built from a collaborator export, it fits the markers equally well (median residual 9.2 vs 9.5 mm) and keeps 73 vs 76 carry cycles.</li>
-    <li><b>Main accuracy problem found and traced:</b> joint angles carried per-subject offsets (quiet-standing knee flexion 10–24° in 16 of 22 trials) that the marker residual cannot show. The cause is the subject calibration: a marker's position on its bone and the joint angle are not separable from the motion trials alone. Calibrating on each subject's static standing trial removes it: quiet-standing knee flexion median 18° → 0.1°, knee offset against Xsens from −8 / −10° to +1.3 / -2.4°. It is the default.</li>
+    <li>Before the calibration fix, against an earlier version built from a collaborator's export of the same takes, it fitted the markers equally well (median residual 9.2 vs 9.5 mm) and kept 73 vs 76 carry cycles. The final run (static-trial calibration) keeps 63 of 110 carry cycles (25.9 min) after the per-cycle checks and a manual review.</li>
+    <li><b>Main accuracy problem found and traced:</b> joint angles carried per-subject offsets (quiet-standing knee flexion 10–24° in 16 of 22 trials) that the marker residual cannot show. The cause is the subject calibration: a marker's position on its bone and the joint angle are not separable from the motion trials alone. Calibrating on each subject's static standing trial removes it: quiet-standing knee flexion median 18° → 0.1°, knee offset against Xsens from −8 / −10° to +1.3 / −2.4°. It is the default of <code>run_all.sh</code> (<code>M2M_STATIC=1</code>).</li>
     <li><b>Against OpenSim</b> (Scale + Marker Placer + IK, Rajagopal 2016, same markers): marker residual median 9.2 vs 19.8 mm, quiet-standing knee 0.1° vs 10.6°.</li>
     <li><b>Inverse dynamics</b> (joint loads): low-back L5/S1 extension moment agrees with OpenSim Inverse Dynamics given the same loads (r = 0.984, RMS 13 N m); the predicted total ground force matches the lab's force plates to 1.8 % of body weight, and the plates give back the box mass (13.2 vs 13.6 kg).</li>
   </ul>
@@ -282,12 +282,12 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
       <tbody>
         <tr><td>Reading raw takes</td><td><span class="pill ok">Verified</span></td><td>11 processed takes (6 subjects) identical to Motive's TRC exports</td></tr>
         <tr><td>Raw take to cleaned markers</td><td><span class="pill ok">Done</span></td><td>22 trials; compared point by point with the collaborator export, every difference explained</td></tr>
-        <tr><td>Raw-take route: IK, reference, QA, dataset</td><td><span class="pill ok">Done</span></td><td><code>lift_elev_tak_v1</code>: 73 cycles, 30.0 min. Not used for training yet</td></tr>
+        <tr><td>Raw-take route: IK, reference, QA, dataset</td><td><span class="pill ok">Done</span></td><td>Final run (static-trial calibration): 63 of 110 carry cycles pass the per-cycle checks and the manual review, 25.9 min</td></tr>
         <tr><td>One-command rebuild from raw takes</td><td><span class="pill ok">Done</span></td><td><code>pipeline/run_all.sh</code></td></tr>
-        <tr><td>Leave-one-marker-out test</td><td><span class="pill ok">Done</span></td><td>Both routes done: 14.9 vs 15.6 mm median prediction error</td></tr>
+        <tr><td>Leave-one-marker-out test</td><td><span class="pill ok">Done</span></td><td>Final run: median prediction error 14.45 mm (per trial 12.3–24.0 mm)</td></tr>
         <tr><td>Comparison with Xsens</td><td><span class="pill todo">Partial</span></td><td>Only one trial has a usable Xsens export; the rest need a batch export from MVN</td></tr>
-        <tr><td>Per-trial pass / warn / fail report</td><td><span class="pill ok">Done</span></td><td>11 FAIL, 11 WARN, mostly on standing posture (table below)</td></tr>
-        <tr><td>Static-trial calibration</td><td><span class="pill ok">Done</span></td><td>Default: the static trial places the pelvis and leg markers (<code>M2M_STATIC_MARKERS=legs</code>)</td></tr>
+        <tr><td>Per-trial pass / warn / fail report</td><td><span class="pill ok">Done</span></td><td>Final run: 1 FAIL, 17 WARN, 4 PASS, mostly a marker missing in many frames or the hip flexed while standing (table below)</td></tr>
+        <tr><td>Static-trial calibration</td><td><span class="pill ok">Done</span></td><td>Default of <code>run_all.sh</code> (<code>M2M_STATIC=1</code>): the static trial places the pelvis and leg markers (<code>M2M_STATIC_MARKERS=legs</code>)</td></tr>
         <tr><td>OpenSim head-to-head</td><td><span class="pill ok">Done</span></td><td>IK and inverse dynamics on the same data; optional in the pipeline (<code>run_all.sh --opensim</code>)</td></tr>
         <tr><td>Inverse dynamics</td><td><span class="pill ok">Done</span></td><td>L5/S1, shoulders and elbows top-down; ground reaction; legs with an estimated foot split</td></tr>
         <tr><td>Force-plate check</td><td><span class="pill ok">Done</span></td><td>AMTI plates in front of the shelf, 22 trials</td></tr>
@@ -314,23 +314,23 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
     <div class="arrow" aria-hidden="true"></div>
     <div class="node" role="listitem"><b>5 QA + segmentation</b><span>one clip per carry cycle</span></div>
     <div class="arrow" aria-hidden="true"></div>
-    <div class="node data" role="listitem"><b>Motion dataset</b><span>npz, merged with MMH</span></div>
+    <div class="node data" role="listitem"><b>Motion dataset</b><span>npz, one clip per carry cycle</span></div>
   </div>
   <div class="legend"><span><i></i>processing step</span><span><i class="d"></i>data</span></div>
   <p class="note">Scripts: <code>pipeline/</code> (generic stages) and <code>tasks/box_lift/</code> (the lifting task); library: <code>mocap2myo/</code>. Data: <code>$M2M_ROOT</code> (default <code>~/data/mocap2myo</code>); paths and file naming in <code>pipeline/config.py</code>. CPU only.</p>
 </section>
 
 <section>
-  <h2 id="sources">Input routes: collaborator xlsx export vs raw Motive takes</h2>
-  <p class="lede">Step 1 has two entry points; everything after it is shared. The earlier version (v10) used an export prepared by a collaborating group. The raw-take route uses no file anyone has processed by hand.</p>
+  <h2 id="sources">Input: raw Motive takes (and a collaborator's export, for comparison)</h2>
+  <p class="lede">The pipeline reads the raw takes; no file anyone has processed by hand. An earlier version read an export of the same takes prepared by a collaborating group. That route is not part of this repository (its converter depends on the collaborator's files), but the two inputs were compared point by point, and the comparison is kept below as a check.</p>
   <div class="tbl">
     <table>
-      <thead><tr><th></th><th>Collaborator export (used by v10)</th><th>Raw take (new)</th></tr></thead>
+      <thead><tr><th></th><th>Collaborator export (earlier version, not in this repository)</th><th>Raw take (this repository)</th></tr></thead>
       <tbody>
-        <tr><td>Input</td><td>Marker coordinates exported from Motive by a collaborating group, converted to xlsx</td><td><code>Raw Take Files/*.tak</code> for each subject</td></tr>
+        <tr><td>Input</td><td>Marker coordinates exported from Motive by a collaborating group, converted to xlsx</td><td><code>raw_tak/*.tak</code> for each trial, <code>raw_tak/static/</code> for the static trials</td></tr>
         <tr><td>Body labels</td><td>Edited and gap-filled by them in Motive</td><td>Labels Motive assigned live during recording</td></tr>
         <tr><td>Box and scene markers</td><td>Labels lost in the export; recovered from geometry</td><td>Owning rigid body is in the file; still matched by geometry</td></tr>
-        <tr><td>Switch and outputs</td><td>Default <code>M2M_SOURCE=export</code>: <code>markers_from_export/</code> (case study: <code>lift_elev_v2</code>)</td><td><code>M2M_SOURCE=tak</code>: <code>markers/</code> (case study: <code>lift_elev_tak_v1</code>)</td></tr>
+        <tr><td>Outputs</td><td>—</td><td><code>tak_cache/</code>, then <code>markers/</code> (<code>M2M_NPZ_DIR</code>)</td></tr>
       </tbody>
     </table>
   </div>
@@ -364,10 +364,10 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
           <li>Missing pelvis markers are refilled from the other three, using the pelvis as a rigid body.</li>
           <li>Box: a template of its 6 markers is taken while the box rests in S03; each frame's box position and orientation come from a rigid (Kabsch) fit of that template.</li>
           <li>Shelf and floor: static markers, sorted by height.</li>
-          <li>Raw-take route only: S01's labels are renamed (below), and the four head markers of every trial are assigned by their front/back and left/right position.</li>
+          <li>S01's labels are renamed (below), and the four head markers of every trial are assigned by their front/back and left/right position.</li>
         </ul>
-        <div class="io"><span><b>In</b> step 1 trajectories, subject height and weight (<code>meta/Anthropometrics.xlsx</code>, the lab's own file)</span><span><b>Out</b> <code>markers/</code> (<code>M2M_NPZ_DIR</code>)</span></div>
-        <div class="callout check"><b>Checked.</b> Both routes compared point by point. In 18 of 22 trials, 98–99.9% of the shared samples are identical; box pose, floor and shelf heights are identical in all 22. S06: the export was smoothed (3–5 mm per point, no time shift). S01: it was reconstructed again in Motive (differences below 1 mm). The default route was re-run on S09 and its output is unchanged.</div>
+        <div class="io"><span><b>In</b> step 1 trajectories, subject height and weight (<code>meta/anthropometrics.csv</code>)</span><span><b>Out</b> <code>markers/</code> (<code>M2M_NPZ_DIR</code>)</span></div>
+        <div class="callout check"><b>Checked.</b> The raw-take markers were compared point by point with the collaborator's export. In 18 of 22 trials, 98–99.9% of the shared samples are identical; box pose, floor and shelf heights are identical in all 22. S06: the export was smoothed (3–5 mm per point, no time shift). S01: it was reconstructed again in Motive (differences below 1 mm).</div>
       </div>
     </article>
 
@@ -379,14 +379,15 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
         <p>IK finds the joint angles that bring the model's virtual markers as close as possible to the measured ones. It is the same idea as OpenSim's IK, written directly on MuJoCo's MyoFullBody and solved with <code>scipy.optimize.least_squares</code>; joint limits are the bounds of the variables.</p>
         <ul>
           <li><b>Scaling.</b> The model stays as it is; the markers are scaled by the ratio of model height to subject height.</li>
-          <li><b>Calibration, once per subject.</b> 40 frames with varied poses are taken from all of the subject's trials. The solver alternates between solving IK with the current marker placements and updating where each marker sits on its segment from the solved poses, like OpenSim's Scale plus Marker Placer. Standing frames must have flat feet. A marker may move up to about 6 cm from its starting position on the segment.</li>
+          <li><b>Calibration, once per subject.</b> 40 frames with varied poses are taken from all of the subject's trials, plus standing frames, which must have flat feet. The solver alternates between solving IK with the current marker placements and updating where each marker sits on its segment from the solved poses, like OpenSim's Scale plus Marker Placer. A marker may move from its starting position on the segment by up to 6 cm, 10 cm for the foot markers (on thick-soled slides) and 15 cm for the wand, trunk and head markers, whose placement varies most.</li>
+          <li><b>Static trial (the default).</b> The subject's static standing trial joins the calibration: in its frames the hips, knees, ankles and subtalar joints are pulled toward 0°, and they carry half the weight of every update of the marker placements. They place only the pelvis and leg markers (<code>M2M_STATIC_MARKERS=legs</code>); the arm and trunk markers come from the motion trials. <code>run_all.sh</code> turns this on (<code>M2M_STATIC=1</code>); the default in <code>pipeline/config.py</code> is off, so a stage run on its own needs <code>M2M_STATIC=1</code>. Why it is needed: see "Validation" and "Calibration fix".</li>
           <li><b>Per-frame solve.</b> 37 degrees of freedom: pelvis 6, legs 14, lumbar 3, arms 14. Other joints follow the model's coupling constraints. Each frame starts from the previous one, and the pelvis starting pose comes from a rigid fit to the four pelvis markers.</li>
           <li><b>Safeguards.</b> Markers are low-pass filtered at 6 Hz. A robust loss weakens the pull of a marker that is far off. Feet may not go through the floor, a standing foot stays where it was planted, and joint speed is capped so the solution cannot flip between frames.</li>
         </ul>
-        <div class="io"><span><b>In</b> step 2 npz</span><span><b>Out</b> <code>ik/</code>: joint angles (qpos) per frame and each marker's residual</span></div>
-        <div class="callout check"><b>Fit.</b> Body-marker residual per trial: median 7.5–12.3 mm, 95th percentile 25–49 mm (raw-take route; v10 is the same). OpenSim IK on S09 with the same marker data: median about 21 mm.</div>
-        <div class="callout bad"><b>Problem.</b> The calibration can trade where markers sit on a segment against the pose itself. With segment lengths only scaled by height, a mismatch in bone lengths is absorbed partly by moving markers and partly by bending joints, which shifts the joint angles of every frame of that subject. See "Validation".</div>
-        <div class="callout pit"><b>Model limits.</b> The knee has no axial rotation, so all twisting during turns goes to the hip. Deep squats go past the model's 120° joint limits. There is no neck joint, so head markers carry a low weight.</div>
+        <div class="io"><span><b>In</b> step 2 npz</span><span><b>Out</b> <code>ik/</code>: joint angles (qpos) per frame, each marker's residual, and the frames the IK could not solve</span></div>
+        <div class="callout check"><b>Fit (final run).</b> Body-marker residual per trial: median 7.7–14.3 mm, 95th percentile 25–48 mm (the IK's own measure, on the height-scaled, filtered markers). Against the raw markers in the subject's own size, as used for the OpenSim comparison: median 7.9–14.3 mm per trial (9.2 mm, median over trials); OpenSim IK on the same markers 14.6–27.5 mm (19.8 mm; S09: 16.0 and 14.9 mm).</div>
+        <div class="callout bad"><b>Why the static trial.</b> From the motion trials alone, the calibration can trade where markers sit on a segment against the pose itself: a knee marker a few centimetres further back fits as well as a knee bent 20°, which shifts the joint angles of every frame of that subject. The static trial removes that freedom. See "Validation" and "Calibration fix".</div>
+        <div class="callout pit"><b>Model limits.</b> The knee has no axial rotation, so all twisting during turns goes to the hip. Deep squats go past the model's 120° joint limits. There is no neck joint, so head markers carry a low weight (an optional neck for the IK, <code>M2M_NECK=1</code>, lets the head follow its markers; it is not validated).</div>
       </div>
     </article>
 
@@ -396,8 +397,8 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
         <h3>Stage 4 · Reference construction: floor alignment, box pose, grasp and support labels</h3>
         <div class="files">tasks/box_lift/build_reference.py</div>
         <ul>
-          <li>The body is lowered onto the floor. Subjects wore thick-soled slides, so the barefoot model floats 2.5–5.5 cm.</li>
-          <li>Box size: width and height from the marker layout; length from the distance between the palms while carrying (0.426 m). Box mass 30 lb (13.6 kg).</li>
+          <li>The body is aligned with the floor (the elevator platform). Subjects wore thick-soled slides; with the static-trial calibration the barefoot model's soles sit between 1.3 cm below and 2.6 cm above the platform before this shift (median over trials −0.2 cm).</li>
+          <li>Box size: width and height from the marker layout; length from the distance between the palms while carrying (0.428 m). Box mass 30 lb (13.6 kg).</li>
           <li>Shelf top height = height of the box bottom while the box rests on the shelf.</li>
           <li>Grasp label: the box is off the floor and shelf, and that palm is close enough to the box surface.</li>
           <li>Support state (floor, hands, shelf) is labelled, and each carry cycle is found: box lifted off the floor until it is set back down.</li>
@@ -410,26 +411,25 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
       <div class="num">5</div>
       <div class="body">
         <h3>Stage 5 · QA gating and carry-cycle segmentation</h3>
-        <div class="files">pipeline/qa.py · tasks/box_lift/build_dataset.py · merge_lift_stage3.py · pipeline/report.py</div>
+        <div class="files">pipeline/qa.py · tasks/box_lift/build_dataset.py · pipeline/report.py</div>
         <ul>
           <li>Each carry cycle becomes one clip at 100 Hz.</li>
-          <li>Clips that fail the checks are dropped automatically: 95th-percentile marker residual above 6 cm, unsolved frames, sudden pelvis jumps, or the pelvis turning too fast (IK loses the pelvis when a deep squat goes past the model's limits).</li>
-          <li>Human review on top: after watching the replay videos, subjects S10 and S11 and the 5th cycle of S09 Spring were removed.</li>
-          <li>The clips are merged with the public MMH lifting data, and starting muscle activations are computed for each clip.</li>
-          <li>New: <code>report.py</code> grades every trial on gaps, fit, leave-one-marker-out prediction, joint flips and standing posture (PASS / WARN / FAIL with reasons). It does not drop anything by itself.</li>
+          <li>Clips that fail the checks are dropped automatically: 95th-percentile marker residual above 6 cm, unsolved frames, sudden root jumps, pelvis markers far off, or the pelvis turning too fast (IK loses the pelvis when a deep squat goes past the model's limits).</li>
+          <li>A manual review on top: after viewing the reference motions, subjects S10 and S11 and the 5th cycle of S09 Spring were removed.</li>
+          <li><code>report.py</code> grades every trial on gaps, fit, leave-one-marker-out prediction, joint flips and standing posture (PASS / WARN / FAIL with reasons). It does not drop anything by itself.</li>
         </ul>
-        <div class="io"><span><b>Out</b> v10: 76 cycles, 31.1 min. Raw-take route: 73 cycles, 30.0 min (S01–S09)</span></div>
+        <div class="io"><span><b>Out</b> <code>data/&lt;M2M_DATA&gt;/</code>: final run 63 of 110 carry cycles pass, 25.9 min (S02–S09)</span></div>
       </div>
     </article>
   </div>
 </section>
 
 <section>
-  <h2 id="routes">IK comparison: raw-take route vs v10 (collaborator export)</h2>
-  <p class="lede">Same IK code and settings; only the input differs.</p>
+  <h2 id="routes">IK comparison: raw take vs collaborator export (before the calibration fix)</h2>
+  <p class="lede">Same IK code and settings, both with the calibration from the motion trials alone that was used before the static-trial fix; only the input differs. These are not the final results (those are in the sections below).</p>
   <div class="tbl">
     <table class="tabnum">
-      <thead><tr><th>Measure</th><th>Raw take</th><th>v10 (export)</th><th>Notes</th></tr></thead>
+      <thead><tr><th>Measure (before the fix)</th><th>Raw take</th><th>Export</th><th>Notes</th></tr></thead>
       <tbody>
         <tr><td>Marker residual, median of trial medians</td><td>9.2 mm</td><td>9.5 mm</td><td>range 7.5–12.3 vs 7.5–12.7</td></tr>
         <tr><td>Marker residual, 95th pct, median</td><td>31.1 mm</td><td>31.2 mm</td><td>range 25–49 vs 26–46</td></tr>
@@ -438,7 +438,7 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
       </tbody>
     </table>
   </div>
-  <p class="note">The S01 / S03 / S07 shifts appear although the two inputs share 98–99.9% of their samples. A small change in input moves the subject calibration and with it every joint angle of that subject: the same weakness the validation below points at.</p>
+  <p class="note">The S01 / S03 / S07 shifts appear although the two inputs share 98–99.9% of their samples. A small change in input moves the subject calibration and with it every joint angle of that subject: the same weakness the validation below points at, and the reason for the static-trial calibration. With it, the raw-take route keeps 63 carry cycles (25.9 min).</p>
 </section>
 
 <section>
@@ -447,12 +447,12 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
 
   <div class="sub">
     <h3 id="lomo">Leave-one-marker-out (LOMO) cross-validation</h3>
-    <p>Every body marker is left out in turn (one frame per second, all 22 trials), the frame is solved again, and the model's prediction of the missing marker is compared with where it was measured. Script: <code>pipeline/validate/lomo.py</code>.</p>
+    <p>Every body marker is left out in turn (one frame per second, all 22 trials), the frame is solved again, and the model's prediction of the missing marker is compared with where it was measured. Script: <code>pipeline/validate/lomo.py</code>. Final run (static-trial calibration); per marker, the median over trials:</p>
     <ul class="plain">
-      <li>Prediction error per trial: median 11.8–20.2 mm (median 14.9), against a residual of 6.6–10.4 mm with all markers.</li>
-      <li>Legs are pinned down well: ankle 7–8 mm, knee 9–11 mm, shank 7–13 mm.</li>
-      <li>Shoulder and elbow about 22 mm (residual 14–17 mm): the upper arm is the loosest part of the fit.</li>
-      <li>Finger 32–36 mm and toe 26 mm: each is the only marker that sets the wrist or toe angle, so leaving it out is expected to fail.</li>
+      <li>Prediction error per trial: median 12.3–24.0 mm (median 14.45), against a residual of 6.6–11.3 mm with all markers.</li>
+      <li>Legs are pinned down well: ankle 8–10 mm, knee 11–13 mm, shank 7–9 mm.</li>
+      <li>Shoulder 23–25 mm (residual 17 mm) and elbow about 19 mm (residual 12 mm): the upper arm is the loosest part of the fit.</li>
+      <li>Finger 37–44 mm and toe 19–21 mm: each is the only marker that sets the wrist or toe angle, so leaving it out is expected to fail.</li>
       <li>This test cannot see a whole-subject offset: if the calibration bent the knees, the other markers still predict each other well.</li>
     </ul>
   </div>
@@ -462,46 +462,48 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
     <p>The subjects also wore an Xsens suit. Only S11 Spring NE has a usable export (a c3d of MVN's 64 virtual anatomical points, 60 Hz; the other trials exist only as raw .mvn files, and S11 Solid's c3d is empty). The same geometric angles were computed on both sides and aligned by cross-correlation (lag 0.05 s). Script: <code>pipeline/validate/xsens.py</code>.</p>
     <div class="tbl">
       <table class="tabnum">
-        <thead><tr><th>Angle</th><th>Correlation</th><th>Mean offset (IK − Xsens)</th><th>RMS after removing the offset</th></tr></thead>
+        <thead><tr><th>Angle</th><th>Correlation, before the fix / final</th><th>Mean offset (IK − Xsens), before the fix / final</th><th>RMS after removing the offset, before the fix / final</th></tr></thead>
         <tbody>
-          <tr><td>Right knee</td><td>0.994</td><td>−8.2°</td><td>3.2°</td></tr>
-          <tr><td>Left knee</td><td>0.995</td><td>−10.0°</td><td>2.8°</td></tr>
+          <tr><td>Right knee</td><td>0.994 / 0.995</td><td>−8.2° / +1.3°</td><td>3.2° / 3.8°</td></tr>
+          <tr><td>Left knee</td><td>0.995 / 0.996</td><td>−10.0° / −2.4°</td><td>2.8° / 3.0°</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="note">Negative offset = the IK knee is more flexed (the included angle is smaller). The knee's shape over time matches almost exactly; the level is 8–10° apart, and the model's own geometry accounts for only 1.4° of it. Elbow and trunk were also computed but are not comparable: Xsens gives the acromion rather than the shoulder joint centre, and the model's elbow carries a 13° geometric offset. Xsens has its own errors of several degrees, so this is supporting evidence, not ground truth.</p>
+    <p class="note">"Before the fix": calibration from the motion trials alone; "final": with the static trial (pelvis + legs). Negative offset = the IK knee is more flexed (the included angle is smaller). The knee's shape over time matches almost exactly; before the fix the level was 8–10° apart, and the model's own geometry accounts for only 1.4° of it. Elbow and trunk were also computed but are not comparable: Xsens gives the acromion rather than the shoulder joint centre, and the model's elbow carries a 13° geometric offset. Xsens has its own errors of several degrees, so this is supporting evidence, not ground truth.</p>
   </div>
 
   <div class="sub">
     <h3 id="posture">Quiet-standing posture bias</h3>
-    <p>Quiet standing frames are found from the markers alone: pelvis and both ankles moving less than 5 cm/s for 0.5 s, pelvis within 3 cm of its upright height. A person standing quietly has the knee at about 0–5° and the hip near 0°.</p>
+    <p>Quiet standing frames are found from the markers alone: pelvis and both ankles moving less than 5 cm/s for 0.5 s, pelvis within 3 cm of its upright height. A person standing quietly has the knee at about 0–5° and the hip near 0°. Before the calibration fix (motion trials only):</p>
     <ul class="plain">
       <li>Knee flexion in quiet standing: 0–24°. At least 10° in 16 of 22 trials, above 20° in 7 (S07, S08, S09, S10 Spring).</li>
       <li>Hip flexion in quiet standing: up to 28° from neutral. Above 10° in 15 trials, above 20° in 5 (S01, S02 Solid, S10).</li>
       <li>Asymmetry within a subject, e.g. S07: right knee about 0°, left 20° in the most extended frames.</li>
     </ul>
-    <div class="callout bad"><b>Reading.</b> Neither the residual nor the leave-one-marker-out test catches this, and Xsens independently points the same way at the knee. The static standing trials settle the cause: with the same calibration, the IK puts subjects who stand still and upright at 13–26° of knee flexion or 14–21° of hip extension, while their bone-length ratios match the model within about 5 % (S02 and S08 have nearly the same ratios and 0° vs 24° of knee flexion). So it is not a segment-length problem. The calibration lets each marker move a few centimetres on its bone, and a knee marker a few centimetres further back fits as well as a knee bent 20°: from the motion trials alone the two cannot be told apart.</div>
+    <p>Final run (static-trial calibration): knee flexion in quiet standing median 0.1°, at least 10° in no trial; |hip flexion| median 9.4°, above 10° in 10 trials (see the QA report below).</p>
+    <div class="callout bad"><b>Reading.</b> Neither the residual nor the leave-one-marker-out test catches this, and Xsens independently points the same way at the knee. The static standing trials settle the cause: with the motion-trial calibration, the IK puts subjects who stand still and upright at 13–26° of knee flexion or 14–21° of hip extension, while their bone-length ratios match the model within about 5 % (S02 and S08 have nearly the same ratios and 0° vs 24° of knee flexion). So it is not a segment-length problem. The calibration lets each marker move a few centimetres on its bone, and a knee marker a few centimetres further back fits as well as a knee bent 20°: from the motion trials alone the two cannot be told apart.</div>
   </div>
 </section>
 
 <section>
   <h2 id="static">Calibration fix: anchoring on the static trial</h2>
-  <p class="lede">Each subject was recorded standing still and upright for 5 s before the task (<code>Subject&lt;ss&gt;_Anatomy.tak</code>; S07 has none and uses quiet standing from its trials). Those frames join the calibration with the hips, knees, ankles and subtalar joints pulled toward 0°, and carry half the weight of every update of the marker placements (<code>M2M_STATIC=1</code>; <code>mocap2myo.ik.calibrate(static=...)</code>). This is the role of the static trial in OpenSim's Scale and Marker Placer.</p>
+  <p class="lede">Each subject was recorded standing still and upright for 5 s before the task (<code>raw_tak/static/S&lt;ss&gt;_Anatomy.tak</code>; S07 has none and uses quiet standing from its trials). Those frames join the calibration with the hips, knees, ankles and subtalar joints pulled toward 0°, and carry half the weight of every update of the marker placements (<code>mocap2myo.ik.calibrate(static=...)</code>). This is the role of the static trial in OpenSim's Scale and Marker Placer. It is switched on by <code>M2M_STATIC=1</code>, which <code>run_all.sh</code> sets; the default in <code>pipeline/config.py</code> is <code>0</code>, so a stage run on its own (for example <code>pipeline/solve_ik.py</code>) needs <code>M2M_STATIC=1</code> to reproduce these results.</p>
   <div class="tbl">
     <table class="tabnum">
-      <thead><tr><th>Measure (22 trials)</th><th>Motion trials only</th><th>Static trial: all markers (first try)</th><th>Static trial: pelvis + legs (default)</th><th>Static trial: legs only</th></tr></thead>
+      <thead><tr><th>Measure (22 trials)</th><th>Motion trials only</th><th>Static trial: all markers</th><th>Static trial: pelvis + legs (default)</th><th>Static trial: legs only</th></tr></thead>
       <tbody>
         <tr><td>Quiet-standing knee flexion, median</td><td>18.2°</td><td>0.05°</td><td>0.1°</td><td>0.0°</td></tr>
         <tr><td>Quiet-standing |hip flexion|, median</td><td>13.2°</td><td>6.9°</td><td>9.4°</td><td>8.8°</td></tr>
         <tr><td>Knee offset against Xsens (S11 Spring), R / L</td><td>-8.2° / -10.0°</td><td>+0.7° / −2.4°</td><td>+1.3° / -2.4°</td><td>+1.1° / -2.2°</td></tr>
         <tr><td>Knee RMS against Xsens after the offset, R / L</td><td>3.2° / 2.8°</td><td>4.0° / 2.9°</td><td>3.8° / 3.0°</td><td>4.1° / 3.5°</td></tr>
-        <tr><td>Marker residual median / 95th pct (raw markers)</td><td>10.0 / 35.5 mm</td><td>9.8 / 39.0 mm</td><td>9.2 / 32.7 mm</td><td>9.5 / 35.8 mm</td></tr>
+        <tr><td>Marker residual median / 95th pct, raw markers in the subject's size (as for OpenSim)</td><td>10.0 / 35.5 mm</td><td>not computed</td><td>9.2 / 32.7 mm</td><td>9.5 / 35.8 mm</td></tr>
+        <tr><td>Marker residual median / 95th pct, the IK's own measure (height-scaled, filtered markers; median over trials)</td><td>9.2 / 31.1 mm</td><td>9.8 / 39.0 mm</td><td>8.5 / 29.9 mm</td><td>8.8 / 31.1 mm</td></tr>
         <tr><td>Report verdicts FAIL / WARN / PASS</td><td>11 / 11 / 0</td><td>3 / 16 / 3</td><td>1 / 17 / 4</td><td>2 / 14 / 6</td></tr>
         <tr><td>Carry cycles passing QA</td><td>73</td><td>64</td><td>63</td><td>66</td></tr>
       </tbody>
     </table>
   </div>
-  <p class="note">All three static variants remove the knee offset. The first try (every marker placed by the static trial) cost upper-body fit: with the arms hanging loosely in the static pose, the hand markers were placed poorly. Letting the static trial place only the pelvis and leg markers recovers that (lowest residual and the best Xsens agreement after the offset), and is the default (<code>M2M_STATIC=1</code>, <code>M2M_STATIC_MARKERS=legs</code>, set by <code>run_all.sh</code>). Placing only the legs (pelvis from the motion trials) keeps three more carry cycles, mostly in subjects whose pelvis markers are unreliable, at a slightly higher residual; it is an option. Residuals here are against the raw markers in the subject's own size (as for OpenSim below), so they read slightly higher than the IK's own log.</p>
+  <p class="note">All three static variants remove the knee offset. Placing every marker with the static trial cost upper-body fit: with the arms hanging loosely in the static pose, the hand markers were placed poorly. Letting the static trial place only the pelvis and leg markers recovers that (the lowest residual, by either measure), and is the default of <code>run_all.sh</code> (<code>M2M_STATIC=1</code>, <code>M2M_STATIC_MARKERS=legs</code>). Against Xsens the three static variants are about the same: offsets within 2.4°, RMS after the offset 3.8–4.1° on the right and 2.9–3.5° on the left, slightly above the 3.2 / 2.8° of the motion-trial calibration, whose offset is much larger. Placing only the legs (pelvis from the motion trials) keeps three more carry cycles, mostly in subjects whose pelvis markers are unreliable, at a slightly higher residual; it is an option. The raw-marker residual is against the unfiltered markers in the subject's own size, so it reads higher than the IK's own measure.</p>
 </section>
 
 
@@ -513,7 +515,7 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
 </section>
 <section>
   <h2 id="kinetics">Inverse dynamics: joint loads from the IK</h2>
-  <p class="lede">Net joint forces and moments come from Newton–Euler sums over subtrees of MyoFullBody, scaled to the subject's size and body mass (plus the 1–3 kg COSMED K5 system the subjects wore in these trials, lumped at the torso). For a joint, the parent segment's force and moment on everything distal to it equal the rate of change of that subtree's momentum minus gravity and the external loads on it (<code>mocap2myo/kinetics.py</code>, <code>pipeline/kinetics.py</code>). Body positions are low-passed at 6 Hz before the double differentiation, as in the IK.</p>
+  <p class="lede">Net joint forces and moments come from Newton–Euler sums over subtrees of MyoFullBody, scaled to the subject's size and body mass (plus the 1–3 kg COSMED K5 system the subjects wore in these trials, lumped at the torso). For a joint, the parent segment's force and moment on everything distal to it equal the rate of change of that subtree's momentum minus gravity and the external loads on it (<code>mocap2myo/kinetics.py</code>, <code>pipeline/kinetics.py</code>). Body positions are low-passed at 6 Hz before the double differentiation (<code>M2M_KIN_LOWPASS_HZ</code>), as the markers are for the IK. Frames the IK did not solve (listed in its output) are interpolated and shaded like the undetermined ones.</p>
   <div class="tbl">
     <table>
       <thead><tr><th>Output</th><th>How it is determined</th><th>Reliability</th></tr></thead>
@@ -534,11 +536,11 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
   <h2 id="kin-validation">Inverse dynamics: validation</h2>
   <p class="lede">Two independent checks. First, OpenSim Inverse Dynamics on the OpenSim IK (another model, another IK), given the same external loads: the box on each hand at our palm points and the ground reaction under each foot at our centres of pressure (<code>pipeline/opensim_id.py</code>, <code>pipeline/validate/kinetics_compare.py</code>). Median over the 22 trials, frames with an undetermined hand load left out:</p>
   <div class="tbl"><table class="tabnum"><thead><tr><th>Net joint moment</th><th>r</th><th>Mean difference (N m)</th><th>RMS difference (N m)</th><th>95th pct, ours / OpenSim (N m)</th></tr></thead><tbody><tr><td>L5/S1 extension</td><td>0.984</td><td>+5.1</td><td>13.2</td><td>178 / 185</td></tr><tr><td>Hip extension R</td><td>0.981</td><td>+11.2</td><td>16.6</td><td>135 / 125</td></tr><tr><td>Hip extension L</td><td>0.964</td><td>+10.2</td><td>17.2</td><td>103 / 86</td></tr><tr><td>Hip abduction R</td><td>0.988</td><td>-3.5</td><td>7.3</td><td>67 / 80</td></tr><tr><td>Hip abduction L</td><td>0.975</td><td>-4.8</td><td>8.8</td><td>64 / 69</td></tr><tr><td>Knee extension R</td><td>0.867</td><td>-13.6</td><td>25.9</td><td>62 / 82</td></tr><tr><td>Knee extension L</td><td>0.882</td><td>-11.0</td><td>20.4</td><td>47 / 75</td></tr><tr><td>Ankle plantarflexion R</td><td>0.973</td><td>-8.4</td><td>13.4</td><td>88 / 107</td></tr><tr><td>Ankle plantarflexion L</td><td>0.967</td><td>-8.7</td><td>13.5</td><td>85 / 104</td></tr><tr><td>Shoulder flexion R</td><td>0.983</td><td>-0.4</td><td>2.2</td><td>31 / 32</td></tr><tr><td>Shoulder flexion L</td><td>0.988</td><td>-0.4</td><td>2.1</td><td>30 / 30</td></tr><tr><td>Elbow flexion R</td><td>0.972</td><td>-1.0</td><td>2.9</td><td>30 / 30</td></tr><tr><td>Elbow flexion L</td><td>0.961</td><td>-0.7</td><td>3.2</td><td>30 / 30</td></tr></tbody></table></div>
-  <p class="note">The trunk, shoulders, elbows and hips agree closely. Knees and ankles differ by 10–25 N m: the same centre of pressure falls a centimetre or two differently under two skeletons whose joint centres and knee angles differ (OpenSim's knees are about 9° more flexed throughout), and the hip–knee–ankle lever arms change with it. Neither is a reference for the other there.</p>
+  <p class="note">The trunk, shoulders, elbows and hips agree closely. Knees and ankles differ by 10–26 N m: the same centre of pressure falls a centimetre or two differently under two skeletons whose joint centres and knee angles differ (OpenSim's knees are about 9° more flexed throughout), and the hip–knee–ankle lever arms change with it. Neither is a reference for the other there.</p>
   <p>Second, the lab's force plates. The plates were stored as raw voltages without their calibration matrix, so only the vertical channels are used, and only checks that need no calibration: the gain comes from quiet standing without the box (body + K5 weight), and the comparison uses the frames where both feet are on the two AMTI plates in front of the shelf (<code>tasks/box_lift/force_plates.py</code>).</p>
-  <div class="tbl"><table><thead><tr><th>Check (22 trials)</th><th>Result</th></tr></thead><tbody><tr><td>Plate delay behind the motion capture</td><td>100 ms (median; 60–130 ms by trial)</td></tr><tr><td>Vertical gain from quiet standing (body + K5 weight)</td><td>292.9 N/V, spread 0.4 % across 22 trials of 11 subjects</td></tr><tr><td>Total vertical force, ours vs plates (both feet on the AMTI plates)</td><td>RMS 15.2 N = 1.8 % of body weight (median; worst trial 5.8 %)</td></tr><tr><td>Dynamic part (force minus static weight), correlation</td><td>r = 0.88 (median)</td></tr><tr><td>Box mass from the plates (with box minus without, quiet standing)</td><td>13.1 ± 0.7 kg vs 13.6 kg nominal</td></tr><tr><td>Right-foot share of the vertical force, ours vs plates</td><td>RMS error 0.10, r = 0.76 (median)</td></tr></tbody></table></div>
+  <div class="tbl"><table><thead><tr><th>Check (22 trials)</th><th>Result</th></tr></thead><tbody><tr><td>Plate delay behind the motion capture</td><td>100 ms (median; 60–130 ms by trial)</td></tr><tr><td>Vertical gain from quiet standing (body + K5 weight)</td><td>292.6 N/V (median; mean 292.9), standard deviation 0.4 % across 22 trials of 11 subjects</td></tr><tr><td>Total vertical force, ours vs plates (both feet on the AMTI plates)</td><td>RMS 15.2 N = 1.8 % of body weight (median; worst trial 5.8 %)</td></tr><tr><td>Dynamic part (force minus static weight), correlation</td><td>r = 0.88 (median)</td></tr><tr><td>Box mass from the plates (with box minus without, quiet standing)</td><td>13.2 kg (median; 11.3–14.3 kg by trial) vs 13.6 kg nominal</td></tr><tr><td>Right-foot share of the vertical force, ours vs plates</td><td>RMS error 0.10, r = 0.76 (median)</td></tr></tbody></table></div>
   <div class="callout check"><b>What the plates confirm.</b> The same gain for every subject (calibration consistent), the box mass recovered from standing with and without it, and the predicted total force within a few percent of body weight including its dynamic part: the whole-body accelerations from the IK are right. The left / right split in double support is the weak point (an estimate, see above); there are no plates under the elevator platform, where the box is lifted from the floor.</div>
-  <div class="callout pit"><b>Clock offset.</b> The plate channels run about 100 ms behind the motion capture (70–140 ms by trial), seen both in the force traces and as plate onsets after the foot lands in the marker data. Any analog channel recorded through the same path (EMG) needs the same check before it is compared with the motion.</div>
+  <div class="callout pit"><b>Clock offset.</b> The plate channels run about 100 ms behind the motion capture (60–130 ms by trial), seen both in the force traces and as plate onsets after the foot lands in the marker data. Any analog channel recorded through the same path (EMG) needs the same check before it is compared with the motion.</div>
 </section>
 
 <section>
@@ -573,7 +575,7 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
       </tbody>
     </table>
   </div>
-  <p class="note">How to read it. The most common flag is a <b>marker missing in many frames</b> (C7 in S02, the upper-arm wands in S06, a thigh wand in S08): a property of the recording, which the IK bridges with the other markers. The second is <b>hip flexion while standing</b> above 10° (S01–S05 and S10): the static trial pins the knees, but the hip angle also depends on where the pelvis markers sit on the body, and part of it may be real posture. S04 and S10 have the highest residuals (soft-tissue and marker placement); S02 Solid's only FAIL is C7 missing in 98 % of frames. <b>Cycles kept</b> is the dataset's own per-cycle check (pelvis speed, joint flips, hands on the box while carrying, the human review that removed S10 and S11); it is stricter than the trial grade.</p>
+  <p class="note">How to read it. The most common flag is a <b>marker missing in many frames</b> (C7 in S02, the upper-arm wands in S06, a thigh wand in S08): a property of the recording, which the IK bridges with the other markers. The second is <b>hip flexion while standing</b> above 10° (S01–S05 and S10): the static trial pins the knees, but the hip angle also depends on where the pelvis markers sit on the body, and part of it may be real posture. S04 and S10 have the highest residuals (soft-tissue and marker placement); S02 Solid's only FAIL is C7 missing in 98 % of frames. <b>Cycles kept</b> is the dataset's own per-cycle check (95th-percentile marker residual, unsolved frames, root jumps, pelvis markers far off, pelvis turning speed, and the manual review that removed S10 and S11); it is stricter than the trial grade.</p>
 </section>
 
 <section>
@@ -597,9 +599,9 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
       <tbody>
         <tr><td>Muscle forces: static optimisation vs EMG</td><td>Muscle-level loads (and a better L5/S1 compression than the single-muscle estimate), checked against the 16 recorded EMG channels</td><td>Static optimisation over MyoFullBody's trunk and arm muscles for the top-down joints; EMG band-passed, rectified, enveloped and normalised by the MVC trials (7 of 8 muscles have one; the trapezius has no counterpart in the model); align for the analog delay first.</td></tr>
         <tr><td>Leg loads in double support</td><td>The left / right split of the ground reaction is estimated; the elevator platform has no plates</td><td>Calibration matrices for the AMTI and Bertec plates would add measured centres of pressure where the feet are on them; elsewhere only a better split model helps.</td></tr>
-        <tr><td>Xsens exports for all trials</td><td>Independent joint-angle check for every subject, not one trial</td><td>Ask the lab to batch-export the NE trials from MVN Analyze (Excel or MVNX); the comparison script then runs on all of them.</td></tr>
-        <tr><td>Per-subject segment scaling</td><td>Pelvis depth and hand length differ from the model by 10–40 %</td><td>Optional, if the upper-body residual stays high after the second round.</td></tr>
-        <tr><td>Make it general</td><td>Reuse on other datasets (firefighter next)</td><td>Done in part: settings and file naming in <code>pipeline/config.py</code>, the marker set in <code>mocap2myo/markerset.py</code>, the task in <code>tasks/</code>. Still to do: input adapters for TRC / C3D / Xsens, and the Plug-in-Gait assumptions left in the calibration caps.</td></tr>
+        <tr><td>Xsens exports for all trials</td><td>Independent joint-angle check for every subject, not one trial</td><td>Export the other NE trials from MVN Analyze as c3d, as for S11 Spring; the comparison script then runs on all of them.</td></tr>
+        <tr><td>Per-subject segment scaling</td><td>Pelvis depth and hand length differ from the model by 10–40 %</td><td>Optional: scale factors per segment from the static trial, where the upper-body residual matters.</td></tr>
+        <tr><td>Make it general</td><td>Reuse on other datasets</td><td>Done in part: settings and file naming in <code>pipeline/config.py</code>, the marker set in <code>mocap2myo/markerset.py</code>, the task in <code>tasks/</code>. Still to do: trial input from TRC or C3D (trials are read from <code>.tak</code> only; the take reader can write a take as TRC and compare it with a TRC export), and the Plug-in-Gait label endings left in the calibration caps (<code>pipeline/solve_ik.py</code>).</td></tr>
         <tr><td>IK on the GPU</td><td>The IK is ~95 % of the run time (about an hour on 22 cores)</td><td>All frames of a trial solved together with MuJoCo Warp; needs a whole-trial initialisation instead of frame-to-frame warm starts, and the same validation rerun.</td></tr>
       </tbody>
     </table>
@@ -608,8 +610,8 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
 
 <section>
   <h2 id="effort">Compute cost and manual effort</h2>
-  <p>Measured machine time for the 22 trials: reading the takes about 1 min, cleaning about 2 min, calibration plus IK about 50 min on 22 CPU cores, references, QA and clips about 1 min. Human work left: one marker-set configuration per new dataset, one reader check against a TRC export, and reviewing the report and replay videos.</p>
-  <p class="note">For comparison, a manual Motive plus OpenSim workflow is estimated (not measured) at roughly 15–40 person-hours for the same 22 trials: labelling and gap filling per trial, OpenSim scaling per subject, IK setup per trial. Ask the people who do it for real numbers. The automation relies on Motive's live labels; recordings without them (for example the firefighter dynamic trials) need labelling or another source such as Xsens.</p>
+  <p>Measured machine time for the 22 trials: reading the takes about 1 min, cleaning about 2 min, calibration plus IK about 50 min on 22 CPU cores, references, QA and clips about 1 min. Human work left: one marker-set configuration per new dataset, one reader check against a TRC export, and reviewing the report and the reference motions (in the viewer).</p>
+  <p class="note">For comparison, a manual Motive plus OpenSim workflow is estimated (not measured) at roughly 15–40 person-hours for the same 22 trials: labelling and gap filling per trial, OpenSim scaling per subject, IK setup per trial. The automation relies on Motive's live labels; recordings without them need labelling in Motive or another source such as Xsens.</p>
 </section>
 
 <section>
@@ -630,7 +632,7 @@ python pipeline/validate/static_pose.py
 
 # viewer files: the model once, then clips (optionally with a ghost from another run)
 python pipeline/export_viewer.py model OUT_DIR
-python pipeline/export_viewer.py clip S08_Solid_NE OUT_DIR --clip 1 --ghost-ref-dir OTHER_REF_DIR
+python pipeline/export_viewer.py clip S01_Solid_NE OUT_DIR --clip 1 --ghost-ref-dir OTHER_REF_DIR
 
 # the same plus the OpenSim workflow (IK and Inverse Dynamics) for the comparison
 M2M_ROOT=~/data/mocap2myo bash pipeline/run_all.sh --opensim    # opensim from conda
@@ -640,9 +642,9 @@ python pipeline/kinetics.py
 python tasks/box_lift/force_plates.py           # case study: the lab's force plates
 python pipeline/validate/kinetics_compare.py    # vs OpenSim ID (after --opensim)
 
-# a de-identified demo clip for a public page
-python pipeline/export_viewer.py clip S08_Solid_NE OUT_DIR --clip 1 --public "Demo 1"</pre>
-  <p class="note">Data layout under <code>$M2M_ROOT</code>: <code>raw_tak/</code> (trial takes), <code>raw_tak/static/</code> (static trials), <code>meta/anthropometrics.csv</code>; written by the pipeline: <code>tak_cache/</code>, <code>markers/</code>, <code>ik/</code> (with <code>qa.json</code>, <code>lomo.json</code>, <code>report.json</code>), <code>ref/</code>. Every folder, file-naming rule and setting (environment variables <code>M2M_*</code>) is in <code>pipeline/config.py</code>. No subject data is part of this repository.</p>
+# a de-identified demo clip for a public page (no trial name, clip position, subject scale or QA grades)
+python pipeline/export_viewer.py clip S01_Solid_NE OUT_DIR --clip 1 --public "Demo 1"</pre>
+  <p class="note">Data layout under <code>$M2M_ROOT</code>: <code>raw_tak/</code> (trial takes), <code>raw_tak/static/</code> (static trials), <code>meta/anthropometrics.csv</code>, and for <code>--opensim</code> <code>opensim_setup/</code> (see the README); written by the pipeline: <code>tak_cache/</code>, <code>markers/</code>, <code>ik/</code> (with <code>qa.json</code>, <code>report.json</code> and <code>report.md</code>; <code>lomo.json</code> when <code>validate/lomo.py</code> is run), <code>ref/</code>, <code>kin/</code>, and the motion dataset in <code>data/&lt;M2M_DATA&gt;/</code> of the repository; with <code>--opensim</code> also <code>opensim_ik/</code>, <code>opensim_id/</code> and <code>compare_osim/</code>. Every folder, file-naming rule and <code>M2M_*</code> setting is in <code>pipeline/config.py</code>. The only subject data in this repository is one de-identified demo clip that ships with the viewer.</p>
 </section>
 
 <section>
@@ -665,7 +667,7 @@ python pipeline/export_viewer.py clip S08_Solid_NE OUT_DIR --clip 1 --public "De
         <tr><td><code>mocap2myo/kinetics.py</code>, <code>pipeline/kinetics.py</code>, <code>tasks/box_lift/loads.py</code></td><td>Inverse dynamics: subtree Newton–Euler at the subject's size and mass, ground reaction and foot split, the box's load on the hands</td></tr>
         <tr><td><code>pipeline/opensim_id.py</code>, <code>pipeline/validate/kinetics_compare.py</code>, <code>tasks/box_lift/force_plates.py</code></td><td>OpenSim joint centres and Inverse Dynamics with the same loads; the comparison; the force-plate check</td></tr>
         <tr><td><code>pipeline/export_viewer.py</code>, <code>pipeline/viewer_layers.py</code></td><td>Model and clip files for the browser viewer; plots, force arrows and the OpenSim overlay in a clip</td></tr>
-        <tr><td><code>mocap2myo/</code></td><td>MyoFullBody model files (MuscleMimic, Apache-2.0) and small kinematic helpers</td></tr>
+        <tr><td><code>mocap2myo/</code></td><td>MyoFullBody model files (MuscleMimic; Apache-2.0, with a non-commercial restriction on the arm and hand parts derived from MoBL-ARMS: see the README and the model's NOTICE) and small kinematic helpers</td></tr>
       </tbody>
     </table>
   </div>
@@ -676,7 +678,7 @@ python pipeline/export_viewer.py clip S08_Solid_NE OUT_DIR --clip 1 --public "De
   <dl class="gloss">
     <div><dt>Marker and label</dt><dd>A reflective ball on the body. Its label tells IK which point on the model it belongs to; without that, IK cannot tell where to pull.</dd></div>
     <div><dt>Gap</dt><dd>Frames where a marker was hidden. Short gaps are interpolated, pelvis gaps are refilled as a rigid body, and IK handles the rest.</dd></div>
-    <div><dt>Plug-in-Gait</dt><dd>A common 39-marker full-body placement (LASI, RKNE, C7, ...). Used by both the elevator study and the public MMH data.</dd></div>
+    <div><dt>Plug-in-Gait</dt><dd>A common 39-marker full-body placement (LASI, RKNE, C7, ...). Used by the elevator study.</dd></div>
     <div><dt>Kabsch fit</dt><dd>Finds the rotation and translation that best map a set of points known in an object's frame onto their measured positions. Used for the box and the pelvis.</dd></div>
     <div><dt>Forward kinematics</dt><dd>From joint angles to the position of every segment and virtual marker. Computed by MuJoCo.</dd></div>
     <div><dt>Least-squares IK</dt><dd>The reverse: the joint angles that minimise the weighted sum of squared distances between virtual and measured markers.</dd></div>

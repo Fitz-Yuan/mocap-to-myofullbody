@@ -16,7 +16,7 @@ residual cannot show:
              cycles, tasks/box_lift/build_dataset.py), if it was built
 Each trial gets PASS / WARN / FAIL per check against the limits in LIMITS;
 WARN and FAIL name the reason. Nothing is dropped here: the dataset's own
-quality_ok decides what is trained on.
+quality_ok decides which clips it keeps.
 
   M2M_NPZ_DIR=... M2M_IK_DIR=... M2M_DATA=... python pipeline/report.py
 Writes <M2M_IK_DIR>/report.json and report.md.

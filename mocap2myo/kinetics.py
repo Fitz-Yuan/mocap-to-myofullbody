@@ -27,6 +27,9 @@ D_EXT, D_FLEX = 0.05, 0.08  # erector spinae / abdominal moment arms about L5/S1
 
 
 def lowpass(x, rate, hz):
+  """Zero-phase 4th-order Butterworth low-pass along axis 0."""
+  if not 0 < hz < rate / 2:
+    raise ValueError(f"low-pass {hz} Hz must lie between 0 and half the rate ({rate:g} Hz)")
   b, a = butter(4, hz / (rate / 2))
   return filtfilt(b, a, x, axis=0)
 

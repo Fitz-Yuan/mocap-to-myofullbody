@@ -1,21 +1,9 @@
-"""MyoFullBody kinematic helpers shared by data building and the env config."""
+"""MyoFullBody kinematic helpers: joint couplings, sole height, rigid fits."""
 
 from __future__ import annotations
 
 import mujoco
 import numpy as np
-from scipy.spatial.transform import Rotation as sRot
-
-
-def _pelvis_rot(m: mujoco.MjModel) -> sRot:
-  """Pelvis world orientation with the root at identity."""
-  d = mujoco.MjData(m)
-  d.qpos[:] = m.qpos0
-  d.qpos[:3] = 0.0
-  d.qpos[3:7] = [1.0, 0.0, 0.0, 0.0]
-  mujoco.mj_kinematics(m, d)
-  q = d.xquat[m.body("pelvis").id]
-  return sRot.from_quat(q[[1, 2, 3, 0]])
 
 
 def apply_joint_equalities(m: mujoco.MjModel, q: np.ndarray) -> None:
@@ -54,21 +42,19 @@ def geom_lowest_z(gtype, size, pos_z, rot_row2):
   """Exact lowest world z of capsule / ellipsoid / sphere / box geoms.
 
   pos_z: centre z; rot_row2: third row of the geom rotation (world z of the
-  geom's local axes). Works on numpy arrays or torch tensors (last dim 3).
+  geom's local axes); numpy arrays (last dim 3).
   Capsule: lower end of the axis minus the radius; ellipsoid: support point
   along -z, sqrt(sum (R[2,i] s_i)^2); box: sum |R[2,i]| s_i.
-  (An earlier estimate, centre z - size[0], is wrong for the heel ellipsoid:
-  size[0] is its 8.5 cm half-length, not its ~4 cm vertical half-axis.)
+  (The simpler centre z - size[0] is wrong for the heel ellipsoid: size[0] is its
+  8.5 cm half-length, not its ~4 cm vertical half-axis.)
   """
-  lib = np if isinstance(pos_z, np.ndarray) or np.isscalar(pos_z) else __import__("torch")
-  cap = pos_z - lib.abs(rot_row2[..., 2]) * size[..., 1] - size[..., 0]
-  ell = pos_z - lib.sqrt(((rot_row2 * size) ** 2).sum(-1))
+  cap = pos_z - np.abs(rot_row2[..., 2]) * size[..., 1] - size[..., 0]
+  ell = pos_z - np.sqrt(((rot_row2 * size) ** 2).sum(-1))
   sph = pos_z - size[..., 0]
-  box = pos_z - (lib.abs(rot_row2) * size).sum(-1)
-  out = lib.where(gtype == int(mujoco.mjtGeom.mjGEOM_CAPSULE), cap,
-        lib.where(gtype == int(mujoco.mjtGeom.mjGEOM_ELLIPSOID), ell,
-        lib.where(gtype == int(mujoco.mjtGeom.mjGEOM_BOX), box, sph)))
-  return out
+  box = pos_z - (np.abs(rot_row2) * size).sum(-1)
+  return np.where(gtype == int(mujoco.mjtGeom.mjGEOM_CAPSULE), cap,
+         np.where(gtype == int(mujoco.mjtGeom.mjGEOM_ELLIPSOID), ell,
+         np.where(gtype == int(mujoco.mjtGeom.mjGEOM_BOX), box, sph)))
 
 
 def sole_height(m: mujoco.MjModel, d: mujoco.MjData, geoms: list[int]) -> float:

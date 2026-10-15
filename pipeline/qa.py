@@ -24,7 +24,7 @@ from mocap2myo.kinematics import (  # noqa: E402
 from mocap2myo.model import MYOFULLBODY_XML  # noqa: E402
 from pipeline import config  # noqa: E402
 
-STEP = 5  # evaluate every 5th frame (20 Hz)
+QA_HZ = 20.0  # frames evaluated per second (every 5th at 100 Hz)
 NPZ_DIR = config.NPZ_DIR
 IK_DIR = config.IK_DIR
 
@@ -33,6 +33,7 @@ def qa(name, m, d, foot, task):
   D = np.load(os.path.join(NPZ_DIR, f"{name}.npz"))
   K = np.load(os.path.join(IK_DIR, f"{name}.npz"))
   s, rate = float(K["scale"]), float(K["rate"])
+  step = max(1, int(round(rate / QA_HZ)))
   Q = K["qpos"].astype(np.float64)
   E = K["marker_err"]
   body = [i for i, l in enumerate(K["labels"]) if l not in ms.HEAD_LABELS]
@@ -40,7 +41,7 @@ def qa(name, m, d, foot, task):
   # joint speed (hinge joints only, rad/s)
   hj = [m.jnt_qposadr[j] for j in range(m.njnt) if m.jnt_type[j] == mujoco.mjtJoint.mjJNT_HINGE]
   qd = np.abs(np.diff(Q[:, hj], axis=0)) * rate
-  frames = np.arange(0, len(Q), STEP)
+  frames = np.arange(0, len(Q), step)
   sole = np.zeros(len(frames))
   for k, f in enumerate(frames):
     d.qpos[:] = Q[f]
@@ -60,7 +61,7 @@ def qa(name, m, d, foot, task):
   if floor is not None:
     line += f", sole-floor {r['sole_minus_floor_mm_median']} mm"
   if task is not None:
-    extra, note = task.qa_trial(D, Q, frames, STEP, s, rate, m, d)
+    extra, note = task.qa_trial(D, Q, frames, step, s, rate, m, d)
     r.update(extra)
     line += f", {note}"
   if floor is not None:

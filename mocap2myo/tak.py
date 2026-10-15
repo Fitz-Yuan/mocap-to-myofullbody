@@ -2,8 +2,8 @@
 
 A .tak is a Microsoft OLE compound file (olefile opens it). Layout, worked out
 from Motive 2.x/3.x takes of the MMH Elevator study (2024) and checked against
-Motive's own TRC export of the same take (S03 Solid NE: 62/62 labels, max
-difference 7 um = float32 rounding):
+Motive's own TRC exports of the same takes (pipeline/validate/tak_reader.py: all 11
+processed takes identical, largest difference 0.005 mm = float32 rounding):
   Channels.dat  time series, one per channel: utf16 type name ("FloatChannel",
                 "Vector3fChannel", "QuaternionChannel", "Float16Channel"), 0x04,
                 uint16 length + utf16 channel name ("Translation", "Rotation", ...),
@@ -33,7 +33,6 @@ import struct
 import sys
 
 import numpy as np
-import olefile
 
 _VALUE_BYTES = {"FloatChannel": 4, "Vector3fChannel": 12, "QuaternionChannel": 16,
                 "Float16Channel": 2}
@@ -111,6 +110,7 @@ def read_tak(path):
   skeleton markers keep their label (e.g. LASI); rigid-body markers become
   "<body>_<k>" with the subject prefix dropped (Subject03_Box -> Box_1..6);
   unlabelled ones keep "Unlabeled NNNN"."""
+  import olefile  # optional dependency (pip install -e ".[tak]"): only this reader needs it
   ole = olefile.OleFileIO(path)
   nodes = read_nodes(ole.openstream("Nodes.dat").read())
   chans = read_channels(ole.openstream("Channels.dat").read())

@@ -1,11 +1,26 @@
 mocap-to-myofullbody
 Copyright 2026 the mocap-to-myofullbody authors
-Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The code of this repository (everything outside mocap2myo/assets/) is licensed under
+the Apache License, Version 2.0 (see LICENSE).
 
 This repository includes the MyoFullBody model (mocap2myo/assets/myofullbody/),
-Copyright 2026 MuscleMimic Team, Apache License 2.0, built upon MyoSuite and MyoSim
-models; see mocap2myo/assets/myofullbody/LICENSE and NOTICE for its third-party
-notices. The file body/myofullbody_clean_kneefix.xml modifies the left knee coupling
-of the released model.
+Copyright 2026 MuscleMimic Team, built upon MyoSuite and MyoSim models, distributed
+under the Apache License 2.0 with the third-party terms listed in
+mocap2myo/assets/myofullbody/LICENSE and mocap2myo/assets/myofullbody/NOTICE. Per that
+NOTICE, the arm and hand parts of the model (MyoArm / MyoHand) derive from the MoBL-ARMS
+upper-extremity model, whose licence is BSD 3-Clause with a non-commercial restriction:
+it was released "solely for non-commercial purposes (including research, academic,
+evaluation and personal uses)". That restriction applies to the model files; the
+Apache-2.0 licence of this repository's code does not lift it.
+
+Modifications to the model files in this repository:
+  - body/myofullbody_clean.xml and body/myofullbody_clean_kneefix.xml are copies of the
+    released body/myofullbody.xml (musclemimic_models 1.0.5) without its scene include
+    (floor and skybox) and with a headlight / offscreen-size block added;
+  - leg/assets/myolegs_assets_kneefix.xml is a copy of leg/assets/myolegs_assets.xml in
+    which the left knee's coupled rotation / translation coefficients are fixed (they
+    turned the left shank the wrong way with knee flexion); body/myofullbody_clean_kneefix.xml
+    includes it.
 
 The browser viewer (docs/viewer/) loads three.js (MIT License) from a CDN.

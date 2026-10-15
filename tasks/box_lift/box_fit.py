@@ -9,26 +9,24 @@ Called by pipeline/prepare_markers.py (M2M_TASK=box_lift). Adds to each marker n
   floor_z, shelf_top_z.
 
 Template: the box marker coordinates in the box frame, from the one trial whose
-box markers are labelled (TEMPLATE_TRIAL; tak route: its raw take, with Motive's
-rigid-body labels Box_k / Elevator_k; export route: its TRC export, Box_1..6). In
-every other trial the box markers are unlabelled: the moving object columns are
-assigned to template slots by the best rigid fit.
+box markers are labelled (TEMPLATE_TRIAL: its raw take, with Motive's rigid-body
+labels Box_k / Elevator_k). In every other trial the box markers are unlabelled: the
+moving object columns are assigned to template slots by the best rigid fit.
 """
 
 import itertools
-import os
 
 import numpy as np
 from scipy.spatial.transform import Rotation as sRot
 
 from mocap2myo.kinematics import kabsch
-from pipeline import config
 
-TEMPLATE_TRIAL = "S03_Solid_NE"  # the only export with labelled Box_1..6
+TEMPLATE_TRIAL = "S03_Solid_NE"  # the case study's one take with the box markers labelled
 MARKER_R = 0.007  # m, retro-reflective marker radius (centre above the surface)
-# Clear plastic storage box (video), 30 lb (user). Marker layout: 3 markers on
-# each long side face (2 high, 1 low and 1 high, 2 low); centres 0.23 m apart
-# across, 0.33 m along, lowest 0.03 m and highest 0.165 m above the floor.
+# Clear plastic storage box (seen in the video), 30 lb as specified for the study.
+# Marker layout: 3 markers on each long side face (2 high, 1 low and 1 high, 2 low);
+# centres 0.23 m apart across, 0.33 m along, lowest 0.03 m and highest 0.165 m above
+# the floor.
 # Size = estimate from that layout (faces just inside the marker centres, ends
 # ~1.5 cm beyond the outermost markers, lid ~2.5 cm above the top markers).
 BOX_SIZE = np.array([0.36, 0.23 - 2 * MARKER_R, 0.19])
@@ -37,10 +35,8 @@ BOX_MASS = 30 * 0.45359237
 
 def box_template(read):
   """Box marker coordinates in the box frame from the labelled template trial
-  (read = prepare_markers.read_export)."""
-  names, P, rate = read(os.path.join(config.RAW_TAK_DIR, f"{TEMPLATE_TRIAL}.tak")
-                        if config.SOURCE == "tak"
-                        else os.path.join(config.RAW_TRC_DIR, f"{TEMPLATE_TRIAL}.trc"))
+  (read = prepare_markers.read_take)."""
+  names, P, rate = read(TEMPLATE_TRIAL)
   B = np.stack([P[:, names.index(f"Box_{i}")] for i in range(1, 7)], 1)
   c = B.mean(1)
   v = np.r_[0, np.linalg.norm(np.diff(c, axis=0), axis=1)] * rate

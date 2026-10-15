@@ -3,14 +3,17 @@ exactly the markers our pipeline uses (<M2M_NPZ_DIR>: raw takes, label fixes,
 mislabel rejection, pelvis refill), so the two methods can be scored side by side
 (opensim_compare.py).
 
-Model: Rajagopal 2016 with the Plug-in-Gait marker set of the case study's OpenSim
-setup (opensim_setup/Model.osim + markers.xml, and its scaling setup TEMPLATE). One
-configuration for every subject: their scaling measurements (Sub_09 setup:
-pelvis width, ASIS-knee, knee-ankle, shoulder-elbow, elbow-wrist, wrist-finger,
-shoulder width; feet not scaled), the subject's mass from the lab's
-anthropometrics, the static standing trial (S07 has none: 1 s of quiet standing
-from its Solid trial), and marker weights from that setup with the markers it had
-switched off (trunk, wands, back of head) switched on at low weight.
+Inputs in <M2M_OSIM_SETUP_DIR> (default <M2M_ROOT>/opensim_setup/): Model.osim (the
+Rajagopal 2016 full-body model), markers.xml (an OpenSim MarkerSet with the marker set's
+labels, mocap2myo/markerset.py) and a ScaleTool setup (M2M_OSIM_SCALE_SETUP, a file
+name in that folder or a path). One configuration for every subject: the setup's
+scaling measurements (case study: pelvis width, ASIS-knee, knee-ankle, shoulder-elbow,
+elbow-wrist, wrist-finger, shoulder width; feet not scaled) and the marker weights of
+its Marker Placer, with the markers it switches off (case study: trunk, wands, back of
+head) switched on at low weight (EXTRA_W). The script sets the model and marker files,
+the subject's mass and height (anthropometrics), the marker file and time range: the
+static standing trial, or 1 s of quiet standing from the subject's first trial when
+it has none.
 
 Outputs per trial in opensim_ik/<subject>/: <trial>.mot (coordinates, deg), <trial>_markers.npz
 (model marker positions [T, 39, 3] in the IK frame, Z up, m), <trial>_bodies.npz (body
@@ -34,9 +37,8 @@ from pipeline import config  # noqa: E402
 NPZ = config.NPZ_DIR
 SRC = config.OSIM_SETUP_DIR
 OUT = config.OSIM_DIR
-TEMPLATE = os.path.join(SRC, "Sub_09__Scalingsetup_09.xml")
-LABELS = None  # filled from the npz files (markerset.LABELS order)
-# switched off in the template setup -> on at low weight here
+TEMPLATE = config.OSIM_SCALE_SETUP
+# switched off in the scale setup -> on at low weight here
 EXTRA_W = {"C7": 5, "CLAV": 5, "T10": 5, "STRN": 5, "RBAK": 1, "LBHD": 1, "RBHD": 1,
            "LUPA": 1, "RUPA": 1, "LFRM": 1, "RFRM": 1, "LTHI": 1, "RTHI": 1, "LTIB": 1, "RTIB": 1}
 BODIES = ["pelvis", "femur_r", "femur_l", "tibia_r", "tibia_l", "talus_r", "talus_l", "torso"]
@@ -79,10 +81,6 @@ def quiet_window(P, rate, labels, secs=1.0):
   return slice(i, i + w)
 
 
-def weights(task_names, template_tasks):
-  return {n: (template_tasks[n][1] if template_tasks[n][0] else EXTRA_W.get(n, 1)) for n in task_names}
-
-
 def scale_subject(subj, labels, mass, height_m):
   import opensim as osim
   d = os.path.join(OUT, subj)
@@ -91,7 +89,7 @@ def scale_subject(subj, labels, mass, height_m):
   if os.path.exists(st):
     D = np.load(st)
     P, rate, src = D["markers"].astype(float), float(D["marker_rate"]), "static trial"
-  else:  # the subject's first trial (case study: Solid)
+  else:  # quiet standing in the subject's first trial
     first = [t for t in config.trials(NPZ) if config.subject_of(t) == subj][0]
     D = np.load(os.path.join(NPZ, f"{first}.npz"))
     P, rate = D["markers"].astype(float), float(D["marker_rate"])
@@ -192,7 +190,7 @@ def ik_trial(trial):
   for i in range(T):
     for c, v, r in zip(coords, M[i], rot):
       c.setValue(state, np.radians(v) if r else v, False)
-    model.assemble(state) if False else model.realizePosition(state)
+    model.realizePosition(state)
     for k, m_ in enumerate(mk):
       p = m_.getLocationInGround(state)
       MK[i, k] = [p.get(0), p.get(1), p.get(2)]
@@ -206,6 +204,10 @@ def ik_trial(trial):
 
 def main():
   config.usage(__doc__)
+  need = [os.path.join(SRC, "Model.osim"), os.path.join(SRC, "markers.xml"), TEMPLATE]
+  missing = [p for p in need if not os.path.exists(p)]
+  if missing:
+    raise SystemExit(f"OpenSim setup missing: {missing} (see the README, OpenSim comparison)")
   all_trials = config.trials(NPZ)
   subjects = sys.argv[1:] or sorted({config.subject_of(t) for t in all_trials})
   anthro = {s: (a["mass_kg"], a["height_cm"] / 100) for s, a in config.anthropometrics().items()}
@@ -214,14 +216,14 @@ def main():
   log = {}
   t0 = time.time()
   ctx = mp.get_context("spawn")
-  with ctx.Pool(min(len(subjects), config.workers(11))) as pool:
+  with ctx.Pool(min(len(subjects), config.workers())) as pool:
     res = pool.starmap(scale_subject, [(s, labels, *anthro[s]) for s in subjects])
   for r in res:
     print("scale", r, flush=True)
     log[r["subject"]] = r
   t_scale = time.time() - t0
   trials = [t for t in all_trials if config.subject_of(t) in subjects]
-  with ctx.Pool(min(len(trials), config.workers(22))) as pool:
+  with ctx.Pool(min(len(trials), config.workers())) as pool:
     for trial, ok, dt, T in pool.imap_unordered(ik_trial, trials):
       print(f"ik {trial}: ok={ok} {T} frames in {dt:.0f} s ({T / max(dt, 1e-9):.0f} frames/s)", flush=True)
       log[trial] = dict(ok=ok, seconds=dt, frames=T)

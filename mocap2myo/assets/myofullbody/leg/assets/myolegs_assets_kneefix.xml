@@ -1,9 +1,10 @@
-<!-- KNEE FIX (2026-10-09, mjlab_myosuite): the left knee_angle_rotation3 /
-     translation2 joints already have mirrored axes (myolegs_chain.xml), so the
-     MyoSuite-style negated polycoef flipped them a second time and the left
-     shank rotated the wrong way with knee flexion (foot yaw at 60 deg: right
-     -18.9, left -31.5 instead of +18.9). Coefficients now equal the right side.
-     Original file left untouched for checkpoints trained before the fix. -->
+<!-- KNEE FIX (mocap-to-myofullbody; modified copy of myolegs_assets.xml): the left
+     knee_angle_rotation3 / translation2 joints already have mirrored axes
+     (myolegs_chain.xml), so the MyoSuite-style negated polycoef flipped them a second
+     time and the left shank rotated the wrong way with knee flexion (foot yaw at
+     60 deg: right -18.9, left -31.5 instead of +18.9). The two left polycoef entries
+     now equal the right side's; nothing else differs. myolegs_assets.xml is the file
+     as released. -->
 <mujocoinclude model="MyoLegs_v0.0.1">
 <!-- =================================================
     Copyright 2025 Vikash Kumar, Vittorio Caggiano, Huawei Wang

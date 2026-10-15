@@ -9,7 +9,11 @@ Stage B (per trial): per-frame IK with the contact terms (floor, stance sole
   lock, joint speed limit), mocap2myo.ik.ik_trial(contact=True).
 Output: <M2M_IK_DIR>/<subject>_offsets.npz, <trial>.npz with
   qpos [T, nq] (scaled-subject frame: markers x scale, model not scaled),
-  marker_err [T, n] (m), scale, rate, labels, joint_names, model and the settings.
+  marker_err [T, n] (m; NaN = marker missing or rejected), unsolved_frames [T] bool
+  (frames the IK did not solve: before the first frame with all four pelvis markers,
+  or no marker at all; their qpos repeats a solved pose and marker_err is all NaN),
+  unsolved (their count), scale, rate, labels, joint_names, model and the settings;
+  with M2M_NECK=1 also neck_qpos [T, 3] and neck_joints.
 Settings (env): see the IK section of config.py.
 
   python pipeline/solve_ik.py [--calib-only] [trial ...]
@@ -48,10 +52,11 @@ FLAT_W = config.FLAT_W
 
 # Standing frames are calibrated with flat feet (ik.calibrate `stand`): the
 # TOE marker sits on the shoe's toe box, which otherwise tilts the model foot
-# toes-up ~5 deg (S09 v2: toe tip 2 cm above the heel while standing).
+# toes-up ~5 deg (case study: toe tip 2 cm above the heel while standing).
 # Placement varies most for wand / mid-segment markers, the trunk markers (EMG
 # electrodes on the back and abdomen) and the head markers (K5 mask harness):
-# the 6 cm cap of the MMH calibration pinned them (S09: T10 62 mm median error).
+# a 6 cm cap for every marker pinned them (case study: T10 62 mm median error), so
+# these may move up to 15 cm, foot markers FOOT_CAP (10 cm), the others 6 cm.
 # Label endings of the Plug-in-Gait markers (mocap2myo.markerset).
 LOOSE = ("THI", "TIB", "UPA", "FRM", "T10", "STRN", "RBAK", "FHD", "BHD")
 # Foot markers sit on thick-soled slides (TOE on the toe box): cap FOOT_CAP
@@ -119,8 +124,9 @@ def calib(subj):
                      static_segments={"legs": mk.STATIC_SEGMENTS_LEGS,
                                       "legs_only": mk.STATIC_SEGMENTS_LEGS_ONLY}.get(STATIC_MARKERS))
   # no robust loss here: in the offset fit it let the pose ignore a misfitting
-  # marker, then moved that marker's offset to where it was -- S05 / S10 offsets
-  # drifted 34-40 mm (median), tracking error +4-5 mm; robust is for tracking only
+  # marker, then moved that marker's offset to where it was -- case study: offsets of
+  # two subjects drifted 34-40 mm (median), tracking error +4-5 mm; robust is for
+  # tracking only
   np.savez(f[:-4] + ".part.npz", offsets=off, labels=np.array(mk.LABELS), static=STATIC,
            static_share=STATIC_SHARE, static_w=STATIC_W, static_markers=STATIC_MARKERS,
            neck=config.NECK)
@@ -142,8 +148,8 @@ def ik(name):
     P = P[a:b]
   mm = mk.MarkerModel(neck=config.NECK)
   mm.set_offsets(np.load(os.path.join(OUT, f"{config.subject_of(name)}_offsets.npz"))["offsets"])
-  # 5 cm outlier rejection: label swaps (case study, S11 Solid export: LWRB / C7
-  # jump onto other markers, p95 > 0.9 m) and S01's differently placed TIB
+  # 5 cm outlier rejection: label swaps (case study, a processed export: LWRB / C7
+  # jump onto other markers, p95 > 0.9 m) and a differently placed TIB
   Q, E = mk.ik_trial(mm, P, rate=rate, contact=True, outlier=TRACK_OUTLIER or None,
                      mtp_prior=MTP_PRIOR,
                      anchor_centroid=ANCHOR_CENTROID, pelvis_gap=PELVIS_GAP,
@@ -151,14 +157,14 @@ def ik(name):
   tmp = f[:-4] + ".part.npz"
   Q, neck = mm.split_qpos(Q)  # the plain model's layout; the neck angles apart
   extra = dict(neck_qpos=neck.astype(np.float32), neck_joints=np.array(mk.NECK)) if mm.neck else {}
-  solved = ~np.isnan(E).all(1)
+  solved = ~np.isnan(E).all(1)  # ik_trial leaves the error of unsolved frames all NaN
   rejected = np.isnan(E) & ~np.isnan(P[..., 0]) & solved[:, None]
   np.savez_compressed(tmp, qpos=Q.astype(np.float32), marker_err=E.astype(np.float32),
                       rejected=rejected, outlier=TRACK_OUTLIER, mtp_prior=MTP_PRIOR,
                       anchor_centroid=ANCHOR_CENTROID, pelvis_gap=PELVIS_GAP,
                       robust=ROBUST, robust_pelvis=False, root_init=ROOT_INIT,
                       lowpass_hz=LOWPASS_HZ,
-                      unsolved=int((~solved).sum()),
+                      unsolved=int((~solved).sum()), unsolved_frames=~solved,
                       scale=s, rate=rate, labels=np.array(mk.LABELS),
                       frame0=int(rng.split(":")[0]) if rng else 0,
                       model=str(MYOFULLBODY_XML),
@@ -179,7 +185,7 @@ def main():
   names = args or config.trials(NPZ)
   subjects = sorted({config.subject_of(n) for n in names})
   ctx = mp.get_context("spawn")
-  workers = config.workers(12)  # ~1-2 GB each
+  workers = config.workers()  # ~1-2 GB each
   with ctx.Pool(min(len(subjects), workers)) as pool:
     for r in pool.imap_unordered(calib, subjects):
       print("calib", *r, flush=True)

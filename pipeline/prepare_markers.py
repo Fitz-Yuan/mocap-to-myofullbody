@@ -1,13 +1,9 @@
 """Marker conditioning: labelled marker trajectories -> one marker npz per trial.
 
-Input (M2M_SOURCE, see config.py):
-  tak     the raw Motive takes read without Motive (cache_takes.py -> tak_cache/),
-          the route run_all.sh uses. Body labels are Motive's live skeleton labels:
-          the marker set's own labels or one of its alias sets
-          (mocap2myo.markerset; case study, S01: ISB names).
-  export  (default) markers_export/<trial>.xlsx, TRC-as-xlsx exports made in Motive
-          (100 Hz, metres, Y-up; body markers labelled, object markers unlabelled
-          "Marker 00x"), read through xlsx_cache/<trial>.npz.
+Input:
+  tak_cache/<trial>.npz  the raw Motive takes read without Motive (cache_takes.py).
+          Body labels are Motive's live skeleton labels: the marker set's own labels
+          or one of its alias sets (mocap2myo.markerset; case study, S01: ISB names).
   meta/anthropometrics.csv  height (cm), mass (kg) per subject (config.ANTHRO_*)
 Output: <M2M_NPZ_DIR>/<trial>.npz, Z-up, metres, unscaled, readable by
   mocap2myo.ik.load_trial: markers [T, n, 3] (marker set order), marker_labels,
@@ -20,11 +16,11 @@ Output: <M2M_NPZ_DIR>/<trial>.npz, Z-up, metres, unscaled, readable by
 Per trial: labels mapped onto the marker set (alias sets, head markers by
 position), mislabelled samples rejected, pelvis markers refilled as a rigid body.
 
-Pelvis: an export may fill long ASIS gaps (box against the belly) by
-interpolation; in those frames the pelvis cluster is off rigid by 30-40 mm (case
-study: p95, S03 vs the raw TRC). Each frame's 4 pelvis markers are fitted to the
-subject's rigid pelvis template; a marker off by > PELVIS_TOL whose removal
-makes the other 3 consistent is replaced by its rigid reconstruction.
+Pelvis: each frame's 4 pelvis markers are fitted to the subject's rigid pelvis
+template; a marker off by > PELVIS_TOL whose removal makes the other 3 consistent
+is replaced by its rigid reconstruction, and a single missing pelvis marker is
+reconstructed from the other 3. (Gap filling in Motive interpolates long ASIS gaps,
+when the box is against the belly, and leaves the cluster 30-40 mm off rigid there.)
 
 What the manual Motive processing adds to a raw take is gap filling (case study,
 S03: the 5765 samples it has and the raw labels lack are in none of the
@@ -35,7 +31,6 @@ interpolation in ik.load_trial, IK with missing markers).
 (with trial names, the static trials are left as they are)
 """
 
-import glob
 import itertools
 import os
 import sys
@@ -47,9 +42,8 @@ from mocap2myo import markerset as ms  # noqa: E402
 from mocap2myo.kinematics import kabsch  # noqa: E402
 from pipeline import config  # noqa: E402
 
-SOURCE = config.SOURCE
 OUT = config.NPZ_DIR
-RATE = 100.0  # export route: the exports' frame rate (takes carry their own)
+SOURCE = "tak"  # written into each npz ("source"): the input is a raw take
 PELVIS_TOL = 0.012  # m
 
 
@@ -58,44 +52,24 @@ def zup(p):
   return np.stack([p[..., 0], -p[..., 2], p[..., 1]], -1)
 
 
-def read_export(path):
-  """Take / xlsx export / TRC -> (names, [T, n, 3] Z-up, rate) incl. unlabelled
-  columns. Takes and xlsx exports are read through their caches (cache_takes.py,
-  xlsx_cache/)."""
-  if path.endswith(".xlsx"):  # xlsx_cache/<name>.npz: names [n], data [T, 2 + 3n]
-    c = np.load(os.path.join(config.XLSX_CACHE_DIR, os.path.basename(path)[:-5] + ".npz"))
-    D = c["data"]
-    return list(c["names"]), zup(D[:, 2:].reshape(len(D), -1, 3)), RATE
-  if path.endswith(".tak"):  # via cache_takes.py
-    rel = os.path.relpath(path, config.RAW_TAK_DIR)[:-4]  # e.g. static/S03_Anatomy
-    c = np.load(os.path.join(config.TAK_CACHE_DIR, rel + ".npz"))
-    D = c["data"]
-    return list(c["names"]), zup(D[:, 2:].reshape(len(D), -1, 3)), float(c["rate"])
-  else:
-    lines = open(path).read().splitlines()
-    names = lines[3].split("\t")[2:]
-    rows = [ln.split("\t") for ln in lines[5:] if ln.strip()]
-    w = max(len(r) for r in rows)
-    A = np.array([[float(x) if x.strip() else np.nan for x in r] + [np.nan] * (w - len(r))
-                  for r in rows])
-  A = A[~np.isnan(A[:, 1])]
-  cols = [(i, n) for i, n in enumerate(names) if isinstance(n, str) and n.strip()]
-  P = np.stack([A[:, 2 + i:5 + i] for i, _ in cols], 1)
-  return [n.strip() for _, n in cols], zup(P), RATE
+def read_take(name):
+  """A take through its cache (cache_takes.py) -> (names, [T, n, 3] Z-up, rate),
+  unlabelled tracks included. name: the take's path under raw_tak/ without .tak
+  (a trial, or static/<static name>)."""
+  c = np.load(os.path.join(config.TAK_CACHE_DIR, name + ".npz"))
+  D = c["data"]
+  return list(c["names"]), zup(D[:, 2:].reshape(len(D), -1, 3)), float(c["rate"])
 
 
 def object_column(n):
-  """A column that is not a body marker: unlabelled tracks, rigid-body markers
-  (named <body>_<k> by mocap2myo.tak; body labels have no "_"), the unlabelled
-  "Marker 00x" columns of an export."""
-  if SOURCE == "tak":
-    return n.startswith("Unlabeled") or "_" in n
-  return n.startswith(("Marker", "Unlabeled"))
+  """A column that is not a body marker: unlabelled tracks and rigid-body markers
+  (named <body>_<k> by mocap2myo.tak; body labels have no "_")."""
+  return n.startswith("Unlabeled") or "_" in n
 
 
 def reject_mislabels(P, tol=0.04, n_partners=3):
-  """Label swaps (case study, S11 Solid export: C7 on another marker in 40% of the
-  frames, metres away). Each marker's partners = the n most rigid markers
+  """Label swaps (case study, S11 Solid in a processed export: C7 on another marker in
+  40% of the frames, metres away). Each marker's partners = the n most rigid markers
   relative to it over the trial (smallest distance spread, i.e. same / adjacent
   segment); a sample is rejected (NaN) when its distance to >= 2 valid partners
   (to the only one, if one is valid) is off its median by > tol. Two passes:
@@ -125,7 +99,7 @@ def reject_mislabels(P, tol=0.04, n_partners=3):
 
 
 def body_markers(names, A):
-  """tak route: [T, n, 3] in marker set order from the take's labels (the set's own
+  """[T, n, 3] in marker set order from the take's labels (the set's own
   labels, or one of its alias sets, ms.ALIASES). Two labels on one model marker
   (case study: the ISB elbow): per frame the one seen; both seen -> the one in
   ms.PREFER (the lateral epicondyle). Returns P, the head columns [T, h, 3] (in
@@ -211,27 +185,17 @@ def fix_pelvis(P):
 
 
 def convert(name, anthro, task=None, task_state=None):
-  names, A, rate = read_export(os.path.join(config.RAW_TAK_DIR, f"{name}.tak") if SOURCE == "tak"
-                               else os.path.join(config.EXPORT_DIR, f"{name}.xlsx"))
+  names, A, rate = read_take(name)
   T = len(A)
-  P = np.full((T, len(ms.LABELS), 3), np.nan)
-  missing = []
   rel_note = ""
-  if SOURCE == "tak":
-    P, H, renamed = body_markers(names, A)
-    hk = [ms.LABELS.index(l) for l in ms.HEAD_LABELS]
-    P[:, hk], order = assign_head(P, H)
-    missing = [l for k, l in enumerate(ms.LABELS) if np.isnan(P[:, k, 0]).all()]
-    if renamed:
-      rel_note += f"alias labels renamed {renamed}, head by geometry {order}; "
-    elif tuple(order) != tuple(range(len(ms.HEAD_LABELS))):
-      rel_note += f"HEAD LABELS REORDERED BY GEOMETRY {order}; "
-  else:
-    for k, l in enumerate(ms.LABELS):
-      if l in names:
-        P[:, k] = A[:, names.index(l)]
-      else:
-        missing.append(l)
+  P, H, renamed = body_markers(names, A)
+  hk = [ms.LABELS.index(l) for l in ms.HEAD_LABELS]
+  P[:, hk], order = assign_head(P, H)
+  missing = [l for k, l in enumerate(ms.LABELS) if np.isnan(P[:, k, 0]).all()]
+  if renamed:
+    rel_note += f"alias labels renamed {renamed}, head by geometry {order}; "
+  elif tuple(order) != tuple(range(len(ms.HEAD_LABELS))):
+    rel_note += f"HEAD LABELS REORDERED BY GEOMETRY {order}; "
   P, mislabel = reject_mislabels(P)
   P, pel_fixed = fix_pelvis(P)
   fields, task_note = {}, ""
@@ -255,9 +219,8 @@ def convert(name, anthro, task=None, task_state=None):
 
 
 def convert_static(subj, anthro):
-  """tak route: static standing trial -> <OUT>/static/<subj>.npz (body markers only)."""
-  names, A, rate = read_export(os.path.join(config.RAW_TAK_DIR, "static",
-                                            f"{config.static_name(subj)}.tak"))
+  """Static standing trial -> <OUT>/static/<subj>.npz (body markers only)."""
+  names, A, rate = read_take(f"static/{config.static_name(subj)}")
   P, H, renamed = body_markers(names, A)
   hk = [ms.LABELS.index(l) for l in ms.HEAD_LABELS]
   P[:, hk], order = assign_head(P, H)
@@ -278,15 +241,11 @@ def main():
   config.usage(__doc__)
   anthro = config.anthropometrics()
   task = config.task()
-  task_state = task.prepare_setup(read_export) if task is not None else None
-  if SOURCE == "tak":
-    names = sys.argv[1:] or config.trials(config.TAK_CACHE_DIR)
-  else:
-    names = sys.argv[1:] or sorted(os.path.basename(f)[:-5] for f in
-                                   glob.glob(os.path.join(config.EXPORT_DIR, "*.xlsx")))
+  task_state = task.prepare_setup(read_take) if task is not None else None
+  names = sys.argv[1:] or config.trials(config.TAK_CACHE_DIR)
   for n in names:
     convert(n, anthro, task, task_state)
-  if SOURCE == "tak" and not sys.argv[1:]:
+  if not sys.argv[1:]:
     for subj, _ in config.static_files(os.path.join(config.TAK_CACHE_DIR, "static"), ".npz"):
       convert_static(subj, anthro)
 

@@ -1,7 +1,7 @@
 """Check the inverse dynamics against the lab's force plates (case study only).
 
 The plates were recorded as raw voltages (NI DAQ through Motive, 1 kHz, one file per
-take: raw_daq/Subject<NN>_<floor>_NE_NIDAQ PCI-6225_25647794.csv; channels from the
+take: raw_daq/Subject<NN>_<floor>_NE_NIDAQ*.csv, see daq_file; channels from the
 study's ReadMe: Bertec in the walkway, AMTI left / right in front of the shelf). There is
 no calibration matrix, so only the vertical channels are used, and checks that do not
 need one:
@@ -13,10 +13,13 @@ need one:
      outside the frames where the box is changing hands with a surface (+-0.5 s),
   4. left / right share of that force vs our lever-rule estimate,
   5. the box mass: quiet standing with the box minus without it.
+The DAQ samples are averaged per motion-capture frame, and the windows below are in
+frames of the case study's 100 Hz capture (checked: RATE).
 Writes <M2M_KIN_DIR>/force_plates.json and .md.
   python tasks/box_lift/force_plates.py [trial ...]
 """
 
+import glob
 import json
 import os
 import sys
@@ -28,14 +31,20 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from pipeline import config  # noqa: E402
 
 DAQ_DIR = os.path.join(config.ROOT, "raw_daq")
+RATE = 100.0  # Hz, motion capture (frame-based windows and the 6 Hz filter below)
 PLATES = {"bertec": ["ai17", "ai19", "ai7", "ai30", "ai40", "ai15"],  # Fx Fy Fz Mx My Mz
           "amti_l": ["ai1", "ai2", "ai3", "ai4", "ai5", "ai6"],
           "amti_r": ["ai9", "ai10", "ai11", "ai12", "ai13", "ai14"]}
 
 
 def daq_file(trial):
+  """The take's NI DAQ file (S01_Solid_NE -> Subject01_Solid_NE_NIDAQ<device>.csv), or
+  None."""
   subj, floor = trial.split("_")[:2]
-  return os.path.join(DAQ_DIR, f"Subject{int(subj[1:]):02d}_{floor}_NE_NIDAQ PCI-6225_25647794.csv")
+  hits = sorted(glob.glob(os.path.join(DAQ_DIR, f"Subject{int(subj[1:]):02d}_{floor}_NE_NIDAQ*.csv")))
+  if len(hits) > 1:
+    raise SystemExit(f"{trial}: several DAQ files {hits}")
+  return hits[0] if hits else None
 
 
 def read_daq(path):
@@ -53,9 +62,15 @@ def read_daq(path):
 
 
 def check(trial):
-  D = read_daq(daq_file(trial))
+  path = daq_file(trial)
+  if path is None:
+    raise SystemExit(f"{trial}: no NI DAQ file in {DAQ_DIR}")
+  D = read_daq(path)
   K = np.load(os.path.join(config.KIN_DIR, f"{trial}.npz"))
   ref = np.load(os.path.join(config.REF_DIR, f"{trial}.npz"))
+  if float(K["rate"]) != RATE:
+    raise SystemExit(f"{trial}: motion capture at {float(K['rate']):g} Hz; force_plates.py "
+                     f"is written for {RATE:g} Hz (frame-based windows)")
   pred = K["grf"][:, 2]
   n = min(len(D["ai3"]), len(pred))
   pred = pred[:n]
@@ -98,7 +113,7 @@ def check(trial):
 
 def main():
   config.usage(__doc__)
-  trials = sys.argv[1:] or [t for t in config.trials(config.KIN_DIR) if os.path.exists(daq_file(t))]
+  trials = sys.argv[1:] or [t for t in config.trials(config.KIN_DIR) if daq_file(t)]
   res = {}
   for t in trials:
     r = check(t)

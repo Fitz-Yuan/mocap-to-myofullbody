@@ -3,19 +3,19 @@
 One clip per carry cycle (box on the elevator floor -> shelf -> back on the
 floor; clip bounds at the middle of the floor rests between cycles), 100 Hz,
 scaled-subject frame with z = 0 at the elevator platform. The motion format
-of motion_io.write (shared with the other lift datasets), plus the per-clip
-object / scene descriptor:
-  obj_mass [n] kg (30 lb here), grip_local [n, 2, 3] (l, r palm-sphere centres
-  in the box frame while grasped = the grasp anchors), has_shelf [n],
-  shelf_pos [n, 3] (centre of the board's top surface), shelf_half [n, 2]
-  (board half sizes x, y), support [T] (0 floor, 1 hands, 2 shelf).
-obj_kind = "storage_box", obj_size = (x between the hands, y, z) like the
-carton. quality_ok: body-marker IK p95 <= 6 cm over the clip (as MMH), every
-frame solved, no root step above ROOT_STEP_MAX (a frozen-then-jumping
-reference passed the p95 test: nanpercentile skips the frozen frames), the pelvis
-markers > 5 cm off in at most PELVIS_OFF_MAX frames and the pelvis turning at most
-PELVIS_W_MAX (where the model cannot reach the pose -- deep squats past its 120 deg
-knee / hip limits -- the IK fit loses the pelvis and snaps back).
+of motion_io.write, plus the per-clip object / scene descriptor:
+  obj_mass [n] kg (the box mass of the reference, 13.6 kg in the case study),
+  grip_local [n, 2, 3] (l, r palm-sphere centres in the box frame while grasped =
+  the grasp anchors), has_shelf [n], shelf_pos [n, 3] (centre of the board's top
+  surface), shelf_half [n, 2] (board half sizes x, y), support [T] (0 floor,
+  1 hands, 2 shelf).
+obj_kind = "storage_box", obj_size = (x between the hands, y, z). quality_ok:
+body-marker IK p95 <= 6 cm over the clip, every frame solved, no root step above
+ROOT_STEP_MAX (a frozen-then-jumping reference passed the p95 test: nanpercentile
+skips the frozen frames), the pelvis markers > 5 cm off in at most PELVIS_OFF_MAX
+frames and the pelvis turning at most PELVIS_W_MAX (where the model cannot reach the
+pose -- deep squats past its 120 deg knee / hip limits -- the IK fit loses the pelvis
+and snaps back), and not excluded by the manual review (EXCLUDE).
 
   python tasks/box_lift/build_dataset.py
 Input: <M2M_REF_DIR>, <M2M_IK_DIR>. Output: data/<M2M_DATA>/ (motion_<M2M_DATA_STEM>
@@ -34,19 +34,19 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 from mocap2myo import markerset as ms  # noqa: E402
 from mocap2myo.model import MYOFULLBODY_XML  # noqa: E402
 from pipeline import config  # noqa: E402
-from tasks.box_lift.motion_io import TRACKED, write  # noqa: E402
+from tasks.box_lift.motion_io import FPS, TRACKED, write  # noqa: E402
 
 OUT = config.DATA_DIR
 STEM = config.DATA_STEM
 QUALITY_P95 = 0.06
 ROOT_STEP_MAX = 0.05  # m per 10 ms frame (5 m/s; walking is ~0.015)
 PELVIS_OFF_MAX = 10  # frames with the pelvis markers > 5 cm off (median of >= 3)
-PELVIS_W_MAX = 700.0  # deg/s pelvis rotation (MMH v4: 5 of 310 clips above)
-# left out after the user's review of the reference videos (2026-10-13): a subject
-# (all cycles) or one cycle "<trial>_c<k>"
-EXCLUDE = {"S10": "user review: poor reference overall",
-           "S11": "user review: poor reference overall",
-           "S09_Spring_NE_c5": "user review: right hand never reaches the box"}
+PELVIS_W_MAX = 700.0  # deg/s pelvis rotation
+# left out after a manual review of the reference motions: a subject (all cycles) or
+# one cycle "<trial>_c<k>"
+EXCLUDE = {"S10": "manual review: poor reference overall",
+           "S11": "manual review: poor reference overall",
+           "S09_Spring_NE_c5": "manual review: right hand never reaches the box"}
 IK_DIR = config.IK_DIR
 REF_DIR = config.REF_DIR
 SHELF_BOARD_MARGIN = 0.02  # m added around the 4 shelf markers
@@ -63,6 +63,9 @@ def main():
   support_all, index = [], []
   for name in config.trials(REF_DIR):
     R = np.load(os.path.join(REF_DIR, f"{name}.npz"))
+    if float(R["rate"]) != FPS:
+      raise SystemExit(f"{name}: the reference is at {float(R['rate']):g} Hz; the dataset "
+                       f"is written at {FPS:g} Hz (resample the markers to {FPS:g} Hz first)")
     K = np.load(os.path.join(IK_DIR, f"{name}.npz"))
     body = [i for i, l in enumerate(K["labels"]) if l not in ms.HEAD_LABELS]
     E = K["marker_err"][:, body]
@@ -87,7 +90,7 @@ def main():
       k3 = (~np.isnan(pe)).sum(1) >= 3
       pel_off = int((np.nanmedian(pe[k3], 1) > 0.05).sum()) if k3.any() else 0
       rq = Rotation.from_quat(q[:, [4, 5, 6, 3]])
-      pel_w = float(np.degrees((rq[1:] * rq[:-1].inv()).magnitude()).max() * 100.0)
+      pel_w = float(np.degrees((rq[1:] * rq[:-1].inv()).magnitude()).max() * FPS)
       out["gts"].append(G)
       out["root_pos"].append(q[:, :3])
       out["root_quat"].append(q[:, 3:7])
@@ -106,7 +109,7 @@ def main():
       excl = EXCLUDE.get(subj) or EXCLUDE.get(f"{name}_c{c + 1}")
       index.append({"clip": len(index), "file": f"{name}_c{c + 1}", "subject": subj,
                     "condition": floor, "technique": f"elevator_{floor.lower()}",
-                    "frames": int(b - a), "seconds": round((b - a) / 100.0, 2),
+                    "frames": int(b - a), "seconds": round((b - a) / FPS, 2),
                     "grab_step": int(anyg[0]) if len(anyg) else -1,
                     "place_step": int(anyg[-1]) if len(anyg) else -1,
                     "object": "storage_box",
@@ -124,11 +127,11 @@ def main():
   os.makedirs(OUT, exist_ok=True)
   ok = [c["clip"] for c in index if c["quality_ok"]]
   for tag, keep in (("", list(range(len(index)))), ("_ok", ok)):
-    write(OUT, tag, out, index, m, keep, stem=STEM)
+    obj_mass = np.array([extra["obj_mass"][i] for i in keep], np.float32)
+    write(OUT, tag, out, index, m, keep, STEM, box_mass=np.median(obj_mass))
     f = os.path.join(OUT, f"motion_{STEM}{tag}_100hz.npz")
     z = dict(np.load(f))
-    z["obj_mass"] = np.array([extra["obj_mass"][i] for i in keep], np.float32)
-    z["box_mass"] = np.float32(np.median(z["obj_mass"]))
+    z["obj_mass"] = obj_mass
     z["grip_local"] = np.array([extra["grip_local"][i] for i in keep], np.float32)
     z["has_shelf"] = np.array([extra["has_shelf"][i] for i in keep])
     z["shelf_pos"] = np.array([extra["shelf_pos"][i] for i in keep], np.float32)
@@ -136,11 +139,11 @@ def main():
     z["support"] = np.concatenate([support_all[i] for i in keep])
     np.savez(f, **z)
   json.dump({"clips": index, "ok_clips_in_order": ok,
-             "source": "build_reference.py refs (IK v7)"},
+             "source": "tasks/box_lift/build_reference.py references"},
             open(os.path.join(OUT, "index.json"), "w"), indent=1)
   n = sum(c["frames"] for c in index)
-  print(f"{len(index)} clips, {n / 100 / 60:.1f} min; {len(ok)} quality-ok "
-        f"({sum(index[i]['frames'] for i in ok) / 100 / 60:.1f} min); clip length "
+  print(f"{len(index)} clips, {n / FPS / 60:.1f} min; {len(ok)} quality-ok "
+        f"({sum(index[i]['frames'] for i in ok) / FPS / 60:.1f} min); clip length "
         f"{min(c['seconds'] for c in index)}-{max(c['seconds'] for c in index)} s")
 
 
