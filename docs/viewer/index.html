@@ -397,8 +397,9 @@ const mats = {
 const musMat = new LineMaterial({ linewidth: 1.6, transparent: true, opacity: 0.9 });
 const ghostLineMat = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.5 });
 const errMat = new THREE.LineBasicMaterial();
-const cmpLineMat = new LineMaterial({ linewidth: 3, transparent: true, opacity: 0.95 });
-const cmpDotMat = new THREE.MeshStandardMaterial({ roughness: 0.5 });
+// the comparison skeleton is drawn over the body (its links run inside the limbs)
+const cmpLineMat = new LineMaterial({ linewidth: 3, transparent: true, opacity: 0.95, depthTest: false });
+const cmpDotMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95, depthTest: false });
 
 /* ---------- model ---------- */
 let model = null, bodyGroups = [], ghostGroups = [], volGroup = new THREE.Group();
@@ -881,6 +882,7 @@ function buildCompare(meta) {
   const g = new LineSegmentsGeometry(); g.setPositions(new Float32Array(c.links.length * 6));
   cmpLines = new LineSegments2(g, cmpLineMat); cmpLines.frustumCulled = false;
   cmpDots = new THREE.InstancedMesh(new THREE.SphereGeometry(0.02, 14, 10), cmpDotMat, c.joints.length);
+  cmpLines.renderOrder = cmpDots.renderOrder = 15;
   cmpGroup.add(cmpLines, cmpDots);
   if (c.markers && clip.a[c.markers]) {
     cmpMk = new THREE.InstancedMesh(new THREE.SphereGeometry(0.007, 10, 6), cmpDotMat, clip.a[c.markers].shape[1]);
