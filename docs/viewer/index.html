@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Elevator Motion Viewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: full-height app. 3D stage on the left (canvas, HUD, timeline, transport), a fixed-width inspector on the right; on phones the inspector stacks below the stage. Dark-first (a motion-capture lab console), light variant via tokens. */
+:root {
+  --bg: #0e1317;
+  --panel: #151c22;
+  --panel-2: #1b242b;
+  --fg: #dce4ea;
+  --muted: #8796a2;
+  --line: #27333c;
+  --accent: #4fc1c9;
+  --accent-2: #e8a35a;
+  --ok: #6fcf87;
+  --warn: #e3b25a;
+  --bad: #ef7d7d;
+  --ghost: #7fb2ff;
+  --scene-bg: #0b1014;
+  --scene-floor: #141c22;
+  --scene-grid: #22303a;
+  --bone: #ece4d0;
+  --muscle: #d2584b;
+  --skin: #c7a58b;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #eef2f5; --panel: #ffffff; --panel-2: #f3f6f8; --fg: #18222b; --muted: #5d6b77;
+    --line: #d4dce3; --accent: #0b7480; --accent-2: #b5651d; --ok: #2b7a3c; --warn: #8a5a06;
+    --bad: #b3302f; --ghost: #2f6fd6; --scene-bg: #e6ebef; --scene-floor: #d7dee4; --scene-grid: #c0cad2;
+    --bone: #e8dfc8; --muscle: #c0473b; --skin: #b98f73; color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #eef2f5; --panel: #ffffff; --panel-2: #f3f6f8; --fg: #18222b; --muted: #5d6b77;
+  --line: #d4dce3; --accent: #0b7480; --accent-2: #b5651d; --ok: #2b7a3c; --warn: #8a5a06;
+  --bad: #b3302f; --ghost: #2f6fd6; --scene-bg: #e6ebef; --scene-floor: #d7dee4; --scene-grid: #c0cad2;
+  --bone: #e8dfc8; --muscle: #c0473b; --skin: #b98f73; color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-ui); font-size: 14px; line-height: 1.45; }
+.app {
+  height: 100%; display: grid; grid-template-columns: minmax(0, 1fr) 340px;
+  padding-left: max(0px, env(safe-area-inset-left, 0px));
+  padding-right: max(0px, env(safe-area-inset-right, 0px));
+}
+.stage { position: relative; min-width: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto auto; border-right: 1px solid var(--line); }
+#view { position: relative; min-height: 0; overflow: hidden; }
+#view canvas { display: block; width: 100%; height: 100%; outline: none; }
+.hud { position: absolute; left: max(14px, env(safe-area-inset-left, 0px)); top: calc(12px + env(safe-area-inset-top, 0px)); pointer-events: none;
+  display: flex; flex-direction: column; gap: 2px; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+.hud .t { font-family: var(--font-mono); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.hud .s { font-size: 12.5px; color: var(--muted); }
+.badges { position: absolute; right: 12px; top: calc(12px + env(safe-area-inset-top, 0px)); display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; pointer-events: none; }
+.badge { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 99px; background: var(--panel); border: 1px solid var(--line); color: var(--muted); }
+.badge.on { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+.badge.shelf.on { background: var(--accent-2); border-color: var(--accent-2); }
+.dropzone { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.dropcard { pointer-events: auto; background: color-mix(in srgb, var(--panel) 88%, transparent); border: 1px dashed var(--muted);
+  border-radius: 12px; padding: 18px 22px; max-width: 360px; text-align: center; display: flex; flex-direction: column; gap: 8px; }
+.dropcard b { font-size: 15px; }
+.dropcard p { margin: 0; color: var(--muted); font-size: 13px; }
+.drag-on .dropcard { border-color: var(--accent); }
+.timeline { padding: 8px 14px 0; background: var(--panel); border-top: 1px solid var(--line); }
+#tl { display: block; width: 100%; height: 54px; cursor: pointer; touch-action: none; }
+.transport { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 14px calc(10px + env(safe-area-inset-bottom, 0px)); background: var(--panel); }
+button, select { font: inherit; color: var(--fg); background: var(--panel-2); border: 1px solid var(--line); border-radius: 7px; padding: 5px 10px; cursor: pointer; }
+button:hover, select:hover { border-color: var(--muted); }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); font-weight: 600; }
+button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.time { font-family: var(--font-mono); font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+.side { min-width: 0; overflow-y: auto; background: var(--panel); display: flex; flex-direction: column; }
+.sec { padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.sec h2 { margin: 0; font-size: 11.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.title { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.sub { color: var(--muted); font-size: 12.5px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.pill { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 1px 8px; border-radius: 99px; letter-spacing: .03em; }
+.pill.PASS { background: color-mix(in srgb, var(--ok) 22%, transparent); color: var(--ok); }
+.pill.WARN { background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); }
+.pill.FAIL { background: color-mix(in srgb, var(--bad) 22%, transparent); color: var(--bad); }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; font-size: 13px; }
+.kv span:nth-child(odd) { color: var(--muted); }
+.kv span:nth-child(even) { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+.toggles label { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
+.toggles input { accent-color: var(--accent); }
+.swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: 0 0 auto; }
+#chart { width: 100%; height: 170px; display: block; }
+.legend { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--muted); }
+.legend div { display: flex; gap: 8px; align-items: center; }
+input[type=file] { display: none; }
+.empty { color: var(--muted); font-size: 13px; }
+@media (max-width: 860px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 62vh auto; height: auto; }
+  .stage { height: 62vh; border-right: 0; border-bottom: 1px solid var(--line); }
+  .side { overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div class="app">
+  <main class="stage">
+    <div id="view">
+      <div class="hud"><span class="t" id="hudTime">0.00 s</span><span class="s" id="hudSub">MyoFullBody · rest pose</span></div>
+      <div class="badges" id="badges"></div>
+      <div class="dropzone" id="dropzone">
+        <div class="dropcard">
+          <b>Drop a clip file (.elvw)</b>
+          <p>Clips are written by <span style="font-family:var(--font-mono)">elev_export_viewer.py clip</span>. Files are read in this browser only; nothing is uploaded.</p>
+          <div class="row" style="justify-content:center"><button class="primary" id="openBtn2" type="button">Open clip…</button></div>
+        </div>
+      </div>
+    </div>
+    <div class="timeline"><canvas id="tl" aria-label="Timeline: support phase, grasp, marker residual; click or drag to scrub"></canvas></div>
+    <div class="transport">
+      <button id="play" type="button" aria-label="Play">▶ Play</button>
+      <button id="back" type="button" aria-label="Previous frame">◀︎</button>
+      <button id="fwd" type="button" aria-label="Next frame">▶︎</button>
+      <select id="speed" aria-label="Playback speed"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option></select>
+      <button id="follow" type="button" aria-pressed="true">Follow</button>
+      <button id="camSide" type="button">Side</button>
+      <button id="camFront" type="button">Front</button>
+      <button id="camTop" type="button">Top</button>
+      <button id="zoomIn" type="button" aria-label="Zoom in">＋</button>
+      <button id="zoomOut" type="button" aria-label="Zoom out">−</button>
+      <button id="fit" type="button" title="Back to the body (R)">Fit</button>
+      <span class="time" id="frameInfo">—</span>
+    </div>
+  </main>
+
+  <aside class="side">
+    <section class="sec">
+      <h2>Clip</h2>
+      <div class="title" id="clipTitle">No clip loaded</div>
+      <div class="sub" id="clipSub">Model loaded from myofullbody_model.elvw</div>
+      <div class="sub"><a href="../" style="color:var(--accent)">mocap-to-myofullbody</a> · <a href="../handbook/" style="color:var(--accent)">Handbook</a></div>
+      <div class="row">
+        <button id="openBtn" type="button">Open clip…</button>
+        <select id="clipList" aria-label="Loaded clips" hidden></select>
+        <input type="file" id="file" accept=".elvw" multiple>
+      </div>
+    </section>
+    <section class="sec">
+      <h2>Quality report</h2>
+      <div id="qa" class="empty">The trial's grades appear here.</div>
+    </section>
+    <section class="sec">
+      <h2>Layers</h2>
+      <div class="toggles">
+        <label><input type="checkbox" id="lyBones" checked><span class="swatch" style="background:var(--bone)"></span>Bones</label>
+        <label><input type="checkbox" id="lyMus" checked><span class="swatch" style="background:var(--muscle)"></span>Muscles</label>
+        <label><input type="checkbox" id="lyMk" checked><span class="swatch" style="background:var(--ok)"></span>Markers</label>
+        <label><input type="checkbox" id="lyErr"><span class="swatch" style="background:var(--bad)"></span>Error vectors</label>
+        <label><input type="checkbox" id="lyScene" checked><span class="swatch" style="background:var(--accent-2)"></span>Objects & scene</label>
+        <label><input type="checkbox" id="lyGhost" checked disabled><span class="swatch" style="background:var(--ghost)"></span><span id="ghostName">Ghost</span></label>
+      </div>
+    </section>
+    <section class="sec">
+      <h2>Joint angle</h2>
+      <select id="curveSel" aria-label="Joint angle to plot">
+        <option value="knee">Knee flexion</option>
+        <option value="hipf">Hip flexion</option>
+        <option value="hipa">Hip adduction</option>
+        <option value="ankle">Ankle dorsiflexion</option>
+        <option value="lumbar">Lumbar flexion</option>
+        <option value="shoulder">Shoulder elevation</option>
+        <option value="elbow">Elbow flexion</option>
+      </select>
+      <canvas id="chart" aria-label="Joint angle over the clip"></canvas>
+      <div class="legend">
+        <div><span class="swatch" style="background:var(--accent)"></span>Right</div>
+        <div><span class="swatch" style="background:var(--accent-2)"></span>Left</div>
+        <div id="ghostLeg" hidden><span class="swatch" style="background:var(--ghost)"></span><span id="ghostLegTxt">Ghost (dashed)</span></div>
+      </div>
+    </section>
+    <section class="sec">
+      <h2>Legend</h2>
+      <div class="legend">
+        <div><span class="swatch" style="background:var(--ok)"></span>Marker within 10 mm of the model</div>
+        <div><span class="swatch" style="background:var(--warn)"></span>10–25 mm</div>
+        <div><span class="swatch" style="background:var(--bad)"></span>Above 25 mm</div>
+        <div id="trackLegend" class="legend"></div>
+        <div>Muscles are straight lines through their attachment sites; wrapping surfaces are not drawn.</div>
+        <div>Mouse: drag to orbit, right-drag to pan, wheel to zoom toward the pointer. Keys: space play / pause, ← → step, + − zoom, R fit, F follow.</div>
+      </div>
+    </section>
+  </aside>
+</div>
+
+<script type="module">
+import * as THREE from "three";
+import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
+import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
+
+const $ = id => document.getElementById(id);
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const MISSING = -32768;
+
+/* ---------- ELVW container ---------- */
+function parseELVW(buf) {
+  const dv = new DataView(buf);
+  const magic = String.fromCharCode(...new Uint8Array(buf, 0, 4));
+  if (magic !== "ELVW") throw new Error("Not an .elvw file");
+  const hl = dv.getUint32(8, true);
+  const head = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 12, hl)));
+  const base = 12 + hl, T = { i2: Int16Array, u2: Uint16Array, f4: Float32Array, u1: Uint8Array, i1: Int8Array, i4: Int32Array, u4: Uint32Array };
+  const arrays = {};
+  for (const [name, [dt, shape, off]] of Object.entries(head.arrays)) {
+    const C = T[dt]; const n = shape.reduce((a, b) => a * b, 1);
+    arrays[name] = { data: new C(buf, base + off, n), shape };
+  }
+  return { meta: head.meta, a: arrays };
+}
+
+/* ---------- renderer and scene ---------- */
+const view = $("view");
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+view.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, 1, 0.02, 100);
+camera.up.set(0, 0, 1);
+camera.position.set(3.2, -3.4, 1.9);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0.95);
+controls.enableDamping = true;
+controls.zoomSpeed = 1.5;       // touch pinch; the wheel is handled below
+controls.minDistance = 0.25;
+controls.maxDistance = 20;
+controls.autoRotate = true;  // turntable before a clip is loaded
+controls.autoRotateSpeed = 1.2;
+
+const hemi = new THREE.HemisphereLight(0xdfe9f2, 0x2a2420, 0.9);
+hemi.up = new THREE.Vector3(0, 0, 1); hemi.position.set(0, 0, 1);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 1.6);
+sun.position.set(2.5, -2, 5); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -4, right: 4, top: 4, bottom: -4, near: 0.5, far: 15 });
+scene.add(sun, sun.target);
+const fill = new THREE.DirectionalLight(0x9fc4ff, 0.35); fill.position.set(-3, 3, 2); scene.add(fill);
+
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshStandardMaterial({ roughness: 0.95 }));
+floor.receiveShadow = true; scene.add(floor);
+const grid = new THREE.GridHelper(40, 80); grid.rotation.x = Math.PI / 2; grid.position.z = 0.0005; scene.add(grid);
+
+function applyTheme() {
+  scene.background = new THREE.Color(css("--scene-bg"));
+  scene.fog = new THREE.Fog(css("--scene-bg"), 9, 22);
+  floor.material.color.set(css("--scene-floor"));
+  grid.material.color?.set?.(css("--scene-grid")); grid.material.opacity = 0.6; grid.material.transparent = true;
+  if (grid.material.vertexColors) { grid.material.vertexColors = false; grid.material.needsUpdate = true; }
+  mats.bone.color.set(css("--bone")); mats.skin.color.set(css("--skin")); mats.ghost.color.set(css("--ghost"));
+  musMat.color.set(css("--muscle")); ghostLineMat.color.set(css("--ghost"));
+  errMat.color.set(css("--bad"));
+  drawTimeline(); drawChart();
+}
+const mats = {
+  bone: new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.0 }),
+  skin: new THREE.MeshStandardMaterial({ roughness: 0.7, transparent: true, opacity: 0.22, depthWrite: false }),
+  ghost: new THREE.MeshStandardMaterial({ roughness: 0.6, transparent: true, opacity: 0.32, depthWrite: false }),
+  box: new THREE.MeshStandardMaterial({ color: 0xd9e6ee, roughness: 0.35, transparent: true, opacity: 0.35, depthWrite: false }),
+  shelf: new THREE.MeshStandardMaterial({ color: 0x7c6a58, roughness: 0.8 }),
+  platform: new THREE.MeshStandardMaterial({ color: 0x3a4a56, roughness: 0.9 }),
+  mk: new THREE.MeshStandardMaterial({ roughness: 0.4 }),
+  mkModel: new THREE.MeshStandardMaterial({ color: 0x0e1418, roughness: 0.5 }),
+};
+const musMat = new LineMaterial({ linewidth: 1.6, transparent: true, opacity: 0.9 });
+const ghostLineMat = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.5 });
+const errMat = new THREE.LineBasicMaterial();
+
+/* ---------- model ---------- */
+let model = null, bodyGroups = [], ghostGroups = [], volGroup = new THREE.Group();
+let boneGroup = new THREE.Group(), ghostRoot = new THREE.Group(), musLines = null, musBuf = null, segSites = null;
+const human = new THREE.Group(); human.add(boneGroup, volGroup); scene.add(human, ghostRoot);
+const q4 = (q) => new THREE.Quaternion(q[1], q[2], q[3], q[0]);
+
+function buildModel(m) {
+  model = m;
+  const nb = m.meta.bodies.length;
+  const V = m.a.verts.data, F = m.a.faces.data;
+  const geoms = m.meta.meshes.map(me => {
+    const pos = new Float32Array(me.nv * 3);
+    for (let i = 0; i < me.nv; i++) for (let k = 0; k < 3; k++)
+      pos[3 * i + k] = (V[3 * (me.vofs + i) + k] + 32767) * me.scale[k] + me.lo[k];
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    g.setIndex(new THREE.BufferAttribute(F.slice(3 * me.fofs, 3 * (me.fofs + me.nf)), 1));
+    g.computeVertexNormals();
+    return g;
+  });
+  const makeBodies = (root, mat, shadow) => {
+    const groups = [];
+    for (let b = 0; b < nb; b++) { const g = new THREE.Group(); groups.push(g); root.add(g); }
+    m.meta.meshes.forEach((me, i) => {
+      const mesh = new THREE.Mesh(geoms[i], mat);
+      mesh.position.set(...me.pos); mesh.quaternion.copy(q4(me.quat));
+      mesh.castShadow = shadow; mesh.receiveShadow = shadow;
+      groups[me.body].add(mesh);
+    });
+    return groups;
+  };
+  bodyGroups = makeBodies(boneGroup, mats.bone, true);
+  ghostGroups = makeBodies(ghostRoot, mats.ghost, false);
+  // body volume: contact capsules / ellipsoids on their bodies
+  const volBodies = [];
+  for (let b = 0; b < nb; b++) { const g = new THREE.Group(); volBodies.push(g); volGroup.add(g); }
+  for (const v of m.meta.volumes) {
+    let geo;
+    if (v.type === "capsule") { geo = new THREE.CapsuleGeometry(v.size[0], 2 * v.size[1], 6, 14); geo.rotateX(Math.PI / 2); }
+    else { geo = new THREE.SphereGeometry(1, 22, 14); geo.scale(v.size[0], v.size[1], v.size[2]); }
+    const mesh = new THREE.Mesh(geo, mats.skin);
+    mesh.position.set(...v.pos); mesh.quaternion.copy(q4(v.quat)); mesh.renderOrder = 2;
+    volBodies[v.body].add(mesh);
+  }
+  volGroup.userData.bodies = volBodies;
+  // muscles: straight segments between consecutive attachment sites
+  const segs = [];
+  for (const mu of m.meta.muscles) for (let i = 0; i + 1 < mu.sites.length; i++) segs.push(mu.sites[i], mu.sites[i + 1]);
+  segSites = new Uint16Array(segs);
+  const lg = new LineSegmentsGeometry();
+  lg.setPositions(new Float32Array(segSites.length * 3));
+  musLines = new LineSegments2(lg, musMat);
+  musLines.frustumCulled = false;
+  musBuf = lg.attributes.instanceStart.data;
+  human.add(musLines);
+  ghostRoot.visible = false;
+  setBodies(m.a.rest_pos.data, m.a.rest_quat.data, 0, true);
+}
+
+/* site world positions from body poses (rotate by quaternion w,x,y,z) */
+const sitesW = { arr: null };
+function updateMuscles(bpos, bquat, f, scale, isFloat) {
+  if (!model) return;
+  const sb = model.a.site_body.data, sp = model.a.site_pos.data, nb = model.meta.bodies.length;
+  const ns = sb.length;
+  if (!sitesW.arr || sitesW.arr.length !== ns * 3) sitesW.arr = new Float32Array(ns * 3);
+  const W = sitesW.arr;
+  for (let s = 0; s < ns; s++) {
+    const b = sb[s], o = (f * nb + b);
+    const px = bpos[3 * o] * scale, py = bpos[3 * o + 1] * scale, pz = bpos[3 * o + 2] * scale;
+    const qs = isFloat ? 1 : 1 / 32767;
+    const w = bquat[4 * o] * qs, x = bquat[4 * o + 1] * qs, y = bquat[4 * o + 2] * qs, z = bquat[4 * o + 3] * qs;
+    const vx = sp[3 * s], vy = sp[3 * s + 1], vz = sp[3 * s + 2];
+    const tx = 2 * (y * vz - z * vy), ty = 2 * (z * vx - x * vz), tz = 2 * (x * vy - y * vx);
+    W[3 * s] = px + vx + w * tx + (y * tz - z * ty);
+    W[3 * s + 1] = py + vy + w * ty + (z * tx - x * tz);
+    W[3 * s + 2] = pz + vz + w * tz + (x * ty - y * tx);
+  }
+  const A = musBuf.array;
+  for (let i = 0; i < segSites.length; i++) { const s = segSites[i]; A[3 * i] = W[3 * s]; A[3 * i + 1] = W[3 * s + 1]; A[3 * i + 2] = W[3 * s + 2]; }
+  musBuf.needsUpdate = true;
+}
+
+function setBodies(bpos, bquat, f, isFloat, scale = 1, groups = bodyGroups, withVol = true) {
+  const nb = model.meta.bodies.length, qs = isFloat ? 1 : 1 / 32767, vb = volGroup.userData.bodies;
+  for (let b = 0; b < nb; b++) {
+    const o = f * nb + b;
+    const g = groups[b];
+    g.position.set(bpos[3 * o] * scale, bpos[3 * o + 1] * scale, bpos[3 * o + 2] * scale);
+    g.quaternion.set(bquat[4 * o + 1] * qs, bquat[4 * o + 2] * qs, bquat[4 * o + 3] * qs, bquat[4 * o] * qs);
+    if (withVol) { vb[b].position.copy(g.position); vb[b].quaternion.copy(g.quaternion); }
+  }
+  if (groups === bodyGroups) updateMuscles(bpos, bquat, f, scale, isFloat);
+}
+
+/* ---------- clip ---------- */
+let clip = null, clips = [], frame = 0, playing = false, tAcc = 0, lastPelvis = null;
+const sceneGroup = new THREE.Group(); scene.add(sceneGroup);
+let objMeshes = [], mkMeas = null, mkModel = null, errLines = null;
+const pelvisIdx = () => model.meta.bodies.indexOf("pelvis");
+const edgeMat = new THREE.LineBasicMaterial({ color: 0x9fb4c2 });
+
+function hull(pts) {
+  const p = pts.map(q => [q[0], q[1]]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo = [], up = [];
+  for (const q of p) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], q) <= 0) lo.pop(); lo.push(q); }
+  for (const q of p.slice().reverse()) { while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], q) <= 0) up.pop(); up.push(q); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
+}
+
+/* The viewer knows no task: a clip lists its "objects" (shape, size, fixed pose or
+   per-frame pose arrays) and "tracks" (named per-frame states, binary or category).
+   Clips written before format 2 carried the elevator scene in fixed fields; they are
+   mapped onto the same lists here. */
+function upgradeLegacy(c) {
+  const m = c.meta;
+  if (m.objects) return;
+  const objects = [], tracks = [];
+  if (m.box_size) objects.push({ name: "Box", shape: "box", size: m.box_size, pos_array: "box_pos", quat_array: "box_quat", style: "carried" });
+  if (m.shelf_xy?.length >= 2) {
+    const xs = m.shelf_xy.map(p => p[0]), ys = m.shelf_xy.map(p => p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), top = m.shelf_top, th = 0.025;
+    objects.push({ name: "Shelf", shape: "box", size: [x1 - x0 + 0.04, y1 - y0 + 0.04, th], pos: [(x0 + x1) / 2, (y0 + y1) / 2, top - th / 2], style: "furniture" });
+    for (const [x, y] of [[x0, y0], [x1, y0], [x0, y1], [x1, y1]])
+      objects.push({ name: "Shelf leg", shape: "box", size: [0.03, 0.03, top - th], pos: [x, y, (top - th) / 2], style: "furniture" });
+  }
+  if (m.elevator_xy?.length >= 3) objects.push({ name: "Elevator platform", shape: "polygon", xy: hull(m.elevator_xy), height: 0.012, style: "floor" });
+  if (c.a.grasp) tracks.push({ name: "Left hand in contact with the box", short: "L", array: "grasp", col: 0, kind: "binary" },
+                             { name: "Right hand in contact with the box", short: "R", array: "grasp", col: 1, kind: "binary" });
+  if (c.a.support) tracks.push({ name: "Box supported by", array: "support", kind: "category", values: m.support_names ?? ["floor", "hands", "shelf"] });
+  m.objects = objects; m.tracks = tracks;
+}
+
+const STYLE = { carried: () => mats.box, furniture: () => mats.shelf, floor: () => mats.platform };
+function buildScene(meta) {
+  sceneGroup.clear(); objMeshes = [];
+  for (const o of meta.objects ?? []) {
+    let geo;
+    if (o.shape === "box") geo = new THREE.BoxGeometry(...o.size);
+    else if (o.shape === "sphere") geo = new THREE.SphereGeometry(o.size[0], 24, 16);
+    else if (o.shape === "cylinder") { geo = new THREE.CylinderGeometry(o.size[0], o.size[0], 2 * o.size[1], 24); geo.rotateX(Math.PI / 2); }
+    else if (o.shape === "polygon") geo = new THREE.ExtrudeGeometry(new THREE.Shape(o.xy.map(p => new THREE.Vector2(p[0], p[1]))), { depth: o.height ?? 0.01, bevelEnabled: false });
+    else continue;
+    const mesh = new THREE.Mesh(geo, (STYLE[o.style] ?? STYLE.furniture)());
+    mesh.castShadow = o.style !== "floor"; mesh.receiveShadow = true;
+    if (o.style === "carried") { mesh.renderOrder = 3; mesh.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo), edgeMat)); }
+    if (o.pos) mesh.position.set(...o.pos);
+    if (o.quat) mesh.quaternion.copy(q4(o.quat));
+    mesh.userData.o = o;
+    objMeshes.push(mesh); sceneGroup.add(mesh);
+  }
+  mkMeas = mkModel = errLines = null;
+  if (meta.labels && clip.a.marker_meas) {
+    const nm = meta.labels.length;
+    mkMeas = new THREE.InstancedMesh(new THREE.SphereGeometry(0.011, 12, 8), mats.mk, nm);
+    mkModel = new THREE.InstancedMesh(new THREE.SphereGeometry(0.006, 10, 6), mats.mkModel, nm);
+    for (let i = 0; i < nm; i++) mkMeas.setColorAt(i, new THREE.Color(1, 1, 1));
+    const eg = new THREE.BufferGeometry(); eg.setAttribute("position", new THREE.BufferAttribute(new Float32Array(nm * 6), 3));
+    errLines = new THREE.LineSegments(eg, errMat); errLines.frustumCulled = false;
+    sceneGroup.add(mkMeas, mkModel, errLines);
+  }
+  buildTracksUI(meta);
+  applyLayers();
+}
+
+/* ---------- state tracks: badges, timeline rows, legend ---------- */
+const trackPalette = () => [css("--line"), css("--accent"), css("--accent-2"), css("--ghost"), css("--warn")];
+function trackValue(t, f) {
+  const A = clip.a[t.array]; if (!A) return 0;
+  const k = A.shape.length > 1 ? A.shape[1] : 1;
+  return A.data[f * k + (t.col ?? 0)];
+}
+function buildTracksUI(meta) {
+  const box = $("badges"); box.innerHTML = "";
+  const leg = $("trackLegend"); leg.innerHTML = "";
+  (meta.tracks ?? []).forEach((t, i) => {
+    const b = document.createElement("span"); b.className = "badge"; b.id = `trk${i}`; b.textContent = t.name; box.append(b);
+    if (t.kind === "category") {
+      const pal = trackPalette();
+      leg.insertAdjacentHTML("beforeend", `<div>Timeline band: ${t.name.toLowerCase()} — ${t.values.map((v, j) =>
+        `<span class="swatch" style="background:${pal[j % pal.length]}"></span>${v}`).join(" ")}</div>`);
+    } else {
+      leg.insertAdjacentHTML("beforeend", `<div>Timeline row ${t.short ?? i + 1}: ${t.name.toLowerCase()}</div>`);
+    }
+  });
+  if (clip.a.resid_mm) leg.insertAdjacentHTML("beforeend", `<div><span class="swatch" style="background:var(--bad)"></span>Timeline line: marker fit error, 0–30 mm</div>`);
+  const ncat = (meta.tracks ?? []).filter(t => t.kind === "category").length, nbin = (meta.tracks ?? []).length - ncat;
+  $("tl").style.height = `${8 + 16 * ncat + 7 * nbin + (clip.a.resid_mm ? 20 : 0)}px`;
+}
+function updateTracks() {
+  const pal = trackPalette();
+  (clip.meta.tracks ?? []).forEach((t, i) => {
+    const b = $(`trk${i}`), v = trackValue(t, frame);
+    if (t.kind === "category") {
+      b.textContent = `${t.name}: ${t.values[v] ?? v}`;
+      b.style.background = v ? pal[v % pal.length] : ""; b.style.color = v ? css("--bg") : ""; b.style.borderColor = v ? pal[v % pal.length] : "";
+    } else b.classList.toggle("on", !!v);
+  });
+}
+
+const tmpM = new THREE.Matrix4(), tmpP = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
+const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
+const colOk = new THREE.Color(), colWarn = new THREE.Color(), colBad = new THREE.Color();
+
+function showFrame(f) {
+  if (!clip) return;
+  const { meta, a } = clip, ps = meta.pos_scale, nb = model.meta.bodies.length;
+  frame = Math.max(0, Math.min(meta.frames - 1, f));
+  setBodies(a.body_pos.data, a.body_quat.data, frame, false, ps);
+  if (a.ghost_pos && $("lyGhost").checked) setBodies(a.ghost_pos.data, a.ghost_quat.data, frame, false, ps, ghostGroups, false);
+  for (const mesh of objMeshes) {
+    const o = mesh.userData.o;
+    if (o.pos_array && a[o.pos_array]) { const p = a[o.pos_array].data; mesh.position.set(p[3 * frame] * ps, p[3 * frame + 1] * ps, p[3 * frame + 2] * ps); }
+    if (o.quat_array && a[o.quat_array]) { const q = a[o.quat_array].data; mesh.quaternion.set(q[4 * frame + 1] / 32767, q[4 * frame + 2] / 32767, q[4 * frame + 3] / 32767, q[4 * frame] / 32767); }
+  }
+  if (mkMeas) {
+    const nm = meta.labels.length, Mm = a.marker_meas.data, Md = a.marker_model.data, E = errLines.geometry.attributes.position.array;
+    colOk.set(css("--ok")); colWarn.set(css("--warn")); colBad.set(css("--bad"));
+    for (let i = 0; i < nm; i++) {
+      const o = 3 * (frame * nm + i);
+      const mx = Md[o] * ps, my = Md[o + 1] * ps, mz = Md[o + 2] * ps;
+      tmpM.compose(tmpP.set(mx, my, mz), tmpQ.identity(), one); mkModel.setMatrixAt(i, tmpM);
+      if (Mm[o] === MISSING) { mkMeas.setMatrixAt(i, hidden); E.fill(0, 6 * i, 6 * i + 6); continue; }
+      const x = Mm[o] * ps, y = Mm[o + 1] * ps, z = Mm[o + 2] * ps;
+      tmpM.compose(tmpP.set(x, y, z), tmpQ.identity(), one); mkMeas.setMatrixAt(i, tmpM);
+      const e = Math.hypot(x - mx, y - my, z - mz) * 1000;
+      mkMeas.setColorAt(i, e < 10 ? colOk : e < 25 ? colWarn : colBad);
+      E.set([x, y, z, mx, my, mz], 6 * i);
+    }
+    mkMeas.instanceMatrix.needsUpdate = true; mkModel.instanceMatrix.needsUpdate = true;
+    if (mkMeas.instanceColor) mkMeas.instanceColor.needsUpdate = true;
+    errLines.geometry.attributes.position.needsUpdate = true;
+  }
+  updateTracks();
+  const t = frame / meta.fps;
+  $("hudTime").textContent = `${t.toFixed(2)} s`;
+  $("frameInfo").textContent = `frame ${frame + 1} / ${meta.frames} · ${meta.fps.toFixed(0)} Hz` + (a.resid_mm ? ` · residual ${a.resid_mm.data[frame].toFixed(1)} mm` : "");
+  const pi = pelvisIdx(), o = 3 * (frame * nb + pi), P = a.body_pos.data;
+  const pel = new THREE.Vector3(P[o] * ps, P[o + 1] * ps, 0);
+  if (follow && lastPelvis) {  // move with the pelvis; zoom / pan offsets are kept
+    const d = pel.clone().sub(lastPelvis);
+    controls.target.add(d); camera.position.add(d);
+  }
+  lastPelvis = pel;
+  drawTimeline(); drawChart();
+}
+
+/* ---------- timeline ---------- */
+function sizeCanvas(c) {
+  const r = c.getBoundingClientRect(), dpr = Math.min(devicePixelRatio, 2);
+  if (c.width !== Math.round(r.width * dpr) || c.height !== Math.round(r.height * dpr)) { c.width = Math.round(r.width * dpr); c.height = Math.round(r.height * dpr); }
+  const ctx = c.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); return [ctx, r.width, r.height];
+}
+function drawTimeline() {
+  const [ctx, W, H] = sizeCanvas($("tl"));
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = css("--panel-2"); ctx.fillRect(0, 0, W, H);
+  if (!clip) { ctx.fillStyle = css("--muted"); ctx.font = "12px " + css("--font-ui"); ctx.fillText("Timeline appears when a clip is loaded", 8, H / 2 + 4); return; }
+  const { meta, a } = clip, n = meta.frames, x = i => (i / Math.max(1, n - 1)) * W, pal = trackPalette();
+  let y = 4;
+  ctx.font = "10px " + css("--font-mono");
+  for (const t of (meta.tracks ?? []).filter(t => t.kind === "category")) {
+    let s0 = 0, v0 = trackValue(t, 0);
+    for (let i = 1; i <= n; i++) {
+      const v = i < n ? trackValue(t, i) : -1;
+      if (v !== v0) { ctx.fillStyle = pal[v0 % pal.length]; ctx.fillRect(x(s0), y, x(i) - x(s0), 12); s0 = i; v0 = v; }
+    }
+    y += 16;
+  }
+  for (const t of (meta.tracks ?? []).filter(t => t.kind !== "category")) {
+    ctx.fillStyle = css("--muted");
+    for (let i = 0; i < n; i++) if (trackValue(t, i)) ctx.fillRect(x(i), y, Math.max(1, W / n), 3);
+    if (t.short) ctx.fillText(t.short, 2, y + 4);
+    y += 7;
+  }
+  if (a.resid_mm) {
+    const r = a.resid_mm.data, base = H - 3; ctx.strokeStyle = css("--bad"); ctx.lineWidth = 1; ctx.beginPath();
+    for (let i = 0; i < n; i++) { const yv = base - Math.min(r[i], 30) / 30 * 14; i ? ctx.lineTo(x(i), yv) : ctx.moveTo(x(i), yv); }
+    ctx.stroke();
+  }
+  ctx.strokeStyle = css("--fg"); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x(frame), 0); ctx.lineTo(x(frame), H); ctx.stroke();
+}
+function scrubFrom(ev) {
+  if (!clip) return;
+  const r = $("tl").getBoundingClientRect();
+  showFrame(Math.round((ev.clientX - r.left) / r.width * (clip.meta.frames - 1)));
+  tAcc = frame / clip.meta.fps;
+}
+$("tl").addEventListener("pointerdown", e => { $("tl").setPointerCapture(e.pointerId); scrubFrom(e); });
+$("tl").addEventListener("pointermove", e => { if (e.buttons) scrubFrom(e); });
+
+/* ---------- joint-angle chart ---------- */
+const CURVES = { knee: ["knee_angle_r", "knee_angle_l"], hipf: ["hip_flexion_r", "hip_flexion_l"], hipa: ["hip_adduction_r", "hip_adduction_l"],
+  ankle: ["ankle_angle_r", "ankle_angle_l"], lumbar: ["flex_extension"], shoulder: ["shoulder_elv_r", "shoulder_elv_l"], elbow: ["elbow_flex_r", "elbow_flex_l"] };
+function drawChart() {
+  const [ctx, W, H] = sizeCanvas($("chart"));
+  ctx.clearRect(0, 0, W, H);
+  if (!clip) { ctx.fillStyle = css("--muted"); ctx.font = "12px " + css("--font-ui"); ctx.fillText("No clip loaded", 6, 18); return; }
+  const { meta, a } = clip, names = CURVES[$("curveSel").value], nc = meta.curves.length, n = meta.frames;
+  const series = names.map(nm => meta.curves.indexOf(nm));
+  const C = a.curves.data, G = a.ghost_curves?.data;
+  let lo = Infinity, hi = -Infinity;
+  for (const k of series) for (let i = 0; i < n; i++) { const v = C[i * nc + k]; lo = Math.min(lo, v); hi = Math.max(hi, v); if (G) { lo = Math.min(lo, G[i * nc + k]); hi = Math.max(hi, G[i * nc + k]); } }
+  const pad = Math.max(5, (hi - lo) * 0.08); lo -= pad; hi += pad;
+  const L = 34, B = 18, x = i => L + (i / Math.max(1, n - 1)) * (W - L - 4), y = v => 4 + (1 - (v - lo) / (hi - lo)) * (H - B - 4);
+  ctx.strokeStyle = css("--line"); ctx.fillStyle = css("--muted"); ctx.font = "10px " + css("--font-mono"); ctx.lineWidth = 1;
+  const step = Math.max(5, Math.round((hi - lo) / 4 / 5) * 5);
+  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) { ctx.beginPath(); ctx.moveTo(L, y(v)); ctx.lineTo(W - 4, y(v)); ctx.stroke(); ctx.fillText(`${v}°`, 2, y(v) + 3); }
+  const secs = (n - 1) / meta.fps;
+  for (let s = 0; s <= secs; s += Math.max(1, Math.round(secs / 5))) ctx.fillText(`${s}s`, x(s * meta.fps) - 6, H - 4);
+  const colors = [css("--accent"), css("--accent-2")];
+  series.forEach((k, j) => {
+    if (G) { ctx.strokeStyle = css("--ghost"); ctx.setLineDash([4, 3]); ctx.lineWidth = 1.2; ctx.beginPath(); for (let i = 0; i < n; i++) i ? ctx.lineTo(x(i), y(G[i * nc + k])) : ctx.moveTo(x(i), y(G[i * nc + k])); ctx.stroke(); ctx.setLineDash([]); }
+    ctx.strokeStyle = colors[j]; ctx.lineWidth = 1.6; ctx.beginPath();
+    for (let i = 0; i < n; i++) i ? ctx.lineTo(x(i), y(C[i * nc + k])) : ctx.moveTo(x(i), y(C[i * nc + k]));
+    ctx.stroke();
+  });
+  ctx.strokeStyle = css("--fg"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x(frame), 4); ctx.lineTo(x(frame), H - B); ctx.stroke();
+  const vals = series.map(k => C[frame * nc + k].toFixed(1) + "°").join(" / ");
+  ctx.fillStyle = css("--fg"); ctx.font = "11px " + css("--font-mono"); ctx.fillText(vals, W - 4 - ctx.measureText(vals).width, 14);
+}
+$("curveSel").addEventListener("change", drawChart);
+
+/* ---------- panels ---------- */
+function showMeta(meta) {
+  const part = meta.clip ? ` · ${meta.clip_label ?? "part"} ${meta.clip}` : "";
+  $("clipTitle").textContent = `${meta.trial}${part}`;
+  $("clipSub").textContent = `${meta.frames} frames at ${meta.fps.toFixed(0)} Hz · IK run ${meta.run}`;
+  $("hudSub").textContent = `${meta.trial}${part} · ${meta.run}`;
+  const q = meta.qa ?? {};
+  const rows = [["Marker residual, median", q.resid_med_mm != null ? `${q.resid_med_mm.toFixed(1)} mm` : "—"],
+    ["Marker residual, 95th pct", q.resid_p95_mm != null ? `${q.resid_p95_mm.toFixed(1)} mm` : "—"],
+    ["Leave-one-marker-out", q.lomo_med_mm != null ? `${q.lomo_med_mm.toFixed(1)} mm` : "—"],
+    ["Quiet-standing knee", q.stand_knee_deg != null ? `${q.stand_knee_deg.toFixed(1)}°` : "—"],
+    ["Quiet-standing hip", q.stand_hip_deg != null ? `${q.stand_hip_deg.toFixed(1)}°` : "—"],
+    ["Worst marker gap", q.gap_max != null ? `${(100 * q.gap_max).toFixed(0)}% ${q.gap_worst ?? ""}` : "—"]];
+  $("qa").className = "";
+  $("qa").innerHTML = `<div class="row"><span class="pill ${q.verdict ?? ""}">${q.verdict ?? "no report"}</span><span class="sub">trial-level grades</span></div>
+    <div class="kv">${rows.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join("")}</div>`;
+  const hasGhost = !!clip.a.ghost_pos;
+  $("lyGhost").disabled = !hasGhost; $("ghostName").textContent = hasGhost ? `Ghost: ${meta.ghost}` : "Ghost (none in clip)";
+  $("ghostLeg").hidden = !hasGhost; $("ghostLegTxt").textContent = `Ghost: ${meta.ghost} (dashed)`;
+}
+function applyLayers() {
+  boneGroup.visible = $("lyBones").checked;
+  if (musLines) musLines.visible = $("lyMus").checked;
+  volGroup.visible = false;
+  if (mkMeas) { mkMeas.visible = mkModel.visible = $("lyMk").checked; errLines.visible = $("lyErr").checked; }
+  for (const m of objMeshes) m.visible = $("lyScene").checked;
+  ghostRoot.visible = !!clip?.a.ghost_pos && $("lyGhost").checked;
+  if (clip) showFrame(frame);
+}
+for (const id of ["lyBones", "lyMus", "lyMk", "lyErr", "lyScene", "lyGhost"]) $(id).addEventListener("change", applyLayers);
+
+/* ---------- loading ---------- */
+async function loadClipBuffer(buf, name) {
+  const c = parseELVW(buf);
+  if (c.meta.format?.startsWith("elvw-model")) { buildModel(c); return; }
+  if (!model) throw new Error("Model not loaded yet");
+  c.name = name;
+  upgradeLegacy(c);
+  clips.push(c);
+  const opt = document.createElement("option"); opt.value = clips.length - 1; opt.textContent = name; $("clipList").append(opt);
+  $("clipList").hidden = clips.length < 2; $("clipList").value = clips.length - 1;
+  selectClip(clips.length - 1);
+}
+function selectClip(i) {
+  clip = clips[i];
+  buildScene(clip.meta); showMeta(clip.meta);
+  $("dropzone").hidden = true;
+  tAcc = 0; frame = 0;
+  const pi = pelvisIdx(), P = clip.a.body_pos.data, ps = clip.meta.pos_scale, nb = model.meta.bodies.length;
+  controls.autoRotate = false;  // the rest-pose turntable orbits the camera, never the body
+  controls.target.set(P[3 * pi] * ps, P[3 * pi + 1] * ps, 0.95);
+  lastPelvis = null;
+  setCam("side", 3.6);
+  applyLayers(); showFrame(0); setPlaying(true);
+}
+$("clipList").addEventListener("change", e => selectClip(+e.target.value));
+async function loadFiles(files) {
+  const list = [...files].sort((a, b) => (a.name.includes("model") ? -1 : 0) - (b.name.includes("model") ? -1 : 0));
+  for (const f of list) {
+    try { await loadClipBuffer(await f.arrayBuffer(), f.name); }
+    catch (err) { $("clipSub").textContent = `${f.name}: ${err.message}. Pick a file written by elev_export_viewer.py.`; }
+  }
+}
+for (const id of ["openBtn", "openBtn2"]) $(id).addEventListener("click", () => $("file").click());
+$("file").addEventListener("change", e => loadFiles(e.target.files));
+addEventListener("dragover", e => { e.preventDefault(); document.body.classList.add("drag-on"); $("dropzone").hidden = false; });
+addEventListener("dragleave", e => { if (e.target === document.documentElement || !e.relatedTarget) document.body.classList.remove("drag-on"); });
+addEventListener("drop", e => { e.preventDefault(); document.body.classList.remove("drag-on"); loadFiles(e.dataTransfer.files); });
+
+/* ---------- transport and camera ---------- */
+let follow = true;
+function setPlaying(p) { playing = p && !!clip; $("play").textContent = playing ? "❚❚ Pause" : "▶ Play"; $("play").setAttribute("aria-label", playing ? "Pause" : "Play"); }
+$("play").addEventListener("click", () => setPlaying(!playing));
+$("back").addEventListener("click", () => { setPlaying(false); showFrame(frame - 1); tAcc = frame / (clip?.meta.fps ?? 1); });
+$("fwd").addEventListener("click", () => { setPlaying(false); showFrame(frame + 1); tAcc = frame / (clip?.meta.fps ?? 1); });
+$("follow").addEventListener("click", () => { follow = !follow; $("follow").setAttribute("aria-pressed", follow); });
+function setCam(kind, dist) {
+  const t = controls.target, d = dist ?? camera.position.distanceTo(t);
+  const dir = { side: [1, -0.17, 0.15], front: [0.11, -1, 0.15], top: [0.003, -0.003, 1] }[kind];
+  const v = new THREE.Vector3(...dir).normalize().multiplyScalar(d);
+  camera.position.copy(t).add(v); controls.update();
+}
+function zoom(f) {  // f < 1 moves closer
+  const t = controls.target, v = camera.position.clone().sub(t);
+  const d = THREE.MathUtils.clamp(v.length() * f, controls.minDistance, controls.maxDistance);
+  camera.position.copy(t).add(v.setLength(d)); controls.update();
+}
+function fit() {
+  if (clip) {
+    const nb = model.meta.bodies.length, pi = pelvisIdx(), o = 3 * (frame * nb + pi), P = clip.a.body_pos.data, ps = clip.meta.pos_scale;
+    controls.target.set(P[o] * ps, P[o + 1] * ps, 0.95);
+  } else controls.target.set(0, 0, 0.95);
+  setCam("side", 3.6);
+}
+$("zoomIn").addEventListener("click", () => zoom(1 / 1.5));
+$("zoomOut").addEventListener("click", () => zoom(1.5));
+// Wheel / trackpad zoom toward the point under the pointer. OrbitControls divides the
+// wheel delta by 100 x devicePixelRatio, which on a Mac (small deltas, dpr 2) zooms
+// ~0.3 % per event; here the scale is exponential in the scrolled distance instead.
+const ray = new THREE.Raycaster(), plane = new THREE.Plane(), hit = new THREE.Vector3();
+view.addEventListener("wheel", e => {
+  e.preventDefault(); e.stopPropagation();
+  const px = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+  const k = e.ctrlKey ? 0.012 : 0.002;   // ctrlKey = trackpad pinch
+  let s = Math.exp(THREE.MathUtils.clamp(px * k, -0.7, 0.7));
+  const t = controls.target, dist = camera.position.distanceTo(t);
+  s = THREE.MathUtils.clamp(dist * s, controls.minDistance, controls.maxDistance) / dist;
+  const r = renderer.domElement.getBoundingClientRect();
+  ray.setFromCamera(new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1), camera);
+  plane.setFromNormalAndCoplanarPoint(camera.getWorldDirection(new THREE.Vector3()), t);
+  const P = ray.ray.intersectPlane(plane, hit) ?? t.clone();
+  camera.position.sub(P).multiplyScalar(s).add(P);
+  t.sub(P).multiplyScalar(s).add(P);
+  controls.update();
+}, { capture: true, passive: false });
+$("fit").addEventListener("click", fit);
+for (const [id, k] of [["camSide", "side"], ["camFront", "front"], ["camTop", "top"]]) $(id).addEventListener("click", () => setCam(k));
+addEventListener("keydown", e => {
+  if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
+  if (e.code === "Space") { e.preventDefault(); setPlaying(!playing); }
+  if (e.code === "ArrowLeft") $("back").click();
+  if (e.code === "ArrowRight") $("fwd").click();
+  if (e.code === "KeyF") $("follow").click();
+  if (e.key === "+" || e.key === "=") zoom(1 / 1.5);
+  if (e.key === "-" || e.key === "_") zoom(1.5);
+  if (e.code === "KeyR") fit();
+});
+
+function resize() {
+  const r = view.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false);
+  camera.aspect = r.width / Math.max(1, r.height); camera.updateProjectionMatrix();
+  musMat.resolution.set(r.width, r.height);
+  drawTimeline(); drawChart();
+}
+new ResizeObserver(resize).observe(view);
+
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  if (playing && clip) {
+    tAcc += dt * parseFloat($("speed").value);
+    const f = Math.floor(tAcc * clip.meta.fps) % clip.meta.frames;
+    if (f !== frame) showFrame(f);
+  }
+  sun.target.position.copy(controls.target); sun.position.set(controls.target.x + 2.5, controls.target.y - 2, 5);
+  controls.update();
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+
+const mq = matchMedia("(prefers-color-scheme: light)");
+mq.addEventListener?.("change", applyTheme);
+new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+(async () => {
+  applyTheme();
+  try {
+    let buf;
+    const r = await fetch("myofullbody_model.elvw");
+    if (r.ok) buf = await r.arrayBuffer();
+    else {  // hosts that serve text only: the same file as base64
+      const t = await fetch("myofullbody_model.b64.txt");
+      if (!t.ok) throw new Error(t.status);
+      const bin = atob((await t.text()).trim()), u8 = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+      buf = u8.buffer;
+    }
+    buildModel(parseELVW(buf));
+    applyTheme();
+  } catch (err) {
+    $("clipSub").textContent = "Model file not found next to this page: open myofullbody_model.elvw together with a clip.";
+  }
+  const q = new URLSearchParams(location.search).get("clip");
+  if (q && model) { try { const r = await fetch(q); await loadClipBuffer(await r.arrayBuffer(), q.split("/").pop()); } catch (e) {} }
+  resize();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>

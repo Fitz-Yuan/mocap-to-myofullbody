@@ -1,0 +1,11 @@
+mocap-to-myofullbody
+Copyright 2026 the mocap-to-myofullbody authors
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This repository includes the MyoFullBody model (mocap2myo/assets/myofullbody/),
+Copyright 2026 MuscleMimic Team, Apache License 2.0, built upon MyoSuite and MyoSim
+models; see mocap2myo/assets/myofullbody/LICENSE and NOTICE for its third-party
+notices. The file body/myofullbody_clean_kneefix.xml modifies the left knee coupling
+of the released model.
+
+The browser viewer (docs/viewer/) loads three.js (MIT License) from a CDN.

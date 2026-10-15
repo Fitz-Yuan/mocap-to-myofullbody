@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+data/
+*.npz
+*.elvw
+!docs/viewer/myofullbody_model.elvw
+*.trc
+*.tak
+*.mot
+*.sto

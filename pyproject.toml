@@ -1,0 +1,21 @@
+[project]
+name = "mocap2myo"
+version = "0.1.0"
+description = "Optical motion capture (OptiTrack takes, Plug-in-Gait markers) to MyoFullBody musculoskeletal motions"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24", "scipy>=1.10", "mujoco==3.11.0"]
+
+[project.optional-dependencies]
+tak = ["olefile>=0.46"]      # reading OptiTrack .tak files
+xsens = ["ezc3d>=1.5"]       # Xsens c3d comparison
+# The OpenSim baseline (pipeline/elev_osim_ik.py) needs the opensim package from conda:
+#   conda install -c opensim-org opensim
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mocap2myo"]

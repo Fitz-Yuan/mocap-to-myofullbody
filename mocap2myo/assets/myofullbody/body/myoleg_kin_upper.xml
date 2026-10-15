@@ -1,0 +1,60 @@
+<?xml version="1.0" ?>
+<mujoco model="MyoLegKinUpper - 80-muscle legs + kinematic upper body">
+
+<!-- =================================================
+    Hybrid musculoskeletal model entry point.
+
+    Body layout is identical to myofullbody.xml: lower limbs use the 80
+    Hill-type muscles from myolegs_muscle.xml; the upper-body (torso/arm/head)
+    geometry, joints, and meshes are reused from the existing assets.
+
+    The 341 upper-body muscle actuators that come along with those assets
+    are programmatically REMOVED at load time and replaced with <position>
+    actuators on the main upper-body DOFs. That step lives in
+    musclemimic.environments.humanoids.myoleg_kin_upper.MyoLegKinUpper
+    ._apply_spec_changes() so we do not need to fork the (large) torso/arm
+    assets XMLs.
+
+    Original myofullbody.xml is left untouched.
+====================================================== -->
+
+    <include file="../scene/musclemimic_scene.xml"/>
+    <include file="../torso/assets/myotorso_assets.xml"/>
+    <include file="../arm/assets/myoarm_bimanual_assets.xml"/>
+    <include file="../head/assets/myohead_simple_assets.xml"/>
+    <include file="../leg/assets/myolegs_assets.xml"/>
+    <include file="../leg/assets/myolegs_tendon.xml"/>
+    <include file="../leg/assets/myolegs_muscle.xml"/>
+    <compiler angle="radian" meshdir=".." texturedir=".."/>
+
+    <worldbody>
+        <body name="Full Body" pos="-.025 0.1 1">
+            <include file="../torso/assets/myotorso_bimanual_chain.xml"/>
+            <include file="../leg/assets/myolegs_chain.xml"/>
+            <freejoint name = 'root'/>
+        </body>
+    </worldbody>
+
+    <contact>
+        <pair geom1="radius_r_coll" geom2="r_femur2_col" condim="3" />
+        <pair geom1="radius_r_coll" geom2="r_femur1_col" condim="3" />
+        <pair geom1="radius_r_coll" geom2="r_tibia1_col" condim="3" />
+        <pair geom1="radius_r_coll" geom2="r_tibia2_col" condim="3" />
+
+        <pair geom1="radius_l_coll" geom2="l_femur2_col" condim="3" />
+        <pair geom1="radius_l_coll" geom2="l_femur1_col" condim="3" />
+        <pair geom1="radius_l_coll" geom2="l_tibia1_col" condim="3" />
+        <pair geom1="radius_l_coll" geom2="l_tibia2_col" condim="3" />
+
+        <pair geom1="radius_l_coll" geom2="r_femur2_col" condim="3" />
+        <pair geom1="radius_l_coll" geom2="r_femur1_col" condim="3" />
+        <pair geom1="radius_l_coll" geom2="r_tibia1_col" condim="3" />
+        <pair geom1="radius_l_coll" geom2="r_tibia2_col" condim="3" />
+
+        <pair geom1="radius_r_coll" geom2="l_femur2_col" condim="3" />
+        <pair geom1="radius_r_coll" geom2="l_femur1_col" condim="3" />
+        <pair geom1="radius_r_coll" geom2="l_tibia1_col" condim="3" />
+        <pair geom1="radius_r_coll" geom2="l_tibia2_col" condim="3" />
+    </contact>
+
+</mujoco>

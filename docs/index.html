@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mocap to MyoFullBody</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: one narrow column; a short pitch, two entry cards (handbook, viewer), the pipeline strip, then the facts. */
+:root {
+  --bg: #f4f6f8; --surface: #ffffff; --fg: #1a232d; --muted: #5a6875; --line: #d5dde4;
+  --accent: #0b7480; --accent-soft: #e1f1f2;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #12171c; --surface: #1a2128; --fg: #e2e8ee; --muted: #9aa8b5; --line: #2f3a45; --accent: #5cc3cc; --accent-soft: #173a3e; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --bg: #12171c; --surface: #1a2128; --fg: #e2e8ee; --muted: #9aa8b5; --line: #2f3a45; --accent: #5cc3cc; --accent-soft: #173a3e; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.6; }
+.wrap { max-width: 860px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 48px 72px; display: flex; flex-direction: column; gap: 40px; }
+h1 { font-size: 34px; margin: 0; letter-spacing: -0.015em; text-wrap: balance; }
+h2 { font-size: 20px; margin: 0; }
+p { margin: 0; }
+.eyebrow { font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.lede { color: var(--muted); max-width: 64ch; }
+header, section { display: flex; flex-direction: column; gap: 12px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
+.card { display: flex; flex-direction: column; gap: 6px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; color: inherit; text-decoration: none; }
+.card:hover, .card:focus-visible { border-color: var(--accent); outline: none; }
+.card b { font-size: 17px; color: var(--accent); }
+.card span { color: var(--muted); font-size: 14.5px; }
+.flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 14px; }
+.flow span { background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 6px 10px; }
+.flow i { color: var(--muted); font-style: normal; }
+ul { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 5px; }
+code { font-family: var(--font-mono); font-size: 0.86em; background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+a { color: var(--accent); }
+.note { color: var(--muted); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Optical motion capture → musculoskeletal model</div>
+    <h1>Mocap to MyoFullBody</h1>
+    <p class="lede">Turns OptiTrack Motive recordings into motions of MyoFullBody, a 416-muscle MuJoCo model: reads raw <code>.tak</code> files without Motive, cleans the marker labels, calibrates each subject on a static standing trial, solves inverse kinematics, and checks the result against independent references. Built for a box-lifting study; the stages are meant to carry over to other marker datasets.</p>
+  </header>
+
+  <div class="cards">
+    <a class="card" href="handbook/"><b>Handbook</b><span>Every stage, how it was checked, what the checks found, and the calibration fix.</span></a>
+    <a class="card" href="viewer/"><b>Motion viewer</b><span>Open an exported clip in the browser: bones, muscles, markers coloured by fit error, objects, joint angles.</span></a>
+    <a class="card" href="https://github.com/Fitz-Yuan/mocap-to-myofullbody"><b>Source</b><span>Code, model files and the README on GitHub.</span></a>
+  </div>
+
+  <section>
+    <h2>Pipeline</h2>
+    <div class="flow"><span>raw .tak</span><i>→</i><span>marker conditioning</span><i>→</i><span>static-trial calibration</span><i>→</i><span>least-squares IK</span><i>→</i><span>reference + QA</span><i>→</i><span>motion clips</span></div>
+  </section>
+
+  <section>
+    <h2>Case study in numbers</h2>
+    <ul>
+      <li>22 trials, 11 subjects; the take reader matches Motive's own exports to 0.005 mm.</li>
+      <li>Marker residual median 7.5–12.3 mm per trial; OpenSim IK on the same data gave about 21 mm.</li>
+      <li>The static-trial calibration removes an 8–10° knee offset found against Xsens.</li>
+      <li>About an hour of CPU time for the whole dataset, no manual labelling.</li>
+    </ul>
+    <p class="note">No subject data is published here: the viewer opens files from your own disk and uploads nothing.</p>
+  </section>
+</div>
+</body>
+</html>
