@@ -5,8 +5,8 @@ data/
 *.npz
 *.elvw
 !docs/viewer/myofullbody_model.elvw
-# de-identified demo clips shipped with the viewer (nothing else from the study)
-!docs/viewer/demos/demo_*.elvw
+# the one de-identified demo clip shipped with the viewer (nothing else from the study)
+!docs/viewer/demos/demo_1.elvw
 *.trc
 *.tak
 *.mot
