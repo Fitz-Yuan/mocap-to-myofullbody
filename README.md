@@ -2,8 +2,9 @@
 
 Turn optical motion-capture recordings (OptiTrack Motive, Plug-in-Gait markers) into motions of **MyoFullBody**, a 416-muscle MuJoCo musculoskeletal model, with checks that show how accurate the result is.
 
+- **Website:** https://fitz-yuan.github.io/mocap-to-myofullbody/
 - **Handbook:** https://fitz-yuan.github.io/mocap-to-myofullbody/handbook/ (every stage, the validation, and what it found)
-- **Motion viewer:** https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/ (open an exported clip in the browser)
+- **Motion viewer:** https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/ (plays demo clips; open your own exported clip in the browser)
 
 The pipeline was built for a box-lifting study (the MMH Elevator data: subjects pick a 13.6 kg box up from a platform, carry it, and put it on a shelf). The stages in `pipeline/` and the library in `mocap2myo/` are general; the lifting task (box, shelf, carry cycles) lives in `tasks/box_lift/`, and the dataset's file naming in `pipeline/config.py`. See [Adapting to other data](#adapting-to-other-data).
 
