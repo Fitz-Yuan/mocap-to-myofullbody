@@ -699,6 +699,7 @@ async function main() {
   const DEG = Math.PI / 180;
   const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
   const sstep = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
+  const wrapDeg = (d) => ((d + 180) % 360 + 360) % 360 - 180;  // to (-180, 180]: blends into the story's angles the short way
   const ramp = (u, a, b) => sstep((u - a) / (b - a));
   const lerp = (a, b, t) => a + (b - a) * t;
   const keys = (K, u) => {
@@ -1091,7 +1092,7 @@ async function main() {
       err: 1 - cal,
       follow: ramp(u, 2.9, 3.05),
       lift: ramp(u, 3.08, 3.5) * (1 - ramp(u, 3.72, 4.12)),
-      yaw: lerp(-26 + 16 * Math.sin(t * 0.52), keys(YAW, u), hb),
+      yaw: lerp(wrapDeg(36 * t - 26), keys(YAW, u), hb),   // hero: a full turn every 10 s
       el: lerp(5, keys(EL, u), hb), dmul: lerp(1, keys(DM, u), hb), zt: lerp(0.9, keys(ZT, u), hb),
       hb,
     };
