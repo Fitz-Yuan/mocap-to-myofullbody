@@ -19,6 +19,11 @@ Two kinds of file, both in the ELVW container (below):
                     (M2M_TASK=none) the clip is read from the IK output instead of
                     the reference and has no objects. Optional ghost: the same frames
                     from a second run (e.g. another calibration) for an overlay.
+                    With the inverse dynamics (pipeline/kinetics.py) the clip also gets
+                    joint-load and ground-reaction plots and force arrows, and with the
+                    OpenSim comparison (validate/opensim_ik.py, pipeline/opensim_id.py)
+                    the OpenSim stick figure, markers and dashed curves
+                    (pipeline/viewer_layers.py); both are included when their files exist.
 No subject data goes into the model file; clips stay wherever they are written
 and are opened in the viewer from disk (nothing is uploaded).
 
@@ -31,6 +36,9 @@ z), missing markers -32768.
   python pipeline/export_viewer.py model OUT_DIR
   python pipeline/export_viewer.py clip TRIAL OUT_DIR [--clip K] [--fps 50]
       [--ik-dir DIR --ref-dir DIR --npz-dir DIR] [--ghost-ref-dir DIR --ghost-label L]
+      [--kin-dir DIR] [--osim-id-dir DIR --osim-ik-dir DIR] [--public NAME]
+  --public NAME: a clip for a public page: the trial name, the clip's position in the
+  trial, the subject's scale and the worst-gap marker are left out.
 """
 
 import argparse
@@ -46,6 +54,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from mocap2myo import ik as mk  # noqa: E402
 from mocap2myo.model import MYOFULLBODY_XML  # noqa: E402
 from pipeline import config  # noqa: E402
+from pipeline import viewer_layers  # noqa: E402
 
 MISSING = -32768
 CURVES = ["knee_angle_r", "knee_angle_l", "hip_flexion_r", "hip_flexion_l",
@@ -203,24 +212,39 @@ def export_clip(a):
     arrays["ghost_pos"], arrays["ghost_quat"] = q16(gp, ps), q16(gq, 1 / 32767)
     arrays["ghost_curves"] = np.degrees(gref["qpos"][idx][:, adr]).astype(np.float32)
     ghost = a.ghost_label or os.path.basename(os.path.normpath(a.ghost_ref_dir))
+  # inverse dynamics and the OpenSim comparison, when their files exist
+  opt = lambda d, f: np.load(os.path.join(d, f)) if d and os.path.exists(os.path.join(d, f)) else None
+  kin = opt(a.kin_dir, f"{trial}.npz")
+  osim = opt(a.osim_id_dir, f"{trial}.npz")
+  omk = opt(a.osim_ik_dir, os.path.join(subj, f"{trial}_markers.npz"))
+  la, lm = viewer_layers.layers(m, Q, idx, s, dz, q16, ps, kin=kin, osim=osim,
+                                osim_markers=None if omk is None else omk["markers"])
+  arrays.update(la)
   qa = {}
   rep = os.path.join(a.ik_dir, "report.json")
   if os.path.exists(rep):
     qa = json.load(open(rep)).get(trial, {})
   meta = dict(
-    format="elvw-clip-2", trial=trial, clip=a.clip,
+    format="elvw-clip-3", trial=trial, clip=a.clip,
     clip_label=task.CLIP_LABEL if task is not None else "clip", frames=len(idx),
     fps=fps, start_s=lo / rate, pos_scale=ps, subject_scale=s, labels=mk.LABELS,
     curves=CURVES, objects=objects, tracks=tracks,
-    run=a.run_label or os.path.basename(os.path.normpath(a.ik_dir)), ghost=ghost,
+    run=a.run_label or os.path.basename(os.path.normpath(a.ik_dir)), ghost=ghost, **lm,
     qa={k: qa[k] for k in ("verdict", "resid_med_mm", "resid_p95_mm", "lomo_med_mm",
                            "stand_knee_deg", "stand_hip_deg", "gap_max", "gap_worst")
         if k in qa})
+  if a.public:
+    meta.update(trial=a.public, clip=0, start_s=0.0, run=a.run_label or "demo")
+    meta.pop("subject_scale")
+    meta["qa"].pop("gap_worst", None)
   os.makedirs(a.out_dir, exist_ok=True)
   name = f"{trial}{f'_c{a.clip}' if a.clip else ''}.elvw"
+  if a.public:
+    name = a.public.lower().replace(" ", "_") + ".elvw"
   size = write_elvw(os.path.join(a.out_dir, name), meta, arrays)
   print(f"{name}: {len(idx)} frames @ {fps:g} Hz, residual median {np.nanmedian(resid) * 1e3:.1f} mm, "
-        f"{size / 1e6:.2f} MB")
+        f"{len(lm['plots'])} plots, kinetics {'yes' if kin is not None else 'no'}, "
+        f"OpenSim {'yes' if lm['compare'] else 'no'}, {size / 1e6:.2f} MB")
 
 
 def main():
@@ -240,6 +264,10 @@ def main():
   pc.add_argument("--run-label", default="")
   pc.add_argument("--ghost-ref-dir", default="")
   pc.add_argument("--ghost-label", default="")
+  pc.add_argument("--kin-dir", default=config.KIN_DIR, help="inverse dynamics (kinetics.py)")
+  pc.add_argument("--osim-id-dir", default=config.OSIM_ID_DIR, help="OpenSim joints / ID (opensim_id.py)")
+  pc.add_argument("--osim-ik-dir", default=config.OSIM_DIR, help="OpenSim IK (validate/opensim_ik.py)")
+  pc.add_argument("--public", default="", help="name for a de-identified demo clip")
   a = ap.parse_args()
   if a.cmd == "model":
     os.makedirs(a.out_dir, exist_ok=True)

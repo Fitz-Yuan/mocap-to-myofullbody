@@ -11,6 +11,8 @@ The generic stages call these hooks when M2M_TASK=box_lift (the default):
                             while carrying, carry cycles (checks.py)
   viewer_scene(ref, idx)    pipeline/export_viewer.py: box, shelf and platform,
                             hand contact and box support tracks (viewer_scene.py)
+  kinetics_loads(...)       pipeline/kinetics.py: the box's load on each hand while
+                            it is carried (loads.py)
   CLIP_LABEL                what one clip of the reference is (a carry cycle)
 Its own stages, after the IK: build_reference.py (floor alignment, box size,
 grasp, support, cycles -> <M2M_REF_DIR>/<trial>.npz) and build_dataset.py (one
@@ -19,6 +21,7 @@ clip per carry cycle -> data/<M2M_DATA>/, written with motion_io.py).
 
 from tasks.box_lift.box_fit import prepare_setup, prepare_trial  # noqa: F401
 from tasks.box_lift.checks import qa_trial  # noqa: F401
+from tasks.box_lift.loads import kinetics_loads  # noqa: F401
 from tasks.box_lift.viewer_scene import viewer_scene  # noqa: F401
 
 CLIP_LABEL = "carry"

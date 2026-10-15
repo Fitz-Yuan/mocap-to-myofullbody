@@ -21,6 +21,9 @@ below (or files named like the case study's):
                                                  add qa.json, report.json / .md,
                                                  lomo.json (M2M_IK_DIR)
     ref/         tasks/<task>/build_reference.py (M2M_REF_DIR)
+    kin/         pipeline/kinetics.py            joint loads per trial (M2M_KIN_DIR)
+    opensim_ik/, opensim_id/   validate/opensim_ik.py, pipeline/opensim_id.py
+                                                 (optional OpenSim comparison)
   and the motion dataset in data/<M2M_DATA>/ of the repository.
 
 Read elsewhere (they belong to the library, not to the stages): MYOFULLBODY_MODEL
@@ -172,6 +175,29 @@ FLAT_W = float(_env("M2M_FLAT_W", 30.0))
 IK_FRAMES = _env("M2M_IK_FRAMES", "")  # "a:b": tracking IK on that frame range only (pilot / timing)
 LOMO_EVERY_S = float(_env("M2M_LOMO_EVERY_S", 1.0))  # validate/lomo.py: one frame per this many s
 
+# --- inverse dynamics (kinetics.py) and the OpenSim comparison ---------------------
+
+KIN_DIR = os.path.expanduser(_env("M2M_KIN_DIR", os.path.join(ROOT, "kin")))
+# Mass while recorded, if the subjects wore equipment (here the COSMED K5 metabolic
+# system, about 1-3 kg): a column of the anthropometrics CSV with the total mass; the
+# difference to the body mass is lumped at CARRIED_BODY's centre of mass. "" = none.
+CARRIED_COLUMN = _env("M2M_CARRIED_COLUMN", "Wgt+K5")
+CARRIED_BODY = _env("M2M_CARRIED_BODY", "torso")
+
+
+def carried_mass():
+  """{subject: kg of equipment worn} from CARRIED_COLUMN (empty if there is none)."""
+  import csv
+  if not CARRIED_COLUMN:
+    return {}
+  sc, _, mc = ANTHRO_COLUMNS
+  out = {}
+  for r in csv.DictReader(open(ANTHRO_CSV)):
+    if r.get(CARRIED_COLUMN) not in (None, ""):
+      out[ANTHRO_SUBJECT.format(int(float(r[sc])))] = float(r[CARRIED_COLUMN]) - float(r[mc])
+  return out
+
+
 # --- validation inputs ---------------------------------------------------------
 
 XSENS_TRIAL = _env("M2M_XSENS_TRIAL", "S11_Spring_NE")  # trial with a usable Xsens c3d
@@ -179,4 +205,5 @@ XSENS_C3D = os.path.expanduser(_env("M2M_XSENS_C3D",
                                     os.path.join(ROOT, "xsens_s11", f"{XSENS_TRIAL}.c3d")))
 OSIM_SETUP_DIR = os.path.join(ROOT, "opensim_setup")  # Model.osim, markers.xml, scale setup
 OSIM_DIR = os.path.join(ROOT, "opensim_ik")  # validate/opensim_ik.py output
+OSIM_ID_DIR = os.path.join(ROOT, "opensim_id")  # opensim_id.py output
 OSIM_COMPARE_DIR = os.path.join(ROOT, "compare_osim")  # validate/opensim_compare.py output
