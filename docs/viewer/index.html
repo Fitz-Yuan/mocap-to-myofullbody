@@ -486,6 +486,13 @@ function buildTracksUI(meta) {
     }
   });
   if (clip.a.resid_mm) leg.insertAdjacentHTML("beforeend", `<div><span class="swatch" style="background:var(--bad)"></span>Timeline line: marker fit error, 0–30 mm</div>`);
+  const seen = new Set();
+  for (const ar of meta.arrows ?? []) {
+    const kind = ar.name.replace(/,? (the )?(left|right) (hand|foot)$/i, "").replace(/ on$/, " on the hands");
+    if (seen.has(kind)) continue; seen.add(kind);
+    leg.insertAdjacentHTML("beforeend", `<div><span class="swatch" style="background:var(${ar.color ?? "--force"})"></span>Arrows: ${kind.toLowerCase()} (1 cm = ${(0.01 / ar.m_per_N).toFixed(1)} N)</div>`);
+  }
+  if (meta.compare) leg.insertAdjacentHTML("beforeend", `<div><span class="swatch" style="background:var(--osim)"></span>${meta.compare.name}: joint centres joined by lines${meta.compare.markers ? ", its model markers as small dots" : ""}</div>`);
   const ncat = (meta.tracks ?? []).filter(t => t.kind === "category").length, nbin = (meta.tracks ?? []).length - ncat;
   $("tl").style.height = `${8 + 16 * ncat + 7 * nbin + (clip.a.resid_mm ? 20 : 0)}px`;
 }
@@ -737,8 +744,10 @@ function updateArrows() {
     h.visible = true;
     aOrg.set(o[0] * ps, o[1] * ps, o[2] * ps); aDir.set(v[0] / mag, v[1] / mag, v[2] / mag);
     const len = mag * ar.m_per_N, head = Math.min(0.07, 0.35 * len);
-    // drawn ending at the point of application (the force pushes on it)
-    h.position.copy(aOrg).addScaledVector(aDir, -len); h.setDirection(aDir); h.setLength(len, head, 0.55 * head);
+    // anchor "head": the arrow ends at the point of application (a load pressing on it);
+    // "tail": it starts there (a ground reaction pushing up from the floor)
+    h.position.copy(aOrg); if (ar.anchor !== "tail") h.position.addScaledVector(aDir, -len);
+    h.setDirection(aDir); h.setLength(len, head, 0.55 * head);
   }
 }
 

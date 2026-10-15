@@ -1,76 +1,1196 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="js">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mocap to MyoFullBody</title>
+<meta name="description" content="An open pipeline from raw OptiTrack motion capture to motions of MyoFullBody, a MuJoCo musculoskeletal model, with a handbook and a browser viewer.">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='4' fill='%23ff5a36'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap">
+<script>
+/* Page mode, decided before first paint:
+   "motion" = scroll-driven 3D story; "static" = stages shown one under another
+   (prefers-reduced-motion, or no WebGL; "no-gl" then also hides the 3D). */
+(function () {
+  var d = document.documentElement, gl = false;
+  try {
+    var c = document.createElement("canvas"), x = c.getContext("webgl2") || c.getContext("webgl");
+    gl = !!x;
+    var lose = x && x.getExtension("WEBGL_lose_context");
+    if (lose) lose.loseContext();
+  } catch (e) {}
+  var still = !gl || matchMedia("(prefers-reduced-motion: reduce)").matches;
+  d.classList.add(still ? "static" : "motion");
+  if (!gl) d.classList.add("no-gl");
+})();
+</script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
 <style>
-/* Layout: one narrow column; a short pitch, two entry cards (handbook, viewer), the pipeline strip, then the facts. */
+/* Layout: a fixed full-screen WebGL canvas sits behind the hero and the pinned
+   story; the sections after the story are opaque sheets that slide over it.
+   Static mode (reduced motion / no WebGL) lays the five stages out in flow. */
 :root {
-  --bg: #f4f6f8; --surface: #ffffff; --fg: #1a232d; --muted: #5a6875; --line: #d5dde4;
-  --accent: #0b7480; --accent-soft: #e1f1f2;
-  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  /* Type. SF Pro on Apple devices, Inter Tight (Google Fonts) elsewhere.
+     These variables can be copied as-is into the handbook and the viewer. */
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter Tight", "Helvetica Neue", Arial, sans-serif;
+  --font-text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter Tight", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --weight-display: 600;
+  --track-display: -0.03em;
+  --track-title: -0.02em;
+
+  --bg: #000;
+  --fg: #f5f5f7;
+  --fg-2: #a1a1a6;
+  --fg-3: #6e6e73;
+  --line: rgba(255, 255, 255, 0.16);
+  --line-2: rgba(255, 255, 255, 0.08);
+  --accent: #ff5a36;
+  --bar-2: #5a5a5f;            /* the OpenSim bars */
+  --gutter: clamp(16px, 5vw, 80px);
+  --nav-h: 52px;
+  --maxw: 1240px;
+  --valw: 8.8rem;              /* value column of the comparison bars */
+  --ease: cubic-bezier(.2, .7, .1, 1);
+  color-scheme: dark;
 }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --bg: #12171c; --surface: #1a2128; --fg: #e2e8ee; --muted: #9aa8b5; --line: #2f3a45; --accent: #5cc3cc; --accent-soft: #173a3e; color-scheme: dark; }
-}
-:root[data-theme="dark"] { --bg: #12171c; --surface: #1a2128; --fg: #e2e8ee; --muted: #9aa8b5; --line: #2f3a45; --accent: #5cc3cc; --accent-soft: #173a3e; color-scheme: dark; }
+@media (max-width: 599px) { :root { --gutter: 16px; } }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.6; }
-.wrap { max-width: 860px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 48px 72px; display: flex; flex-direction: column; gap: 40px; }
-h1 { font-size: 34px; margin: 0; letter-spacing: -0.015em; text-wrap: balance; }
-h2 { font-size: 20px; margin: 0; }
-p { margin: 0; }
-.eyebrow { font-size: 12px; letter-spacing: 0.09em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
-.lede { color: var(--muted); max-width: 64ch; }
-header, section { display: flex; flex-direction: column; gap: 12px; }
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; }
-.card { display: flex; flex-direction: column; gap: 6px; padding: 18px 20px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; color: inherit; text-decoration: none; }
-.card:hover, .card:focus-visible { border-color: var(--accent); outline: none; }
-.card b { font-size: 17px; color: var(--accent); }
-.card span { color: var(--muted); font-size: 14.5px; }
-.flow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; font-size: 14px; }
-.flow span { background: var(--surface); border: 1px solid var(--line); border-radius: 7px; padding: 6px 10px; }
-.flow i { color: var(--muted); font-style: normal; }
-ul { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 5px; }
-code { font-family: var(--font-mono); font-size: 0.86em; background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
-a { color: var(--accent); }
-.note { color: var(--muted); font-size: 14px; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg);
+  font: 400 17px/1.5 var(--font-text);
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility;
+}
+a { color: inherit; }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 4px; }
+h1, h2, h3, p, figure { margin: 0; }
+.nowrap { white-space: nowrap; }
+
+/* ---------- nav ---------- */
+.nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+  height: calc(var(--nav-h) + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) var(--gutter) 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  border-bottom: 1px solid transparent;
+  transition: background-color .4s, border-color .4s;
+}
+.nav.scrolled {
+  background: rgba(12, 12, 14, 0.66);
+  -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+  border-bottom-color: var(--line-2);
+}
+.brand { font: 600 15px/1 var(--font-display); letter-spacing: -0.01em; text-decoration: none; white-space: nowrap; }
+.brand span { color: var(--fg-3); font-weight: 500; }
+.nav nav { display: flex; gap: clamp(16px, 2.6vw, 34px); }
+.nav nav a { font: 400 13px/1 var(--font-text); color: var(--fg-2); text-decoration: none; letter-spacing: 0.01em; transition: color .2s; }
+.nav nav a:hover { color: var(--fg); }
+@media (max-width: 379px) { .brand { font-size: 14px; } .nav nav { gap: 12px; } .nav nav a { font-size: 12.5px; } }
+
+/* ---------- 3D layer ---------- */
+.gl-wrap {
+  position: fixed; left: 0; top: 0; width: 100%; height: 100vh; height: 100lvh;
+  z-index: 0; pointer-events: none; opacity: 0; transition: opacity 1.4s ease;
+}
+.gl-wrap.ready { opacity: 1; }
+.gl-wrap canvas { display: block; width: 100%; height: 100%; }
+.static .gl-wrap { position: absolute; height: 100vh; height: 100svh; }
+.no-gl .gl-wrap { display: none; }
+.mk-labels { position: absolute; inset: 0; overflow: hidden; }
+.mk-labels span {
+  position: absolute; left: 0; top: 0; opacity: 0;
+  font: 500 10px/1 var(--font-text); letter-spacing: 0.04em; white-space: nowrap;
+  text-shadow: 0 0 6px #000, 0 0 2px #000;
+}
+
+/* ---------- hero ---------- */
+.hero {
+  position: relative; z-index: 1; min-height: 100vh; min-height: 100svh;
+  display: grid; align-items: center;
+  padding: calc(var(--nav-h) + 32px) var(--gutter) 112px;
+}
+.hero-copy { max-width: min(640px, 47vw); }
+h1 {
+  font: var(--weight-display) clamp(42px, 5.6vw, 88px)/1.02 var(--font-display);
+  letter-spacing: var(--track-display); margin-bottom: 28px; text-wrap: balance;
+}
+.lede { font-size: clamp(17px, 1.35vw, 21px); line-height: 1.45; color: var(--fg-2); max-width: 31em; margin-bottom: 36px; }
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: 16px 30px; }
+.btn {
+  display: inline-flex; align-items: center; height: 46px; padding: 0 24px; border-radius: 999px;
+  background: var(--fg); color: #000; font: 500 16px/1 var(--font-text); text-decoration: none;
+  transition: background-color .2s;
+}
+.btn:hover { background: #fff; }
+.tlink { color: var(--accent); font: 400 17px/1 var(--font-text); text-decoration: none; white-space: nowrap; }
+.arr { display: inline-block; transition: transform .3s var(--ease); }
+.tlink:hover .arr, .gh a:hover .arr { transform: translateX(4px); }
+.hero-foot {
+  position: absolute; left: var(--gutter); right: var(--gutter); bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+  display: flex; justify-content: space-between; align-items: flex-end; gap: 16px;
+  font-size: 13px; color: var(--fg-3);
+}
+.cue { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
+.cue i { position: relative; width: 1px; height: 40px; background: var(--line); overflow: hidden; }
+.cue i::after { content: ""; position: absolute; left: 0; top: -40%; width: 1px; height: 40%; background: var(--fg); animation: cue 2.2s var(--ease) infinite; }
+@keyframes cue { to { top: 100%; } }
+.static .cue { display: none; }
+.hero-fallback { display: none; }
+.no-gl .hero-fallback { display: block; position: absolute; z-index: -1; right: 9vw; top: 50%; height: min(76vh, 760px); transform: translateY(-50%); }
+.hero-fallback svg { height: 100%; width: auto; display: block; }
+
+/* ---------- story ---------- */
+.story { position: relative; z-index: 1; }
+.rail { list-style: none; margin: 0; padding: 0; display: none; }
+.step-n { font: 500 14px/1 var(--font-text); color: var(--fg-3); margin-bottom: 18px; }
+.step-n b { color: var(--accent); font-weight: 500; }
+.step h2 {
+  font: var(--weight-display) clamp(30px, 3.1vw, 48px)/1.06 var(--font-display);
+  letter-spacing: var(--track-display); margin-bottom: 18px; text-wrap: balance;
+}
+.step .body { color: var(--fg-2); font-size: 17px; line-height: 1.5; }
+.readout { margin-top: 28px; padding-top: 18px; border-top: 1px solid var(--line); display: flex; align-items: center; gap: 18px; }
+.ro-num { font: 600 clamp(44px, 4.4vw, 68px)/1 var(--font-display); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ro-num small { font-size: 0.42em; font-weight: 500; letter-spacing: -0.01em; color: var(--fg-2); margin-left: 0.1em; }
+.ro-cap { font-size: 14px; line-height: 1.35; color: var(--fg-2); max-width: 15em; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 22px; font-size: 13px; color: var(--fg-2); list-style: none; padding: 0; }
+.legend i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 7px; vertical-align: 0.5px; }
+
+/* static (default) layout: stages in flow */
+.steps { max-width: var(--maxw); margin: 0 auto; padding: 32px var(--gutter) 64px; }
+.step { padding: clamp(48px, 7vw, 96px) 0; border-top: 1px solid var(--line-2); display: grid; grid-template-columns: minmax(0, 1fr); gap: clamp(24px, 5vw, 80px); align-items: center; }
+.step-text { max-width: 34em; }
+.still { display: none; }
+.static:not(.no-gl) .step { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); }
+.static:not(.no-gl) .still { display: block; aspect-ratio: 1; }
+.still img { display: block; width: 100%; height: 100%; object-fit: contain; }
+@media (max-width: 899px) { .static:not(.no-gl) .step { grid-template-columns: minmax(0, 1fr); } .static .still { max-width: 420px; width: 100%; margin: 0 auto; } }
+
+/* motion layout: one pinned screen, steps cross-fade */
+.motion .story { height: calc(5 * 115vh + 100vh); }
+.motion .pin { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; isolation: isolate; }
+.motion .steps { position: absolute; inset: 0; max-width: none; padding: 0; }
+.motion .step {
+  position: absolute; left: calc(var(--gutter) + 156px); top: 50%; width: min(460px, 34vw);
+  padding: 0; border: 0; display: block; opacity: 0; transform: translate3d(0, -50%, 0); will-change: transform, opacity;
+}
+.motion .step:first-child { opacity: 1; }
+.motion .rail { display: grid; gap: 20px; position: absolute; left: var(--gutter); top: 50%; transform: translateY(-50%); }
+.rail li { display: flex; align-items: center; gap: 12px; font: 400 13px/1 var(--font-text); color: var(--fg-3); transition: color .4s; }
+.rail li::before { content: ""; flex: none; width: 18px; height: 1px; background: currentColor; transition: width .4s var(--ease), background-color .4s; }
+.rail li.past { color: var(--fg-2); }
+.rail li.on { color: var(--fg); }
+.rail li.on::before { width: 34px; background: var(--accent); }
+@media (max-width: 899px) {
+  .motion .rail {
+    top: calc(var(--nav-h) + env(safe-area-inset-top, 0px) + 10px); left: var(--gutter); right: var(--gutter);
+    transform: none; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px;
+  }
+  .motion .rail li { display: block; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .motion .rail li::before { display: block; width: auto; height: 2px; margin-bottom: 7px; background: var(--line); }
+  .motion .rail li.past::before { background: var(--fg-2); }
+  .motion .rail li.on::before { width: auto; background: var(--accent); }
+  .motion .step { left: var(--gutter); right: var(--gutter); width: auto; top: auto; bottom: calc(26px + env(safe-area-inset-bottom, 0px)); transform: none; }
+  .motion .pin::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 58%; z-index: -1; pointer-events: none;
+    background: linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,.8) 34%, rgba(0,0,0,.94));
+  }
+  .motion .step h2 { font-size: 28px; margin-bottom: 12px; }
+  .motion .step .body { font-size: 15px; line-height: 1.45; }
+  .motion .step-n { margin-bottom: 12px; }
+  .motion .readout { margin-top: 16px; padding-top: 12px; gap: 14px; }
+  .motion .ro-num { font-size: 40px; }
+  .motion .ro-cap { font-size: 13px; }
+  .motion .legend { margin-top: 14px; font-size: 12px; gap: 4px 14px; }
+}
+
+/* ---------- sheets after the story ---------- */
+.sheet { position: relative; z-index: 2; background: var(--bg); }
+.motion .story + .sheet::before {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 45vh; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,.75) 55%, #000);
+}
+.wrap { max-width: var(--maxw); margin: 0 auto; padding: 0 var(--gutter); }
+.sec-head h2 {
+  font: var(--weight-display) clamp(40px, 6vw, 88px)/1.0 var(--font-display);
+  letter-spacing: var(--track-display); margin-bottom: 24px; text-wrap: balance;
+}
+.sec-head p { font-size: clamp(17px, 1.5vw, 22px); line-height: 1.45; color: var(--fg-2); max-width: 34em; }
+.figures { padding: clamp(80px, 10vw, 144px) 0 clamp(72px, 9vw, 128px); border-top: 1px solid var(--line-2); }
+.stats {
+  display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: clamp(20px, 3.4vw, 48px); row-gap: clamp(56px, 6.5vw, 96px); margin-top: clamp(64px, 8vw, 120px);
+}
+.stat { border-top: 1px solid var(--line); padding-top: 24px; min-width: 0; }
+.stat .num {
+  font: 600 clamp(56px, 8.4vw, 128px)/0.95 var(--font-display); letter-spacing: -0.045em;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.stat .num small { font-size: 0.34em; font-weight: 500; letter-spacing: -0.01em; color: var(--fg-2); margin-left: 0.14em; }
+.stat .num .to { color: var(--fg-3); font-weight: 400; margin: 0 0.06em; }
+.stat p { margin-top: 18px; color: var(--fg-2); font-size: 16px; line-height: 1.45; max-width: 25em; }
+.s-a { grid-column: 1 / span 7; }
+.s-b { grid-column: 8 / span 5; }
+.s-c { grid-column: 1 / span 6; }
+.s-d { grid-column: 7 / span 6; }
+@media (max-width: 899px) { .stat { grid-column: 1 / -1; } }
+
+.osim { padding: clamp(120px, 15vw, 220px) 0 clamp(64px, 8vw, 112px); }
+.osim .sec-head h2 { max-width: 16em; }
+.osim .sec-head h2 .dim { color: #7c7c82; }
+.osim .sec-head p { margin-top: 8px; }
+.vs-key { display: flex; flex-wrap: wrap; gap: 8px 28px; list-style: none; padding: 0; margin: clamp(40px, 5vw, 64px) 0 0; font-size: 14px; color: var(--fg-2); }
+.vs-key i { display: inline-block; width: 18px; height: 8px; border-radius: 4px; margin-right: 9px; background: var(--bar-2); vertical-align: 1px; }
+.vs-key i.ours { background: var(--accent); }
+.vs { margin-top: 20px; }
+.vs-row { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: clamp(24px, 5vw, 80px); padding: clamp(40px, 5vw, 64px) 0; border-top: 1px solid var(--line); }
+.vs-head h3 { font: var(--weight-display) clamp(26px, 2.4vw, 34px)/1.1 var(--font-display); letter-spacing: var(--track-title); margin: 0 0 12px; }
+.vs-head p { color: var(--fg-2); font-size: 16px; line-height: 1.45; max-width: 24em; }
+.vbar, .vs-ticks { display: grid; grid-template-columns: 104px minmax(0, 1fr) var(--valw); align-items: center; column-gap: 24px; }
+.vbar + .vbar { margin-top: 16px; }
+.vbar .who { font-size: 15px; color: var(--fg-2); }
+.vbar.ours .who { color: var(--fg); }
+.vbar .track { height: 10px; border-radius: 5px; }
+.vbar .fill { min-width: 10px; border-radius: 5px; background: var(--bar-2); }
+.vbar.ours .fill { background: var(--accent); }
+.vbar .val { font: 600 clamp(34px, 3.4vw, 50px)/1 var(--font-display); letter-spacing: -0.035em; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.vbar:not(.ours) .val { color: var(--fg-2); }
+.vbar .val small { font-size: 0.4em; font-weight: 500; letter-spacing: 0; color: var(--fg-2); margin-left: 0.14em; }
+.vs-ticks { margin-top: 12px; }
+.vs-ticks .ticks { grid-column: 2; margin: 0; }
+.vs-stats { display: flex; flex-wrap: wrap; gap: 24px 64px; margin-bottom: 36px; }
+.vs-stats .big { display: block; font: 600 clamp(56px, 6.4vw, 100px)/0.95 var(--font-display); letter-spacing: -0.045em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vs-stats .pre { font-size: 0.34em; font-weight: 500; letter-spacing: 0; color: var(--fg-2); margin-right: 0.24em; }
+.vs-stats small { font-size: 0.5em; font-weight: 500; letter-spacing: -0.01em; color: var(--fg-2); margin-left: 0.06em; }
+.vs-stats .cap { display: block; margin-top: 12px; font-size: 15px; color: var(--fg-2); }
+.vs-note { font-size: 14px; color: var(--fg-2); margin-bottom: 14px; }
+.track { position: relative; height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.07); }
+.fill {
+  position: absolute; top: 0; bottom: 0; left: 0; width: var(--w, 0%);
+  transform-origin: left center; transition: transform 1.6s var(--ease) .2s;
+}
+.ticks { position: relative; height: 16px; font-size: 12px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.ticks span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; }
+.ticks span.start { transform: none; }
+.ticks span.end { transform: translateX(-100%); }
+.motion .vs-row:not(.in) .fill { transform: scaleX(0); }
+@media (max-width: 899px) {
+  .vs-row { grid-template-columns: minmax(0, 1fr); }
+  .vbar, .vs-ticks { grid-template-columns: minmax(0, 1fr) var(--valw); row-gap: 8px; column-gap: 16px; }
+  .vbar .who { grid-column: 1 / -1; }
+  .vs-ticks .ticks { grid-column: 1; }
+  .vs-stats { gap: 24px 40px; }
+  .osim .sec-head h2 { font-size: clamp(34px, 9.4vw, 52px); }
+}
+
+.cta { padding: clamp(96px, 11vw, 168px) 0 0; border-top: 1px solid var(--line-2); }
+.cta-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.cta-big { display: block; padding: clamp(36px, 4.5vw, 64px) 0; color: var(--fg); text-decoration: none; min-width: 0; }
+.cta-big + .cta-big { border-left: 1px solid var(--line); padding-left: clamp(24px, 4.5vw, 72px); }
+.cta-t { display: flex; align-items: baseline; gap: 0.18em; font: var(--weight-display) clamp(52px, 6vw, 96px)/1 var(--font-display); letter-spacing: var(--track-display); }
+.cta-t i { font-style: normal; font-weight: 400; color: var(--accent); transition: transform .45s var(--ease); }
+.cta-big:hover .cta-t i, .cta-big:focus-visible .cta-t i { transform: translateX(0.14em); }
+.cta-d { display: block; margin-top: 18px; color: var(--fg-2); font-size: 17px; line-height: 1.45; max-width: 26em; }
+@media (max-width: 899px) {
+  .cta-grid { grid-template-columns: minmax(0, 1fr); }
+  .cta-big + .cta-big { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; }
+}
+.gh { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 32px; padding: 32px 0 clamp(72px, 9vw, 120px); }
+.gh a { font-size: 17px; text-decoration: none; color: var(--fg); transition: color .2s; }
+.gh a:hover { color: var(--accent); }
+.clone { display: flex; align-items: stretch; min-width: 0; max-width: 100%; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.clone code { font: 13px/1 var(--font-mono); color: var(--fg-2); padding: 13px 14px; white-space: nowrap; overflow-x: auto; min-width: 0; }
+.clone button { flex: none; appearance: none; border: 0; border-left: 1px solid var(--line); background: transparent; color: var(--fg); font: 500 13px/1 var(--font-text); padding: 0 16px; cursor: pointer; }
+.clone button:hover { background: rgba(255, 255, 255, 0.06); }
+
+footer { border-top: 1px solid var(--line-2); padding: 28px 0 calc(40px + env(safe-area-inset-bottom, 0px)); font-size: 13px; line-height: 1.55; color: var(--fg-3); }
+footer p + p { margin-top: 6px; }
+footer a { color: var(--fg-2); }
+
+/* scroll-in reveal (motion mode only) */
+.motion [data-reveal] { opacity: 0; transform: translateY(28px); transition: opacity 1.1s var(--ease), transform 1.1s var(--ease); transition-delay: var(--d, 0s); }
+.motion [data-reveal].in { opacity: 1; transform: none; }
+
+@media (max-width: 899px) {
+  .hero { align-items: end; padding-bottom: 96px; }
+  .hero-copy { max-width: none; }
+  .hero::before {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 62%; z-index: -1; pointer-events: none;
+    background: linear-gradient(to bottom, rgba(0,0,0,0), rgba(0,0,0,.78) 32%, #000 78%);
+  }
+  h1 { font-size: clamp(36px, 10.4vw, 52px); margin-bottom: 20px; }
+  .lede { font-size: 16px; margin-bottom: 26px; }
+  .lede .more, .hero-foot .note { display: none; }
+  .hero-foot .note.loading { display: inline; }
+  .hero-foot { justify-content: flex-end; }
+  .no-gl .hero-fallback { right: 50%; top: calc(var(--nav-h) + 16px); height: 40vh; transform: translateX(50%); }
+  .no-gl .hero::before { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <div class="eyebrow">Optical motion capture → musculoskeletal model</div>
-    <h1>Mocap to MyoFullBody</h1>
-    <p class="lede">Turns OptiTrack Motive recordings into motions of MyoFullBody, a 416-muscle MuJoCo model: reads raw <code>.tak</code> files without Motive, cleans the marker labels, calibrates each subject on a static standing trial, solves inverse kinematics, and checks the result against independent references. Built for a box-lifting study; the stages are meant to carry over to other marker datasets.</p>
-  </header>
 
-  <div class="cards">
-    <a class="card" href="handbook/"><b>Handbook</b><span>Every stage, how it was checked, what the checks found, and the calibration fix.</span></a>
-    <a class="card" href="viewer/"><b>Motion viewer</b><span>Open an exported clip in the browser: bones, muscles, markers coloured by fit error, objects, joint angles.</span></a>
-    <a class="card" href="https://github.com/Fitz-Yuan/mocap-to-myofullbody"><b>Source</b><span>Code, model files and the README on GitHub.</span></a>
-  </div>
+<header class="nav" id="nav">
+  <a class="brand" href="./">Mocap <span>to</span> MyoFullBody</a>
+  <nav aria-label="Site">
+    <a href="handbook/">Handbook</a>
+    <a href="viewer/">Viewer</a>
+    <a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody">GitHub</a>
+  </nav>
+</header>
 
-  <section>
-    <h2>Pipeline</h2>
-    <div class="flow"><span>raw .tak</span><i>→</i><span>marker conditioning</span><i>→</i><span>static-trial calibration</span><i>→</i><span>least-squares IK</span><i>→</i><span>reference + QA</span><i>→</i><span>motion clips</span></div>
+<div class="gl-wrap" id="glWrap" aria-hidden="true"><canvas id="gl"></canvas><div class="mk-labels" id="mkLabels"></div></div>
+
+<main id="main">
+  <section class="hero" id="hero">
+    <div class="hero-copy" data-reveal>
+      <h1>From raw optical motion capture to a <span class="nowrap"><span data-fact="muscles"></span>-muscle</span> body.</h1>
+      <p class="lede">Mocap to MyoFullBody reads OptiTrack recordings without Motive, calibrates each subject on a static standing trial, and solves the motion on MyoFullBody, a MuJoCo model with <span data-fact="muscles"></span> muscles. <span class="more">On the same data it matches OpenSim where it should, and fits the markers twice as closely.</span></p>
+      <div class="actions">
+        <a class="btn" href="handbook/">Read the handbook</a>
+        <a class="tlink" href="viewer/">Open the viewer <span class="arr" aria-hidden="true">→</span></a>
+      </div>
+    </div>
+    <div class="hero-fallback" id="heroFallback" aria-hidden="true"></div>
+    <div class="hero-foot">
+      <span id="loadState" class="note">MyoFullBody at rest. No subject data is published on this site.</span>
+      <span class="cue" aria-hidden="true">Scroll for the pipeline <i></i></span>
+    </div>
   </section>
 
-  <section>
-    <h2>Case study in numbers</h2>
-    <ul>
-      <li>22 trials, 11 subjects; the take reader matches Motive's own exports to 0.005 mm.</li>
-      <li>Marker residual median 7.5–12.3 mm per trial; OpenSim IK on the same data gave about 21 mm.</li>
-      <li>The static-trial calibration removes an 8–10° knee offset found against Xsens.</li>
-      <li>About an hour of CPU time for the whole dataset, no manual labelling.</li>
-    </ul>
-    <p class="note">No subject data is published here: the viewer opens files from your own disk and uploads nothing.</p>
+  <section class="story" id="pipeline" aria-label="The pipeline, stage by stage">
+    <div class="pin">
+      <ol class="rail" aria-hidden="true">
+        <li>Capture</li><li>Labels</li><li>Calibration</li><li>IK</li><li>Muscles</li>
+      </ol>
+      <div class="steps">
+        <article class="step">
+          <figure class="still" data-alt="Marker dots only, with stray unlabelled points around the body"></figure>
+          <div class="step-text">
+            <p class="step-n"><b>01</b> / 05</p>
+            <h2>Raw OptiTrack .tak, read without Motive.</h2>
+            <p class="body">A .tak is an OLE compound file. The reader parses the marker trajectories, labels and rigid bodies directly on Linux, and agrees with Motive's own TRC exports to <span data-fact="readerMaxDiffMm" data-dec="3"></span> mm on <span data-fact="readerTakes"></span> takes.</p>
+            <div class="readout"><span class="ro-num"><span data-fact="readerMaxDiffMm" data-dec="3"></span><small>mm</small></span><span class="ro-cap">Largest difference from Motive's TRC export</span></div>
+          </div>
+        </article>
+        <article class="step">
+          <figure class="still" data-alt="The same markers coloured by body segment and joined by thin lines"></figure>
+          <div class="step-text">
+            <p class="step-n"><b>02</b> / 05</p>
+            <h2>Labels cleaned, mapped to Plug-in-Gait.</h2>
+            <p class="body">Motive's labels are mapped to the Plug-in-Gait marker set. Head markers are assigned by position, mislabelled samples are dropped, pelvis markers are refilled as a rigid body, and unlabelled points are not used. Nothing is labelled by hand.</p>
+            <ul class="legend" id="segLegend"></ul>
+          </div>
+        </article>
+        <article class="step">
+          <figure class="still" data-alt="The skeleton under the markers, knees bent, with short lines from each model marker to its measured marker"></figure>
+          <div class="step-text">
+            <p class="step-n"><b>03</b> / 05</p>
+            <h2>Subject calibration on a static standing trial.</h2>
+            <p class="body">Where each marker sits on its bone is fitted per subject. Without a static trial, marker placement and joint angles cannot be separated, and quiet standing came out with a median <span data-fact="kneeStandBeforeDeg"></span>° of knee flexion. Anchored on the static trial, it is <span data-fact="kneeStandAfterDeg"></span>°.</p>
+            <div class="readout"><span class="ro-num" id="roKnee"></span><span class="ro-cap">Knee flexion in quiet standing, median over <span data-fact="trials"></span> trials</span></div>
+          </div>
+        </article>
+        <article class="step">
+          <figure class="still" data-alt="The skeleton seen from the side, bent forward as if reaching for a box, markers on its segments"></figure>
+          <div class="step-text">
+            <p class="step-n"><b>04</b> / 05</p>
+            <h2>Least-squares IK, <span data-fact="dof"></span> degrees of freedom.</h2>
+            <p class="body">Each frame is solved by bounded least squares on MyoFullBody, with a robust loss, floor contact, stance-foot locking and joint speed limits. The median marker residual is about <span data-fact="residOursMm"></span> mm.</p>
+            <div class="readout"><span class="ro-num" id="roDof"></span><span class="ro-cap">Degrees of freedom: pelvis, legs, lumbar spine and arms</span></div>
+          </div>
+        </article>
+        <article class="step">
+          <figure class="still" data-alt="The full skeleton with its muscles drawn as red lines"></figure>
+          <div class="step-text">
+            <p class="step-n"><b>05</b> / 05</p>
+            <h2>MyoFullBody, <span data-fact="muscles"></span> muscles.</h2>
+            <p class="body">The motion is written as joint angles of MyoFullBody, a MuJoCo musculoskeletal model. Exported clips open in the browser viewer with bones, muscles and markers.</p>
+            <div class="readout"><span class="ro-num" id="roMus"></span><span class="ro-cap">Muscles, drawn as straight lines between attachment sites</span></div>
+          </div>
+        </article>
+      </div>
+    </div>
   </section>
-</div>
+
+  <section class="sheet osim" id="opensim">
+    <div class="wrap">
+      <header class="sec-head" data-reveal>
+        <h2>An alternative to the OpenSim workflow. <span class="dim">Matches OpenSim where it should, fits the markers twice as closely.</span></h2>
+        <p>Same <span data-fact="trials"></span> box-lifting trials, same markers. OpenSim ran Scale and IK with the Rajagopal (2016) full-body model, then Inverse Dynamics.</p>
+      </header>
+      <ul class="vs-key" aria-label="Key"><li><i class="ours"></i>This pipeline</li><li><i></i>OpenSim</li></ul>
+      <div class="vs">
+        <article class="vs-row" data-reveal>
+          <div class="vs-head">
+            <h3>Marker fit</h3>
+            <p>Median distance between the measured markers and the model's markers, over <span data-fact="trials"></span> trials. Lower is closer.</p>
+          </div>
+          <div class="vs-fig">
+            <div class="vbar ours" data-v="residOursMm" data-max="25"><span class="who">This pipeline</span><span class="track"><span class="fill"></span></span><span class="val"><span data-count="residOursMm"></span><small>mm</small></span></div>
+            <div class="vbar" data-v="residOpenSimMm" data-max="25"><span class="who">OpenSim</span><span class="track"><span class="fill"></span></span><span class="val"><span data-count="residOpenSimMm"></span><small>mm</small></span></div>
+            <div class="vs-ticks"><div class="ticks" data-ticks="0,10,20" data-max="25" data-unit=" mm"></div></div>
+          </div>
+        </article>
+        <article class="vs-row" data-reveal>
+          <div class="vs-head">
+            <h3>Standing knee</h3>
+            <p>Median knee flexion in quiet standing. Upright is 0°. The static-trial calibration anchors it there.</p>
+          </div>
+          <div class="vs-fig">
+            <div class="vbar ours" data-v="kneeStandAfterDeg" data-max="20"><span class="who">This pipeline</span><span class="track"><span class="fill"></span></span><span class="val"><span data-count="kneeStandAfterDeg"></span>°</span></div>
+            <div class="vbar" data-v="kneeStandOpenSimDeg" data-max="20"><span class="who">OpenSim</span><span class="track"><span class="fill"></span></span><span class="val"><span data-count="kneeStandOpenSimDeg"></span>°</span></div>
+            <div class="vs-ticks"><div class="ticks" data-ticks="0,5,10,15,20" data-max="20" data-unit="°"></div></div>
+          </div>
+        </article>
+        <article class="vs-row" data-reveal>
+          <div class="vs-head">
+            <h3>Low-back load</h3>
+            <p>L5/S1 extension moment from MyoFullBody inverse dynamics, against OpenSim Inverse Dynamics on the same trials.</p>
+          </div>
+          <div class="vs-fig">
+            <div class="vs-stats">
+              <div><span class="big"><span class="pre">r =</span><span data-count="lowBackR" data-dec="2"></span></span><span class="cap">Correlation of the moment</span></div>
+              <div><span class="big"><span class="pre">within</span><span data-fact="lowBackPeakPct"></span><small>%</small></span><span class="cap">Difference between the peaks</span></div>
+            </div>
+            <p class="vs-note">Peak moment on one trial</p>
+            <div class="vbar ours" data-v="lowBackPeakOursNm" data-max="400"><span class="who">This pipeline</span><span class="track"><span class="fill"></span></span><span class="val"><span data-count="lowBackPeakOursNm"></span><small>N·m</small></span></div>
+            <div class="vbar" data-v="lowBackPeakOpenSimNm" data-max="400"><span class="who">OpenSim</span><span class="track"><span class="fill"></span></span><span class="val"><span data-count="lowBackPeakOpenSimNm"></span><small>N·m</small></span></div>
+            <div class="vs-ticks"><div class="ticks" data-ticks="0,100,200,300,400" data-max="400" data-unit=" N·m" data-narrow="0,200,400"></div></div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="sheet figures" id="numbers">
+    <div class="wrap">
+      <header class="sec-head" data-reveal>
+        <h2>The case study.</h2>
+        <p><span data-fact="subjects"></span> subjects picked a <span data-fact="boxKg"></span> kg box up from a platform, carried it, and put it on a shelf. <span data-fact="trials"></span> trials went through the whole pipeline with no manual labelling.</p>
+      </header>
+      <div class="stats">
+        <div class="stat s-a" data-reveal>
+          <div class="num"><span data-count="readerMaxDiffMm" data-dec="3"></span><small>mm</small></div>
+          <p>Largest difference between the take reader and Motive's own TRC exports, over <span data-fact="readerTakes"></span> takes.</p>
+        </div>
+        <div class="stat s-b" data-reveal style="--d:.12s">
+          <div class="num"><span data-count="trials"></span><small>trials</small></div>
+          <p>From <span data-fact="subjects"></span> subjects, read straight from the raw takes. No marker was labelled by hand.</p>
+        </div>
+        <div class="stat s-c" data-reveal>
+          <div class="num"><span data-fact="kneeStandBeforeDeg"></span>°<span class="to">→</span><span data-count="kneeStandAfterDeg" data-from="kneeStandBeforeDeg"></span>°</div>
+          <p>Median knee flexion in quiet standing, before and after the static-trial calibration.</p>
+        </div>
+        <div class="stat s-d" data-reveal style="--d:.12s">
+          <div class="num"><span data-fact="cpuHours"></span><small>hour</small></div>
+          <p>Approximate CPU time for the whole dataset, on <span data-fact="cpuCores"></span> cores.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sheet cta" id="start">
+    <div class="wrap">
+      <div class="cta-grid" data-reveal>
+        <a class="cta-big" href="handbook/">
+          <span class="cta-t">Handbook <i aria-hidden="true">→</i></span>
+          <span class="cta-d">Every stage, how it was checked, what the checks found, and the calibration fix.</span>
+        </a>
+        <a class="cta-big" href="viewer/">
+          <span class="cta-t">Viewer <i aria-hidden="true">→</i></span>
+          <span class="cta-d">Open an exported .elvw clip: bones, muscles, markers coloured by fit error, joint angles. Files are read from your own disk; nothing is uploaded.</span>
+        </a>
+      </div>
+      <div class="gh">
+        <a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody">Source, model files and README on <span class="nowrap">GitHub <span class="arr" aria-hidden="true">→</span></span></a>
+        <div class="clone"><code id="cloneCmd">git clone https://github.com/Fitz-Yuan/mocap-to-myofullbody</code><button type="button" id="copyBtn">Copy</button></div>
+      </div>
+    </div>
+    <footer>
+      <div class="wrap">
+        <p>Code under Apache-2.0. The MyoFullBody model is by the MuscleMimic team, built upon MyoSuite / MyoSim models (Apache-2.0). Rendering with three.js (MIT).</p>
+        <p>The figure on this page is the model at rest with procedural poses. No subject data is published on this site.</p>
+      </div>
+    </footer>
+  </section>
+</main>
+
+<script>
+/* =====================================================================
+   FACTS. Every number on this page is read from here; edit here only.
+   Sources: the README results table and the handbook; the OpenSim
+   comparison (knee 11 degrees, L5/S1 moment) as supplied by the author.
+   ===================================================================== */
+window.FACTS = {
+  muscles: 416,               // MyoFullBody muscle count
+  dof: 37,                    // IK unknowns: pelvis 6, legs 14, lumbar 3, arms 14
+  readerMaxDiffMm: 0.005,     // take reader vs Motive's TRC exports, largest difference
+  readerTakes: 11,            // takes in that comparison
+  subjects: 11,
+  trials: 22,
+  boxKg: 13.6,
+  residOursMm: 9,             // median marker residual over the 22 trials, this pipeline (about)
+  residOpenSimMm: 20,         // same markers and trials, OpenSim Scale + IK with the Rajagopal (2016) model (about)
+  kneeStandBeforeDeg: 18,     // quiet-standing knee flexion, median: this pipeline without the static trial
+  kneeStandAfterDeg: 0,       // ... this pipeline with the static trial
+  kneeStandOpenSimDeg: 11,    // ... OpenSim Scale + IK (about)
+  lowBackR: 0.98,             // L5/S1 extension moment, MyoFullBody inverse dynamics vs OpenSim Inverse Dynamics: correlation
+  lowBackPeakPct: 2,          // ... peaks agree within this many percent
+  lowBackPeakOursNm: 333,     // ... example trial peak, this pipeline (N·m)
+  lowBackPeakOpenSimNm: 336,  // ... same trial, OpenSim (N·m)
+  cpuHours: 1,                // whole dataset (about)
+  cpuCores: 22,
+};
+/* Plug-in-Gait markers placed on the model at rest (model coordinates, metres,
+   z up, facing -y). These are the starting guesses of the calibration
+   (_ANAT_L / _ANAT_MID in pipeline/mmh_ik.py), not measured data. */
+window.M2M_MARKERS = [
+  ["LFHD","head",0.035,0.12,1.69],["RFHD","head",-0.085,0.12,1.69],["LBHD","head",0.035,0.29,1.67],["RBHD","head",-0.085,0.29,1.67],
+  ["C7","thorax",-0.025,0.27,1.48],["T10","thorax",-0.025,0.26,1.24],["CLAV","thorax",-0.025,0.14,1.45],["STRN","thorax",-0.025,0.1,1.27],["RBAK","thorax",-0.105,0.28,1.37],
+  ["LSHO","scapula_l",0.145,0.2,1.52],["LUPA","humerus_l",0.205,0.2,1.33],["LELB","humerus_l",0.168,0.193,1.18],["LFRM","radius_l",0.185,0.19,1.05],["LWRA","radius_l",0.18,0.145,0.935],["LWRB","ulna_l",0.18,0.205,0.935],["LFIN","thirdmc_l",0.19,0.165,0.82],
+  ["RSHO","scapula_r",-0.195,0.2,1.52],["RUPA","humerus_r",-0.255,0.2,1.33],["RELB","humerus_r",-0.218,0.193,1.18],["RFRM","radius_r",-0.235,0.19,1.05],["RWRA","radius_r",-0.23,0.145,0.935],["RWRB","ulna_r",-0.23,0.205,0.935],["RFIN","thirdmc_r",-0.24,0.165,0.82],
+  ["LASI","pelvis",0.1,0.086,0.99],["RASI","pelvis",-0.15,0.086,0.99],["LPSI","pelvis",0.025,0.246,0.995],["RPSI","pelvis",-0.075,0.246,0.995],
+  ["LTHI","femur_l",0.122,0.156,0.72],["LKNE","femur_l",0.101,0.156,0.517],["LTIB","tibia_l",0.111,0.16,0.32],["LANK","tibia_l",0.091,0.166,0.11],["LHEE","calcn_l",0.059,0.235,0.055],["LTOE","calcn_l",0.055,0.045,0.045],
+  ["RTHI","femur_r",-0.172,0.156,0.72],["RKNE","femur_r",-0.151,0.156,0.517],["RTIB","tibia_r",-0.161,0.16,0.32],["RANK","tibia_r",-0.141,0.166,0.11],["RHEE","calcn_r",-0.109,0.235,0.055],["RTOE","calcn_r",-0.105,0.045,0.045]
+];
+window.M2M_SEG = function (l) {
+  if (/HD$/.test(l)) return "head";
+  if (["C7", "T10", "CLAV", "STRN", "RBAK"].indexOf(l) >= 0) return "trunk";
+  var k = l.slice(1);
+  if (k === "ASI" || k === "PSI") return "pelvis";
+  if (["SHO", "UPA", "ELB", "FRM", "WRA", "WRB", "FIN"].indexOf(k) >= 0) return "arm";
+  return "leg";
+};
+window.M2M_SEG_COL = { head: "#bf5af2", trunk: "#f5f5f7", arm: "#64d2ff", pelvis: "#ffd60a", leg: "#30d158" };
+
+(function () {
+  var F = window.FACTS, d = document.documentElement, $ = function (id) { return document.getElementById(id); };
+  var fmt = function (v, dec) { return (dec != null ? Number(v).toFixed(dec) : String(v)).replace("-", "−"); };
+  var decOf = function (el) { return el.dataset.dec != null ? +el.dataset.dec : null; };
+  document.querySelectorAll("[data-fact]").forEach(function (el) { el.textContent = fmt(F[el.dataset.fact], decOf(el)); });
+
+  // segment legend (stage 2)
+  var names = { head: "Head", trunk: "Trunk", arm: "Arms", pelvis: "Pelvis", leg: "Legs" };
+  $("segLegend").innerHTML = Object.keys(names).map(function (k) {
+    return '<li><i style="background:' + window.M2M_SEG_COL[k] + '"></i>' + names[k] + "</li>";
+  }).join("");
+
+  // comparison bars and their ticks, scaled from FACTS
+  document.querySelectorAll(".vbar[data-v]").forEach(function (row) {
+    var v = F[row.dataset.v], max = +row.dataset.max;
+    row.querySelector(".fill").style.setProperty("--w", (100 * v / max) + "%");
+    var unit = row.querySelector(".val small");
+    row.title = row.querySelector(".who").textContent + ": " + fmt(v) + (unit ? " " + unit.textContent : "°");
+  });
+  document.querySelectorAll(".ticks[data-ticks]").forEach(function (el) {
+    var list = el.dataset.narrow && innerWidth < 600 ? el.dataset.narrow : el.dataset.ticks;
+    var vals = list.split(",").map(Number), max = +el.dataset.max, unit = el.dataset.unit || "";
+    el.innerHTML = vals.map(function (v, i) {
+      var cls = v === 0 ? ' class="start"' : v === max ? ' class="end"' : "";
+      return "<span" + cls + ' style="left:' + (100 * v / max) + '%">' + fmt(v) + (i === vals.length - 1 ? unit : "") + "</span>";
+    }).join("");
+  });
+
+  // nav turns translucent once the page moves
+  var nav = $("nav");
+  var onScroll = function () { nav.classList.toggle("scrolled", window.scrollY > 8); };
+  addEventListener("scroll", onScroll, { passive: true }); onScroll();
+
+  // count-ups and scroll-in reveals (motion mode); final values otherwise
+  var counters = [].slice.call(document.querySelectorAll("[data-count]"));
+  var finalOf = function (el) { return fmt(F[el.dataset.count], decOf(el)); };
+  function countUp(el) {
+    var to = +F[el.dataset.count], from = el.dataset.from ? +F[el.dataset.from] : 0, dec = decOf(el) || 0, t0 = performance.now(), dur = 1700;
+    (function step(now) {
+      var t = Math.min(1, (now - t0) / dur), e = 1 - Math.pow(1 - t, 4);
+      el.textContent = fmt(from + (to - from) * e, dec);
+      if (t < 1) requestAnimationFrame(step);
+    })(t0);
+  }
+  function settle() {
+    counters.forEach(function (el) { el.textContent = finalOf(el); });
+    $("roKnee").innerHTML = fmt(F.kneeStandBeforeDeg) + '°<small>→ ' + fmt(F.kneeStandAfterDeg) + "°</small>";
+    $("roDof").textContent = fmt(F.dof);
+    $("roMus").textContent = fmt(F.muscles);
+  }
+  if (d.classList.contains("motion") && "IntersectionObserver" in window) {
+    counters.forEach(function (el) { el.textContent = fmt(el.dataset.from ? F[el.dataset.from] : 0, decOf(el)); });
+    $("roKnee").textContent = fmt(F.kneeStandBeforeDeg) + "°";
+    $("roDof").textContent = "0";
+    $("roMus").textContent = "0";
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (!e.isIntersecting) return;
+        e.target.classList.add("in");
+        io.unobserve(e.target);
+        e.target.querySelectorAll("[data-count]").forEach(countUp);
+      });
+    }, { rootMargin: "0px 0px -10% 0px", threshold: 0.2 });
+    document.querySelectorAll("[data-reveal]").forEach(function (el) { io.observe(el); });
+  } else {
+    document.querySelectorAll("[data-reveal]").forEach(function (el) { el.classList.add("in"); });
+    settle();
+  }
+
+  // copy the clone command
+  $("copyBtn").addEventListener("click", function () {
+    var b = this;
+    navigator.clipboard && navigator.clipboard.writeText($("cloneCmd").textContent).then(function () {
+      b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1600);
+    });
+  });
+
+  // no WebGL: a flat front view of the marker set stands in for the 3D figure
+  function constellation() {
+    var host = $("heroFallback"); if (host.firstChild) return;
+    var S = 400, x0 = -0.42, x1 = 0.37, z1 = 1.8, w = (x1 - x0) * S, h = z1 * S;
+    var dots = window.M2M_MARKERS.map(function (m) {
+      return '<circle cx="' + ((m[2] - x0) * S).toFixed(1) + '" cy="' + ((z1 - m[4]) * S).toFixed(1) + '" r="5" fill="' + window.M2M_SEG_COL[window.M2M_SEG(m[0])] + '"/>';
+    });
+    host.innerHTML = '<svg viewBox="0 0 ' + w.toFixed(0) + " " + h.toFixed(0) + '">' + dots.join("") + "</svg>";
+  }
+  window.m2mFallback = function () {
+    d.classList.remove("motion"); d.classList.add("static", "no-gl");
+    document.querySelectorAll("[data-reveal]").forEach(function (el) { el.classList.add("in"); });
+    document.querySelectorAll(".step").forEach(function (el) { el.removeAttribute("style"); });
+    settle(); constellation();
+  };
+  if (d.classList.contains("no-gl")) constellation();
+  // the 3D module never started (CDN blocked, old browser): fall back after a while
+  setTimeout(function () { if (!window.__m2mModule && !d.classList.contains("no-gl")) window.m2mFallback(); }, 15000);
+})();
+</script>
+
+<script type="module">
+import * as THREE from "three";
+import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
+import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
+import { LineMaterial } from "three/addons/lines/LineMaterial.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+
+window.__m2mModule = true;
+const root = document.documentElement;
+if (!root.classList.contains("no-gl")) main().catch((err) => { console.error(err); window.m2mFallback(); });
+
+async function main() {
+  const STATIC = root.classList.contains("static");
+  const F = window.FACTS;
+  const $ = (id) => document.getElementById(id);
+  const DEG = Math.PI / 180;
+  const clamp01 = (x) => (x < 0 ? 0 : x > 1 ? 1 : x);
+  const sstep = (x) => { x = clamp01(x); return x * x * (3 - 2 * x); };
+  const ramp = (u, a, b) => sstep((u - a) / (b - a));
+  const lerp = (a, b, t) => a + (b - a) * t;
+  const keys = (K, u) => {
+    if (u <= K[0][0]) return K[0][1];
+    for (let i = 1; i < K.length; i++) if (u <= K[i][0]) return lerp(K[i - 1][1], K[i][1], sstep((u - K[i - 1][0]) / (K[i][0] - K[i - 1][0])));
+    return K[K.length - 1][1];
+  };
+  const rng = ((s) => () => { s |= 0; s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; })(20261015);
+
+  /* ---------- scroll position -> story coordinates ---------- */
+  const story = $("pipeline"), wrap = $("glWrap"), canvas = $("gl");
+  const steps = [...document.querySelectorAll(".step")], railItems = [...document.querySelectorAll(".rail li")];
+  let storyTop = 1, storyLen = 1, storyEnd = 1, wide = true, heroCopyTop = 400, navH = 52;
+  function measure() {
+    heroCopyTop = document.querySelector(".hero-copy").getBoundingClientRect().top + window.scrollY;
+    navH = $("nav").offsetHeight;
+    storyTop = story.getBoundingClientRect().top + window.scrollY;
+    storyLen = Math.max(1, story.offsetHeight - window.innerHeight);
+    storyEnd = storyTop + story.offsetHeight;
+    wide = window.innerWidth >= 900;
+  }
+  // h: 0..1 while the hero scrolls away; u: 0..5 across the five pinned stages
+  const scrollTargets = () => {
+    const y = window.scrollY;
+    return [clamp01(y / Math.max(1, storyTop)), 5 * clamp01((y - storyTop) / storyLen)];
+  };
+  function updateSteps(u) {
+    for (let i = 0; i < steps.length; i++) {
+      const inA = i === 0 ? 1 : ramp(u, i - 0.06, i + 0.08);
+      const outA = i === steps.length - 1 ? 0 : ramp(u, i + 0.8, i + 0.92);
+      const a = inA * (1 - outA), dy = (1 - inA) * 28 - outA * 28;
+      const el = steps[i];
+      el.style.opacity = a.toFixed(3);
+      el.style.transform = `translate3d(0, calc(${wide ? "-50%" : "0px"} + ${dy.toFixed(1)}px), 0)`;
+      el.style.pointerEvents = a > 0.5 ? "auto" : "none";
+    }
+    const act = Math.min(4, Math.max(0, Math.floor(u + 0.06)));
+    railItems.forEach((li, i) => { li.classList.toggle("on", i === act); li.classList.toggle("past", i < act); });
+  }
+
+  /* ---------- renderer ---------- */
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(DPR);
+  renderer.setClearColor(0x000000, 0);
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
+  const scene = new THREE.Scene();
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+  pmrem.dispose();
+  const camera = new THREE.PerspectiveCamera(26, 1, 0.05, 60);
+  camera.up.set(0, 0, 1);
+  // warm key from the front left, two cool rims from behind
+  const key = new THREE.DirectionalLight(0xfff0de, 2.1); key.position.set(-2.2, -3.0, 3.2);
+  const rimA = new THREE.DirectionalLight(0xcfe0ff, 2.8); rimA.position.set(2.8, 2.6, 2.4);
+  const rimB = new THREE.DirectionalLight(0xffffff, 1.5); rimB.position.set(-3.0, 2.4, 1.2);
+  const hemi = new THREE.HemisphereLight(0x9fb0c8, 0x000000, 0.3); hemi.position.set(0, 0, 1);
+  scene.add(key, rimA, rimB, hemi);
+
+  // floor: a soft pool of light and one thin ring
+  const poolTex = (() => {
+    const c = document.createElement("canvas"); c.width = c.height = 256;
+    const g = c.getContext("2d"), gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+    gr.addColorStop(0, "rgba(255,255,255,0.20)"); gr.addColorStop(0.35, "rgba(255,255,255,0.07)"); gr.addColorStop(1, "rgba(255,255,255,0)");
+    g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const pool = new THREE.Mesh(new THREE.PlaneGeometry(2.8, 2.8), new THREE.MeshBasicMaterial({ map: poolTex, transparent: true, depthWrite: false, toneMapped: false }));
+  pool.position.z = 0.03;
+  const ringPts = []; for (let i = 0; i <= 128; i++) { const a = (i / 128) * Math.PI * 2; ringPts.push(new THREE.Vector3(Math.cos(a) * 0.52, Math.sin(a) * 0.52, 0.031)); }
+  const ring = new THREE.Line(new THREE.BufferGeometry().setFromPoints(ringPts), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.08, depthWrite: false }));
+  scene.add(pool, ring);
+
+  const turn = new THREE.Group(); scene.add(turn);          // yaw about the body's vertical axis
+  const human = new THREE.Group(); human.position.set(0.025, -0.13, 0); turn.add(human);
+
+  /* ---------- model file (the viewer's ELVW container) ---------- */
+  function parseELVW(buf) {
+    const dv = new DataView(buf);
+    if (String.fromCharCode(...new Uint8Array(buf, 0, 4)) !== "ELVW") throw new Error("Not an .elvw file");
+    const hl = dv.getUint32(8, true);
+    const head = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 12, hl)));
+    const base = 12 + hl, T = { i2: Int16Array, u2: Uint16Array, f4: Float32Array, u1: Uint8Array, i1: Int8Array, i4: Int32Array, u4: Uint32Array };
+    const arrays = {};
+    for (const [name, [dt, shape, off]] of Object.entries(head.arrays)) {
+      const C = T[dt], n = shape.reduce((a, b) => a * b, 1);
+      arrays[name] = { data: new C(buf, base + off, n), shape };
+    }
+    return { meta: head.meta, a: arrays };
+  }
+  async function fetchModel(onProgress) {
+    const r = await fetch("viewer/myofullbody_model.elvw");
+    if (!r.ok) throw new Error(`model file: HTTP ${r.status}`);
+    const total = +r.headers.get("content-length") || 0;
+    if (!r.body || !total) return r.arrayBuffer();
+    const reader = r.body.getReader(), chunks = []; let got = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value); got += value.length; onProgress(Math.min(1, got / total));
+    }
+    const out = new Uint8Array(got); let o = 0;
+    for (const c of chunks) { out.set(c, o); o += c.length; }
+    return out.buffer;
+  }
+
+  const loadEl = $("loadState"), loadText = loadEl.textContent;
+  // until the model is in, the captions still follow the scroll
+  const preScroll = () => { if (!root.classList.contains("static")) { measure(); updateSteps(scrollTargets()[1]); } };
+  if (!STATIC) { preScroll(); addEventListener("scroll", preScroll, { passive: true }); }
+  loadEl.classList.add("loading");
+  const M = parseELVW(await fetchModel((p) => { loadEl.textContent = `Loading the model, ${Math.round(p * 100)}%`; }));
+  loadEl.textContent = loadText; loadEl.classList.remove("loading");
+  const meta = M.meta, NB = meta.bodies.length;
+  const bidx = Object.fromEntries(meta.bodies.map((n, i) => [n, i]));
+
+  /* ---------- bones ---------- */
+  const boneMat = new THREE.MeshStandardMaterial({ color: 0xe9e1cf, roughness: 0.5, metalness: 0, envMapIntensity: 0.55, transparent: true });
+  const boneRoot = new THREE.Group(); human.add(boneRoot);
+  const bodyG = [];
+  for (let b = 0; b < NB; b++) { const g = new THREE.Group(); bodyG.push(g); boneRoot.add(g); }
+  {
+    const V = M.a.verts.data, Fc = M.a.faces.data;
+    for (const me of meta.meshes) {
+      const pos = new Float32Array(me.nv * 3);
+      for (let i = 0; i < me.nv; i++) for (let k = 0; k < 3; k++) pos[3 * i + k] = (V[3 * (me.vofs + i) + k] + 32767) * me.scale[k] + me.lo[k];
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      g.setIndex(new THREE.BufferAttribute(Fc.slice(3 * me.fofs, 3 * (me.fofs + me.nf)), 1));
+      g.computeVertexNormals();
+      const mesh = new THREE.Mesh(g, boneMat);
+      mesh.position.set(...me.pos); mesh.quaternion.set(me.quat[1], me.quat[2], me.quat[3], me.quat[0]);
+      bodyG[me.body].add(mesh);
+    }
+  }
+
+  /* ---------- procedural poses: sagittal rotations of body subtrees ---------- */
+  const restP = Float64Array.from(M.a.rest_pos.data), restQ = Float64Array.from(M.a.rest_quat.data); // quat w,x,y,z
+  const curP = new Float64Array(NB * 3), curQ = new Float64Array(NB * 4);
+  const kids = Array.from({ length: NB }, () => []);
+  meta.parents.forEach((p, i) => { if (i !== p) kids[p].push(i); });
+  const subtrees = new Map();
+  const subtree = (b) => {
+    if (!subtrees.has(b)) { const out = [], st = [b]; while (st.length) { const i = st.pop(); out.push(i); st.push(...kids[i]); } subtrees.set(b, out); }
+    return subtrees.get(b);
+  };
+  // rotate the subtree of body b about the world x axis (the model's left-right axis) through (cy, cz)
+  function pitch(b, deg, cy, cz) {
+    if (!deg) return;
+    const a = deg * DEG, c = Math.cos(a), s = Math.sin(a), hw = Math.cos(a / 2), hx = Math.sin(a / 2);
+    if (cy === undefined) { cy = curP[3 * b + 1]; cz = curP[3 * b + 2]; }
+    for (const i of subtree(b)) {
+      const dy = curP[3 * i + 1] - cy, dz = curP[3 * i + 2] - cz;
+      curP[3 * i + 1] = cy + dy * c - dz * s; curP[3 * i + 2] = cz + dy * s + dz * c;
+      const w = curQ[4 * i], x = curQ[4 * i + 1], y = curQ[4 * i + 2], z = curQ[4 * i + 3];
+      curQ[4 * i] = hw * w - hx * x; curQ[4 * i + 1] = hw * x + hx * w; curQ[4 * i + 2] = hw * y - hx * z; curQ[4 * i + 3] = hw * z + hx * y;
+    }
+  }
+  const SIDES = ["l", "r"].map((s) => ({ femur: bidx["femur_" + s], tibia: bidx["tibia_" + s], talus: bidx["talus_" + s], calcn: bidx["calcn_" + s], humerus: bidx["humerus_" + s], ulna: bidx["ulna_" + s] }));
+  const ALL = bidx["Full Body"], LUMBAR = ["lumbar5", "lumbar3", "lumbar1"].map((n) => bidx[n]);
+  const hipY = (restP[3 * SIDES[0].femur + 1] + restP[3 * SIDES[1].femur + 1]) / 2, hipZ = (restP[3 * SIDES[0].femur + 2] + restP[3 * SIDES[1].femur + 2]) / 2;
+  // theta: knee flexion while standing (the calibration bias); lift: 0..1 towards a reach-down posture
+  function pose(theta, lift) {
+    curP.set(restP); curQ.set(restQ);
+    const tilt = 16 * lift, lumbar = 24 * lift, a = 34 * lift + theta / 2, b = 30 * lift + theta / 2;
+    pitch(ALL, tilt, hipY, hipZ);
+    for (const S of SIDES) { pitch(S.femur, -(a + tilt)); pitch(S.tibia, a + b); pitch(S.talus, -b); }
+    for (const l of LUMBAR) pitch(l, lumbar / 3);
+    for (const S of SIDES) { pitch(S.humerus, -38 * lift); pitch(S.ulna, -34 * lift); }
+    let dy = 0, dz = 0;   // keep the heels where they were
+    for (const S of SIDES) { dy += restP[3 * S.calcn + 1] - curP[3 * S.calcn + 1]; dz += restP[3 * S.calcn + 2] - curP[3 * S.calcn + 2]; }
+    for (let i = 0; i < NB; i++) { curP[3 * i + 1] += dy / 2; curP[3 * i + 2] += dz / 2; }
+    for (let i = 0; i < NB; i++) {
+      bodyG[i].position.set(curP[3 * i], curP[3 * i + 1], curP[3 * i + 2]);
+      bodyG[i].quaternion.set(curQ[4 * i + 1], curQ[4 * i + 2], curQ[4 * i + 3], curQ[4 * i]);
+    }
+  }
+  function toWorld(b, lx, ly, lz, out, o) {
+    const w = curQ[4 * b], x = curQ[4 * b + 1], y = curQ[4 * b + 2], z = curQ[4 * b + 3];
+    const tx = 2 * (y * lz - z * ly), ty = 2 * (z * lx - x * lz), tz = 2 * (x * ly - y * lx);
+    out[o] = curP[3 * b] + lx + w * tx + (y * tz - z * ty);
+    out[o + 1] = curP[3 * b + 1] + ly + w * ty + (z * tx - x * tz);
+    out[o + 2] = curP[3 * b + 2] + lz + w * tz + (x * ty - y * tx);
+  }
+  function restLocal(b, px, py, pz) {
+    const w = restQ[4 * b], x = -restQ[4 * b + 1], y = -restQ[4 * b + 2], z = -restQ[4 * b + 3];
+    const vx = px - restP[3 * b], vy = py - restP[3 * b + 1], vz = pz - restP[3 * b + 2];
+    const tx = 2 * (y * vz - z * vy), ty = 2 * (z * vx - x * vz), tz = 2 * (x * vy - y * vx);
+    return [vx + w * tx + (y * tz - z * ty), vy + w * ty + (z * tx - x * tz), vz + w * tz + (x * ty - y * tx)];
+  }
+
+  /* ---------- muscles: straight lines through attachment sites, drawn on from the feet up ---------- */
+  const siteB = M.a.site_body.data, siteL = M.a.site_pos.data, NS = siteB.length, SW = new Float32Array(NS * 3);
+  const updateSites = () => { for (let s = 0; s < NS; s++) toWorld(siteB[s], siteL[3 * s], siteL[3 * s + 1], siteL[3 * s + 2], SW, 3 * s); };
+  pose(0, 0); updateSites();
+  const muscles = meta.muscles.filter((m) => m.sites.length >= 2).map((m) => {
+    let zmin = Infinity; const len = [];
+    for (const s of m.sites) zmin = Math.min(zmin, SW[3 * s + 2]);
+    for (let i = 0; i + 1 < m.sites.length; i++) { const a = 3 * m.sites[i], b = 3 * m.sites[i + 1]; len.push(Math.hypot(SW[b] - SW[a], SW[b + 1] - SW[a + 1], SW[b + 2] - SW[a + 2])); }
+    const L = len.reduce((x, y) => x + y, 0) || 1, cum = [0];
+    for (const l of len) cum.push(cum[cum.length - 1] + l / L);
+    return { sites: m.sites, zmin, cum };
+  }).sort((a, b) => a.zmin - b.zmin);
+  const SPREAD = 0.74, DUR = 1 - SPREAD, zLo = muscles[0].zmin, zHi = muscles[muscles.length - 1].zmin;
+  for (const m of muscles) m.delay = (SPREAD * (m.zmin - zLo)) / (zHi - zLo || 1);
+  const NSEG = muscles.reduce((n, m) => n + m.sites.length - 1, 0);
+  const musGeo = new LineSegmentsGeometry();
+  musGeo.setPositions(new Float32Array(NSEG * 6)); musGeo.setColors(new Float32Array(NSEG * 6));
+  const musMat = new LineMaterial({ color: 0xffffff, linewidth: 1.5, vertexColors: true, transparent: true, depthWrite: false });
+  const musLines = new LineSegments2(musGeo, musMat); musLines.frustumCulled = false; musLines.renderOrder = 3; human.add(musLines);
+  const musPos = musGeo.attributes.instanceStart.data, musCol = musGeo.attributes.instanceColorStart.data;
+  const cBase = new THREE.Color("#e8432b"), cHot = new THREE.Color("#ffe1d4");
+  let musDone = 0;
+  function updateMuscles(R) {
+    const P = musPos.array, C = musCol.array; let n = 0; musDone = 0;
+    for (const m of muscles) {
+      const f = clamp01((R - m.delay) / DUR);
+      if (f <= 0) break;                                   // sorted by delay: none of the rest has started
+      if (f >= 0.999) musDone++;
+      const heat = 1 - sstep(f * 1.2), cr = lerp(cBase.r, cHot.r, heat), cg = lerp(cBase.g, cHot.g, heat), cb = lerp(cBase.b, cHot.b, heat);
+      const s0 = 3 * m.sites[0]; let tx = SW[s0], ty = SW[s0 + 1], tz = SW[s0 + 2];
+      for (let i = 0; i + 1 < m.sites.length; i++) {
+        const a = 3 * m.sites[i], b = 3 * m.sites[i + 1], t = clamp01((f - m.cum[i]) / (m.cum[i + 1] - m.cum[i] || 1)), o = 6 * n++;
+        if (t > 0) {
+          P[o] = SW[a]; P[o + 1] = SW[a + 1]; P[o + 2] = SW[a + 2];
+          tx = SW[a] + (SW[b] - SW[a]) * t; ty = SW[a + 1] + (SW[b + 1] - SW[a + 1]) * t; tz = SW[a + 2] + (SW[b + 2] - SW[a + 2]) * t;
+        } else { P[o] = tx; P[o + 1] = ty; P[o + 2] = tz; }      // not reached yet: folded onto the tip
+        P[o + 3] = tx; P[o + 4] = ty; P[o + 5] = tz;
+        C[o] = C[o + 3] = cr; C[o + 1] = C[o + 4] = cg; C[o + 2] = C[o + 5] = cb;
+      }
+    }
+    musGeo.instanceCount = n; musPos.needsUpdate = true; musCol.needsUpdate = true;
+  }
+
+  /* ---------- markers ---------- */
+  const MK = window.M2M_MARKERS, NM = MK.length, SEGC = window.M2M_SEG_COL;
+  const mkBody = MK.map((m) => bidx[m[1]]);
+  const mkLocal = MK.map((m, k) => restLocal(mkBody[k], m[2], m[3], m[4]));
+  const mkSeg = MK.map((m) => window.M2M_SEG(m[0]));
+  const hexRGB = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);   // display (sRGB) values: the point shader writes them as is
+  const RAW = hexRGB("#e4ecff"), RING = hexRGB("#ffffff");
+  const mkSegRGB = mkSeg.map((s) => hexRGB(SEGC[s]));
+  // calibration error: each model marker starts 15-35 mm off its measured marker
+  const mkErr = MK.map(() => { const u = rng() * 2 - 1, ph = rng() * Math.PI * 2, r = Math.sqrt(1 - u * u), m = 0.015 + 0.02 * rng(); return [r * Math.cos(ph) * m, r * Math.sin(ph) * m, u * m]; });
+  // raw capture: some markers drop out now and then
+  const mkGap = MK.map((_, k) => (k % 3 === 1 ? [0.5 + rng() * 0.9, rng() * Math.PI * 2] : null));
+  // unlabelled points: reflections and ghosts around the volume
+  const NST = 18, stray = [];
+  for (let i = 0; i < NST; i++) {
+    if (i < 11) stray.push([-0.025 + (rng() - 0.5) * 0.95, 0.13 + (rng() - 0.5) * 0.8, 0.08 + rng() * 1.8]);
+    else { const a = rng() * Math.PI * 2, r = 0.45 + rng() * 0.6; stray.push([-0.025 + Math.cos(a) * r, 0.13 + Math.sin(a) * r, 0.035]); }
+  }
+  const strayPh = stray.map(() => [0.8 + rng() * 1.6, rng() * Math.PI * 2]);
+  const NP = 2 * NM + NST;
+  const ptsGeo = new THREE.BufferGeometry();
+  const attr = (n, k) => { const a = new THREE.BufferAttribute(new Float32Array(n * k), k); a.setUsage(THREE.DynamicDrawUsage); return a; };
+  ptsGeo.setAttribute("position", attr(NP, 3)); ptsGeo.setAttribute("aColor", attr(NP, 3));
+  ptsGeo.setAttribute("aAlpha", attr(NP, 1)); ptsGeo.setAttribute("aSize", attr(NP, 1)); ptsGeo.setAttribute("aRing", attr(NP, 1));
+  const ptsMat = new THREE.ShaderMaterial({
+    uniforms: { uScale: { value: 1 } },
+    vertexShader: `attribute vec3 aColor; attribute float aAlpha; attribute float aSize; attribute float aRing;
+      uniform float uScale; varying vec3 vColor; varying float vAlpha; varying float vRing;
+      void main() { vec4 mv = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mv;
+        gl_PointSize = max(aSize * uScale / -mv.z, 1.0); vColor = aColor; vAlpha = aAlpha; vRing = aRing; }`,
+    fragmentShader: `varying vec3 vColor; varying float vAlpha; varying float vRing;
+      void main() { vec2 c = gl_PointCoord * 2.0 - 1.0; float r = length(c); if (r > 1.0 || vAlpha < 0.003) discard;
+        float a = vRing > 0.5 ? smoothstep(1.0, 0.8, r) * smoothstep(0.42, 0.62, r) : smoothstep(0.46, 0.32, r) + 0.42 * pow(1.0 - r, 2.6);
+        gl_FragColor = vec4(vColor, a * vAlpha); }`,
+    transparent: true, depthWrite: false,
+  });
+  const pts = new THREE.Points(ptsGeo, ptsMat); pts.frustumCulled = false; pts.renderOrder = 5; human.add(pts);
+
+  const byLabel = Object.fromEntries(MK.map((m, k) => [m[0], k]));
+  const STICK_LABELS = [["LFHD", "RFHD"], ["RFHD", "RBHD"], ["RBHD", "LBHD"], ["LBHD", "LFHD"], ["C7", "CLAV"], ["CLAV", "STRN"], ["C7", "T10"],
+    ["LASI", "RASI"], ["RASI", "RPSI"], ["RPSI", "LPSI"], ["LPSI", "LASI"]];
+  for (const s of ["L", "R"]) STICK_LABELS.push(["CLAV", s + "SHO"], ["C7", s + "SHO"], ...[["SHO", "UPA"], ["UPA", "ELB"], ["ELB", "FRM"], ["FRM", "WRA"], ["FRM", "WRB"], ["WRA", "WRB"], ["WRA", "FIN"], ["WRB", "FIN"],
+    ["ASI", "THI"], ["THI", "KNE"], ["KNE", "TIB"], ["TIB", "ANK"], ["ANK", "HEE"], ["HEE", "TOE"], ["ANK", "TOE"]].map(([a, b]) => [s + a, s + b]));
+  const STICKS = STICK_LABELS.map(([a, b]) => [byLabel[a], byLabel[b]]);
+  const lineSet = (n, opts) => {
+    const g = new LineSegmentsGeometry(); g.setPositions(new Float32Array(n * 6));
+    if (opts.vertexColors) g.setColors(new Float32Array(n * 6));
+    const mat = new LineMaterial({ transparent: true, depthWrite: false, ...opts });
+    const l = new LineSegments2(g, mat); l.frustumCulled = false; l.renderOrder = 4; human.add(l);
+    return { l, mat, pos: g.attributes.instanceStart.data, col: opts.vertexColors ? g.attributes.instanceColorStart.data : null };
+  };
+  const sticks = lineSet(STICKS.length, { color: 0xffffff, linewidth: 1, vertexColors: true });
+  {
+    const C = sticks.col.array;
+    STICKS.forEach(([a, b], i) => { const ca = new THREE.Color(SEGC[mkSeg[a]]), cb = new THREE.Color(SEGC[mkSeg[b]]); C.set([ca.r, ca.g, ca.b, cb.r, cb.g, cb.b], 6 * i); });
+    sticks.col.needsUpdate = true;
+  }
+  const resid = lineSet(NM, { color: new THREE.Color("#ff5a36"), linewidth: 1.6 });
+
+  // labels (HTML overlay, stage 2)
+  const labelHost = $("mkLabels");
+  const labelEls = MK.map((m, k) => { const s = document.createElement("span"); s.textContent = m[0]; s.style.color = SEGC[mkSeg[k]]; labelHost.appendChild(s); return s; });
+  const labelW = new Array(NM).fill(0);
+  const PRIORITY = ["LASI", "RASI", "LKNE", "RKNE", "LANK", "RANK", "LSHO", "RSHO", "LFHD", "RFHD", "CLAV", "STRN", "LELB", "RELB", "LWRA", "RWRA",
+    "LTOE", "RTOE", "LTHI", "RTHI", "LTIB", "RTIB", "LUPA", "RUPA", "LFRM", "RFRM", "LFIN", "RFIN", "LWRB", "RWRB", "LHEE", "RHEE", "LPSI", "RPSI", "C7", "T10", "RBAK", "LBHD", "RBHD"];
+  const labelOrder = PRIORITY.map((l) => byLabel[l]).filter((k) => k !== undefined);
+
+  const mkW = new Float32Array(NM * 3), mdW = new Float32Array(NM * 3), tmp = new Float32Array(3);
+  let clock = 0;
+  function updateMarkers(S) {
+    const P = ptsGeo.attributes.position.array, Cc = ptsGeo.attributes.aColor.array, A = ptsGeo.attributes.aAlpha.array,
+      Z = ptsGeo.attributes.aSize.array, Rg = ptsGeo.attributes.aRing.array;
+    for (let k = 0; k < NM; k++) {
+      const b = mkBody[k], L = mkLocal[k], E = mkErr[k], m = MK[k];
+      toWorld(b, L[0] + E[0] * S.err, L[1] + E[1] * S.err, L[2] + E[2] * S.err, mdW, 3 * k);   // where the model puts the marker
+      if (S.follow > 0) { toWorld(b, L[0], L[1], L[2], tmp, 0); for (let c = 0; c < 3; c++) mkW[3 * k + c] = lerp(m[2 + c], tmp[c], S.follow); }
+      else { mkW[3 * k] = m[2]; mkW[3 * k + 1] = m[3]; mkW[3 * k + 2] = m[4]; }
+      let gap = 1;
+      if (mkGap[k]) { const [w, p] = mkGap[k]; gap = sstep((Math.sin(clock * w + p) + 0.6 * Math.sin(clock * 1.9 * w + 2 * p) + 0.72) / 0.22); }
+      const i = k, j = NM + k, cs = mkSegRGB[k];
+      P.set(mkW.subarray(3 * k, 3 * k + 3), 3 * i);
+      for (let c = 0; c < 3; c++) Cc[3 * i + c] = lerp(RAW[c], cs[c], S.labelMix);
+      A[i] = S.markers * lerp(1, gap, S.twinkle); Z[i] = 0.056; Rg[i] = 0;
+      P.set(mdW.subarray(3 * k, 3 * k + 3), 3 * j);
+      Cc.set(RING, 3 * j); A[j] = S.markers * S.rings * 0.9; Z[j] = 0.046; Rg[j] = 1;
+    }
+    for (let s = 0; s < NST; s++) {
+      const i = 2 * NM + s, [w, p] = strayPh[s];
+      P.set(stray[s], 3 * i); Cc.set(RAW, 3 * i);
+      A[i] = S.stray * (0.35 + 0.65 * sstep((Math.sin(clock * w + p) + 0.3) / 0.6)); Z[i] = 0.05 * (0.5 + 0.5 * S.stray); Rg[i] = 0;
+    }
+    for (const n of ["position", "aColor", "aAlpha", "aSize", "aRing"]) ptsGeo.attributes[n].needsUpdate = true;
+    pts.visible = S.markers > 0.003 || S.stray > 0.003;
+    // residual lines: model marker -> measured marker
+    resid.l.visible = S.markers * S.rings > 0.003;
+    if (resid.l.visible) {
+      const R = resid.pos.array;
+      for (let k = 0; k < NM; k++) R.set([mdW[3 * k], mdW[3 * k + 1], mdW[3 * k + 2], mkW[3 * k], mkW[3 * k + 1], mkW[3 * k + 2]], 6 * k);
+      resid.pos.needsUpdate = true; resid.mat.opacity = 0.95 * S.markers * S.rings;
+    }
+    sticks.l.visible = S.markers * S.sticks > 0.003;
+    if (sticks.l.visible) {
+      const R = sticks.pos.array;
+      STICKS.forEach(([a, b], i) => R.set([mkW[3 * a], mkW[3 * a + 1], mkW[3 * a + 2], mkW[3 * b], mkW[3 * b + 1], mkW[3 * b + 2]], 6 * i));
+      sticks.pos.needsUpdate = true; sticks.mat.opacity = 0.55 * S.markers * S.sticks;
+    }
+  }
+
+  const vtmp = new THREE.Vector3();
+  let labelsShown = false;
+  function updateLabels(alpha) {
+    if (alpha < 0.01) { if (labelsShown) { labelEls.forEach((el) => (el.style.opacity = "0")); labelsShown = false; } return; }
+    labelsShown = true;
+    scene.updateMatrixWorld();
+    const W = VW, H = VH, boxes = [];
+    vtmp.set(-0.025, 0.13, 0.95).applyMatrix4(human.matrixWorld).project(camera);
+    const cx = ((vtmp.x + 1) / 2) * W, yaw = turn.rotation.z, sy = Math.sin(yaw), cyw = Math.cos(yaw);
+    for (const k of labelOrder) {
+      const el = labelEls[k];
+      // depth of the marker behind the body's mid-plane (y = 0.17 in model coordinates), as seen by the camera
+      const depth = sy * (mkW[3 * k] + 0.025) + cyw * (mkW[3 * k + 1] - 0.17);
+      if (depth > 0.04) { el.style.opacity = "0"; continue; }
+      vtmp.set(mkW[3 * k], mkW[3 * k + 1], mkW[3 * k + 2]).applyMatrix4(human.matrixWorld);
+      vtmp.project(camera);
+      const x = ((vtmp.x + 1) / 2) * W, y = ((1 - vtmp.y) / 2) * H;
+      if (!labelW[k]) labelW[k] = el.offsetWidth || 30;
+      const w = labelW[k] + 4, h = 13, bx = x >= cx ? x + 9 : x - 9 - labelW[k], by = y - 6;
+      const hit = boxes.some((q) => bx < q[0] + q[2] && bx + w > q[0] && by < q[1] + q[3] && by + h > q[1]);
+      if (hit || bx < 4 || bx + w > W - 4) { el.style.opacity = "0"; continue; }
+      boxes.push([bx - 2, by, w, h]);
+      el.style.transform = `translate3d(${bx.toFixed(1)}px, ${by.toFixed(1)}px, 0)`;
+      el.style.opacity = alpha.toFixed(3);
+    }
+  }
+
+  /* ---------- the scroll script: every visual is a function of (h, u) ---------- */
+  const YAW = [[0, -18], [1, -10], [2, -4], [2.28, 66], [3.0, 74], [3.55, 92], [4.0, 104], [4.95, 335]];
+  const EL = [[0, 8], [2, 7], [2.3, 3], [3.2, 4], [4, 6], [5, 5]];
+  const DM = [[0, 0.94], [2, 0.94], [2.3, 0.95], [3.15, 1], [5, 1]];
+  const ZT = [[0, 0.9], [2, 0.9], [2.3, 0.86], [3.15, 0.88], [5, 0.9]];
+  function stateAt(h, u, t) {
+    const heroOut = ramp(h, 0.08, 0.75), hb = ramp(h, 0.1, 0.95), cal = ramp(u, 2.3, 2.68);
+    const S = {
+      bones: Math.max(1 - heroOut, ramp(u, 2.0, 2.22)),
+      musOpacity: Math.max(1 - ramp(h, 0.04, 0.5), ramp(u, 3.98, 4.06)),
+      musReveal: u < 3.5 ? 1 : clamp01((u - 4.02) / 0.8),
+      markers: ramp(h, 0.3, 0.85) * (1 - ramp(u, 4.1, 4.5)),
+      stray: ramp(h, 0.45, 0.95) * (1 - ramp(u, 1.02, 1.35)),
+      labelMix: ramp(u, 1.0, 1.3),
+      labelText: ramp(u, 1.12, 1.38) * (1 - ramp(u, 1.86, 2.06)),
+      sticks: ramp(u, 1.15, 1.45) * (1 - ramp(u, 1.95, 2.25)),
+      rings: ramp(u, 2.05, 2.22) * (1 - ramp(u, 2.95, 3.15)),
+      theta: F.kneeStandBeforeDeg * ramp(u, 1.6, 1.9) * (1 - cal),
+      knee: lerp(F.kneeStandBeforeDeg, F.kneeStandAfterDeg, cal),
+      err: 1 - cal,
+      follow: ramp(u, 2.9, 3.05),
+      lift: ramp(u, 3.08, 3.5) * (1 - ramp(u, 3.72, 4.12)),
+      yaw: lerp(-26 + 16 * Math.sin(t * 0.32), keys(YAW, u), hb),
+      el: lerp(5, keys(EL, u), hb), dmul: lerp(1, keys(DM, u), hb), zt: lerp(0.9, keys(ZT, u), hb),
+      hb,
+    };
+    S.twinkle = 1 - S.labelMix;
+    return S;
+  }
+  let VW = 1, VH = 1;
+  function frameCamera(S, square) {
+    const fov = camera.fov * DEG;
+    let figFrac = square ? 0.86 : 0.8, shiftY = 0;
+    if (!square && !wide) {
+      // phones: in the hero the figure fills the space between the nav and the headline; in the story it sits above the captions
+      const avail = Math.max(0.3 * VH, heroCopyTop - navH - 28);
+      figFrac = lerp(Math.min(0.46, avail / VH), VW / VH < 0.75 ? 0.46 : 0.6, S.hb);
+      shiftY = lerp(0.5 - (navH + 10 + avail / 2) / VH, 0.145, S.hb);
+    }
+    const visH = 1.9 / figFrac;
+    let dist = visH / (2 * Math.tan(fov / 2));
+    if (!square && !wide) { const visW = (visH * VW) / VH; if (visW < 1.15) dist *= 1.15 / visW; }
+    dist *= wide || square ? S.dmul : Math.max(1, S.dmul);
+    camera.position.set(0, -dist * Math.cos(S.el * DEG), S.zt + dist * Math.sin(S.el * DEG));
+    camera.lookAt(0, 0, S.zt);
+    if (square) camera.clearViewOffset();
+    else camera.setViewOffset(VW, VH, wide ? -0.17 * VW : 0, shiftY * VH, VW, VH);   // lens shift: figure right of the text, or above it
+  }
+  function applyState(S, square = false) {
+    turn.rotation.z = S.yaw * DEG;
+    pose(S.theta, S.lift); updateSites();
+    boneMat.opacity = S.bones; boneRoot.visible = S.bones > 0.004;
+    musMat.opacity = 0.92 * S.musOpacity; musLines.visible = S.musOpacity > 0.004;
+    if (musLines.visible) updateMuscles(S.musReveal);
+    updateMarkers(S);
+    frameCamera(S, square);
+  }
+  const roKnee = $("roKnee"), roDof = $("roDof"), roMus = $("roMus");
+  let lastRO = "";
+  function updateReadouts(S, u) {
+    const ro = `${Math.round(S.knee)}°|${Math.round(F.dof * ramp(u, 3.0, 3.45))}|${u > 3.9 ? musDone : 0}`;
+    if (ro === lastRO) return;
+    lastRO = ro; const [a, b, c] = ro.split("|");
+    roKnee.textContent = a; roDof.textContent = b; roMus.textContent = c;
+  }
+
+  function resize() {
+    VW = Math.max(1, wrap.clientWidth); VH = Math.max(1, wrap.clientHeight);
+    renderer.setSize(VW, VH, false);
+    camera.aspect = VW / VH; camera.updateProjectionMatrix();
+    for (const m of [musMat, sticks.mat, resid.mat]) m.resolution.set(VW, VH);
+    ptsMat.uniforms.uScale.value = (VH * DPR) / (2 * Math.tan((camera.fov * DEG) / 2));
+    measure();
+  }
+
+  /* ---------- static mode: one hero frame, plus a still per stage ---------- */
+  if (STATIC) {
+    const renderHero = () => { resize(); applyState(stateAt(0, 0, 0)); renderer.render(scene, camera); };
+    const STILL_U = [0.62, 1.62, 2.24, 3.6, 4.98], STILL_YAW = [-18, -8, 40, 90, -25];
+    const S2 = 720, figs = document.querySelectorAll(".still");
+    renderer.setPixelRatio(1); renderer.setSize(S2, S2, false);
+    camera.aspect = 1; ptsMat.uniforms.uScale.value = S2 / (2 * Math.tan((camera.fov * DEG) / 2));
+    for (const m of [musMat, sticks.mat, resid.mat]) m.resolution.set(S2, S2);
+    STILL_U.forEach((u, i) => {
+      const S = stateAt(1, u, 0);
+      S.yaw = STILL_YAW[i]; S.el = 6; S.dmul = 1; S.zt = 0.88; S.twinkle = 0;
+      if (i === 2) { S.bones = 1; S.rings = 1; }
+      applyState(S, true); camera.updateProjectionMatrix(); renderer.render(scene, camera);
+      const img = new Image(); img.alt = figs[i].dataset.alt || ""; img.src = canvas.toDataURL("image/png"); figs[i].appendChild(img);
+    });
+    renderer.setPixelRatio(DPR);
+    renderHero();
+    new ResizeObserver(renderHero).observe(wrap);
+    wrap.classList.add("ready");
+    return;
+  }
+
+  /* ---------- motion mode: render loop, paused when nothing moves or nothing shows ---------- */
+  removeEventListener("scroll", preScroll);
+  resize();
+  new ResizeObserver(() => { resize(); dirty = true; }).observe(wrap);
+  addEventListener("resize", () => { measure(); dirty = true; });
+  document.fonts?.ready.then(() => { measure(); labelW.fill(0); dirty = true; });
+  let [hS, uS] = scrollTargets(), last = performance.now(), dirty = true, live = true;
+  wrap.classList.add("ready");
+  function frame(now) {
+    requestAnimationFrame(frame);
+    const dt = Math.min(0.1, (now - last) / 1000); last = now;
+    if (document.hidden) return;
+    const [hT, uT] = scrollTargets(), k = 1 - Math.exp(-dt * 7);
+    hS += (hT - hS) * k; uS += (uT - uS) * k;
+    if (Math.abs(hT - hS) < 1e-4) hS = hT;
+    if (Math.abs(uT - uS) < 1e-4) uS = uT;
+    const moving = hS !== hT || uS !== uT;
+    if (moving || dirty) updateSteps(uS);
+    if (window.scrollY >= storyEnd) return;                       // the sheets below cover the canvas
+    if (!(moving || dirty || live || hS < 1)) return;             // settled, nothing animating
+    clock += dt;
+    const S = stateAt(hS, uS, clock);
+    live = S.markers * S.twinkle > 0.01 || S.stray > 0.01;        // dropouts and stray points flicker
+    applyState(S);
+    updateLabels(S.labelText);
+    updateReadouts(S, uS);
+    renderer.render(scene, camera);
+    dirty = false;
+  }
+  requestAnimationFrame(frame);
+}
+</script>
 </body>
 </html>
