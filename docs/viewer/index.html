@@ -195,7 +195,10 @@ button.osim[aria-pressed="true"] { color: var(--osim); background: color-mix(in 
 .toggles input { accent-color: var(--accent); width: 14px; height: 14px; margin: 0; flex: none; }
 .toggles label:has(input:disabled) { opacity: 0.45; cursor: default; }
 .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: 0 0 auto; }
-#chart { width: 100%; height: 190px; display: block; }
+#chart {
+.legend .lrow { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; color: var(--fg); }
+.legend .lrow.muted { color: var(--muted); }
+.legend .lrow .val { font: 500 12px/1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--fg); } width: 100%; height: 190px; display: block; }
 #curveSel { width: 100%; }
 .note { color: var(--muted); font-size: 12px; }
 .legend { display: flex; flex-direction: column; gap: 6px; font-size: 12px; line-height: 1.45; color: var(--muted); }
@@ -404,6 +407,8 @@ function applyTheme() {
   cmpLineMat.color.set(css("--osim")); cmpDotMat.color.set(css("--osim"));
   for (const h of arrows) h.setColor(new THREE.Color(css(h.userData.ar.color ?? "--force")));
   drawTimeline(); drawChart(); buildChartLegend();
+  mats.mkModel.color.set(css("--fg"));  // model-marker dots match their layer swatch
+  if (clip) showFrame(frame);
 }
 const mats = {
   bone: new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.0 }),
@@ -781,10 +786,10 @@ $("tl").addEventListener("pointermove", e => { if (e.buttons) scrubFrom(e); });
    from another method, dashed, shown with the OpenSim toggle), "shade" (frames greyed out,
    e.g. where a load is not determined) and reference lines. Clips without plots get the
    joint-angle plots built from meta.curves. */
-const ANGLE_PLOTS = [["knee", "Knee flexion", ["knee_angle_r", "knee_angle_l"]], ["hipf", "Hip flexion", ["hip_flexion_r", "hip_flexion_l"]],
-  ["hipa", "Hip adduction", ["hip_adduction_r", "hip_adduction_l"]], ["ankle", "Ankle dorsiflexion", ["ankle_angle_r", "ankle_angle_l"]],
-  ["lumbar", "Lumbar flexion", ["flex_extension"]], ["shoulder", "Shoulder elevation", ["shoulder_elv_r", "shoulder_elv_l"]],
-  ["elbow", "Elbow flexion", ["elbow_flex_r", "elbow_flex_l"]]];
+const ANGLE_PLOTS = [["ang_knee", "Knee flexion", ["knee_angle_r", "knee_angle_l"]], ["ang_hipf", "Hip flexion", ["hip_flexion_r", "hip_flexion_l"]],
+  ["ang_hipa", "Hip adduction", ["hip_adduction_r", "hip_adduction_l"]], ["ang_ankle", "Ankle dorsiflexion", ["ankle_angle_r", "ankle_angle_l"]],
+  ["ang_lumbar", "Lumbar extension", ["flex_extension"]], ["ang_shoulder", "Shoulder elevation", ["shoulder_elv_r", "shoulder_elv_l"]],
+  ["ang_elbow", "Elbow flexion", ["elbow_flex_r", "elbow_flex_l"]]];
 function plotsOf(meta) {
   if (meta.plots) return meta.plots;
   if (meta._plots) return meta._plots;
@@ -807,8 +812,10 @@ function seriesVal(sr, i) {
 const osimOn = () => !$("lyOsim").disabled && $("lyOsim").checked;
 function currentPlot() { const P = plotsOf(clip.meta); return P.find(p => p.id === $("curveSel").value) ?? P[0]; }
 function plotLines(plot) {
-  const pal = [css("--accent"), css("--accent-2"), css("--ok"), css("--warn"), css("--ghost")];
-  const L = plot.series.map((sr, j) => ({ sr, color: sr.side === "l" ? css("--accent-2") : sr.side === "r" ? css("--accent") : pal[j % pal.length], dash: [] }));
+  // right / left keep their colours; series without a side take colours no side uses
+  const pal = [css("--fg"), css("--warn"), css("--ok"), css("--ghost")];
+  let k = 0;
+  const L = plot.series.map(sr => ({ sr, color: sr.side === "l" ? css("--accent-2") : sr.side === "r" ? css("--accent") : pal[k++ % pal.length], dash: [] }));
   if (plot.cmp && osimOn()) for (const sr of plot.cmp)
     L.push({ sr, color: css("--osim"), dash: [5, 3], cmp: true });
   if (plot.ghost && clip.a.ghost_curves && $("lyGhost").checked) for (const sr of plot.ghost)
@@ -835,7 +842,7 @@ function drawChart() {
   const pad = Math.max((hi - lo) * 0.08, plot.unit === "°" ? 5 : 1e-3); lo -= pad; hi += pad;
   const Lm = 40, B = 18, x = i => Lm + (i / Math.max(1, n - 1)) * (W - Lm - 4), y = v => 4 + (1 - (v - lo) / (hi - lo)) * (H - B - 4);
   if (plot.shade && clip.a[plot.shade.array]) {
-    ctx.fillStyle = css("--line");
+    ctx.fillStyle = color_mix(css("--fg"), 0.035);
     for (let i = 0; i < n; i++) if (seriesVal(plot.shade, i)) ctx.fillRect(x(i), 4, Math.max(1, (W - Lm) / n) + 0.5, H - B - 4);
   }
   ctx.strokeStyle = css("--line"); ctx.fillStyle = css("--muted"); ctx.font = "10px " + css("--font-mono"); ctx.lineWidth = 1;
@@ -862,8 +869,10 @@ function drawChart() {
   }
   ctx.strokeStyle = css("--fg"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x(frame), 4); ctx.lineTo(x(frame), H - B); ctx.stroke();
   const prec = plot.unit === "°" ? 1 : Math.abs(hi) >= 100 ? 0 : 1;
-  const vals = plot.series.map(sr => { const v = seriesVal(sr, frame); return Number.isFinite(v) ? v.toFixed(prec) : "–"; }).join(" / ") + ` ${plot.unit}`;
-  ctx.fillStyle = css("--fg"); ctx.font = "11px " + css("--font-mono"); ctx.fillText(vals, W - 4 - ctx.measureText(vals).width, 14);
+  document.querySelectorAll("#chartLegend .val").forEach(el => {
+    const sr = (el.dataset.cmp ? plot.cmp : plot.series)[+el.dataset.k], v = sr ? seriesVal(sr, frame) : NaN;
+    el.textContent = Number.isFinite(v) ? `${v.toFixed(prec)} ${plot.unit}` : "–";
+  });
 }
 function buildPlotMenu() {
   const sel = $("curveSel"), keep = sel.value;
@@ -885,13 +894,16 @@ function buildChartLegend() {
   if (!clip) return;
   const plot = currentPlot(); if (!plot) return;
   const sw = (c, dashed) => `<span class="swatch" style="background:${dashed ? "transparent" : c};${dashed ? `border:2px dashed ${c};height:0;width:14px;border-radius:0` : ""}"></span>`;
-  for (const ln of plotLines(plot)) {
-    if (ln.cmp) continue;
-    leg.insertAdjacentHTML("beforeend", `<div>${sw(ln.color)}${ln.sr.label}</div>`);
+  plotLines(plot).filter(ln => !ln.cmp).forEach((ln, k) =>
+    leg.insertAdjacentHTML("beforeend", `<div class="lrow">${sw(ln.color)}<span>${ln.sr.label}</span><b class="val" data-k="${k}"></b></div>`));
+  if (plot.cmp?.length) {
+    const name = clip.meta.compare?.name ?? "OpenSim";
+    if (osimOn()) plot.cmp.forEach((sr, k) => leg.insertAdjacentHTML("beforeend",
+      `<div class="lrow">${sw(css("--osim"), true)}<span>${name}${plot.cmp.length > 1 ? ` · ${sr.side === "l" ? "left" : sr.side === "r" ? "right" : sr.label}` : ""}</span><b class="val" data-cmp="1" data-k="${k}"></b></div>`));
+    else leg.insertAdjacentHTML("beforeend", `<div class="lrow muted">${sw(css("--osim"), true)}<span>${name}: press OpenSim to compare</span></div>`);
   }
-  if (plot.cmp?.length) leg.insertAdjacentHTML("beforeend", `<div>${sw(css("--osim"), true)}${clip.meta.compare?.name ?? "OpenSim"}${osimOn() ? "" : " (turn on OpenSim)"}</div>`);
-  if (plot.ghost && clip.a.ghost_curves) leg.insertAdjacentHTML("beforeend", `<div>${sw(css("--ghost"), true)}Ghost: ${clip.meta.ghost}</div>`);
-  if (plot.shade) leg.insertAdjacentHTML("beforeend", `<div><span class="swatch" style="background:var(--line)"></span>${plot.shade.label}</div>`);
+  if (plot.ghost && clip.a.ghost_curves && $("lyGhost").checked) leg.insertAdjacentHTML("beforeend", `<div class="lrow">${sw(css("--ghost"), true)}<span>Ghost: ${clip.meta.ghost}</span></div>`);
+  if (plot.shade) leg.insertAdjacentHTML("beforeend", `<div class="lrow muted"><span class="swatch" style="background:${color_mix(css("--fg"), 0.14)}"></span><span>${plot.shade.label}</span></div>`);
   note.textContent = plot.note ?? "";
 }
 $("curveSel").addEventListener("change", () => { buildChartLegend(); drawChart(); });
@@ -1013,7 +1025,7 @@ $("osimBtn").addEventListener("click", () => setOsim(!osimOn()));
 function showMeta(meta) {
   const part = meta.clip ? ` · ${meta.clip_label ?? "part"} ${meta.clip}` : "";
   $("clipTitle").textContent = `${meta.trial}${part}`;
-  $("clipSub").textContent = `${meta.frames} frames at ${meta.fps.toFixed(0)} Hz · IK run ${meta.run}`;
+  $("clipSub").textContent = `${meta.frames} frames at ${meta.fps.toFixed(0)} Hz${meta.run ? ` · ${meta.run}` : ""}`;
   $("hudSub").textContent = `${meta.trial}${part} · ${meta.run}`;
   const q = meta.qa ?? {};
   const rows = [["Marker residual, median", q.resid_med_mm != null ? `${q.resid_med_mm.toFixed(1)} mm` : "—"],
@@ -1024,7 +1036,7 @@ function showMeta(meta) {
     ["Worst marker gap", q.gap_max != null ? `${(100 * q.gap_max).toFixed(0)}% ${q.gap_worst ?? ""}` : "—"]];
   $("qa").className = "";
   $("qa").innerHTML = `<div class="row"><span class="pill ${q.verdict ?? ""}">${q.verdict ?? "no report"}</span><span class="sub">trial-level grades</span></div>
-    <div class="kv">${rows.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join("")}</div>`;
+    <div class="kv">${rows.filter(([, v]) => v !== "—").map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join("")}</div>`;
   const hasGhost = !!clip.a.ghost_pos;
   $("lyGhost").disabled = !hasGhost; $("ghostName").textContent = hasGhost ? `Ghost: ${meta.ghost}` : "Ghost (none in clip)";
   const hasCmp = !!(meta.compare && clip.a[meta.compare.pos]) || plotsOf(meta).some(p => p.cmp?.length);
@@ -1050,14 +1062,19 @@ function applyLayers() {
   if (clip) showFrame(frame);
 }
 for (const id of ["lyBones", "lyMus", "lyMk", "lyMkModel", "lyErr", "lyScene", "lyGhost", "lyForce"]) $(id).addEventListener("change", applyLayers);
+$("lyGhost").addEventListener("change", () => { buildChartLegend(); drawChart(); });
+// checkboxes and menus give the keyboard back after use (space / arrows drive the player)
+document.querySelectorAll('.side input[type=checkbox], select').forEach(el => el.addEventListener("change", () => el.blur()));
 $("lyOsim").addEventListener("change", () => setOsim($("lyOsim").checked));
 
 /* ---------- loading ---------- */
 async function loadClipBuffer(buf, name, opts = {}) {
   const c = parseELVW(buf);
-  if (c.meta.format?.startsWith("elvw-model")) { buildModel(c); return; }
+  if (c.meta.format?.startsWith("elvw-model")) { if (!model) buildModel(c); return; }  // loaded once; a second copy would draw a second skeleton
   if (!model) throw new Error("Model not loaded yet");
-  c.name = name;
+  const same = clips.findIndex(o => o.name === name && o.bytes === buf.byteLength);
+  if (same >= 0) { selectClip(same); $("clipList").value = same; return; }
+  c.name = name; c.bytes = buf.byteLength;
   c.demo = !!opts.demo;
   upgradeLegacy(c);
   clips.push(c);
@@ -1085,14 +1102,17 @@ async function loadFiles(files) {
   const list = [...files].sort((a, b) => (a.name.includes("model") ? -1 : 0) - (b.name.includes("model") ? -1 : 0));
   for (const f of list) {
     try { await loadClipBuffer(await f.arrayBuffer(), f.name); }
-    catch (err) { $("clipSub").textContent = `${f.name}: ${err.message}. Pick a file written by pipeline/export_viewer.py.`; }
+    catch (err) {
+      $("clipSub").textContent = `${f.name}: ${err.message}. Pick a file written by pipeline/export_viewer.py.`;
+      if (clip) setTimeout(() => showMeta(clip.meta), 4000);  // back to the clip's own line
+    }
   }
 }
 for (const id of ["openBtn", "openBtn2", "openBtn3"]) $(id).addEventListener("click", () => $("file").click());
 $("file").addEventListener("change", e => loadFiles(e.target.files));
 addEventListener("dragover", e => { e.preventDefault(); document.body.classList.add("drag-on"); $("dropzone").hidden = false; });
 addEventListener("dragleave", e => { if (e.target === document.documentElement || !e.relatedTarget) { document.body.classList.remove("drag-on"); if (clip) $("dropzone").hidden = true; } });
-addEventListener("drop", e => { e.preventDefault(); document.body.classList.remove("drag-on"); loadFiles(e.dataTransfer.files); });
+addEventListener("drop", e => { e.preventDefault(); document.body.classList.remove("drag-on"); if (clip) $("dropzone").hidden = true; loadFiles(e.dataTransfer.files); });
 
 /* ---------- demos: demos/index.json lists clips shipped with the page ---------- */
 async function loadDemo(d) {
@@ -1110,7 +1130,7 @@ async function loadDemos() {
     if (!demos.length) return;
     const sel = $("demoList");
     sel.innerHTML = `<option value="" disabled>Demos</option>` + demos.map((d, i) => `<option value="${i}">${d.title}</option>`).join("");
-    sel.hidden = false; sel.value = "0";
+    sel.hidden = demos.length < 2; sel.value = "0";
     sel.addEventListener("change", () => loadDemo(demos[+sel.value]).catch(() => {}));
     await loadDemo(demos[0]);
   } catch (e) { /* no demos next to the page: the empty model and the drop card stay */ }
@@ -1134,6 +1154,7 @@ $("follow").addEventListener("click", () => {
   if (follow) recentre();  // back on the body at once, not only for the motion that follows
 });
 function setCam(kind, dist) {
+  if (clip && dist == null) recentre();  // presets look at the body, even with Follow off
   const t = controls.target, d = dist ?? camera.position.distanceTo(t);
   const dir = { side: [1, -0.17, 0.15], front: [0.11, -1, 0.15], top: [0.003, -0.003, 1] }[kind];
   const v = new THREE.Vector3(...dir).normalize().multiplyScalar(d);
@@ -1175,7 +1196,8 @@ view.addEventListener("wheel", e => {
 $("fit").addEventListener("click", fit);
 for (const [id, k] of [["camSide", "side"], ["camFront", "front"], ["camTop", "top"]]) $(id).addEventListener("click", () => setCam(k));
 addEventListener("keydown", e => {
-  if (e.target.tagName === "SELECT" || e.target.tagName === "INPUT") return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.target.tagName === "SELECT" || (e.target.tagName === "INPUT" && e.target.type !== "checkbox")) return;
   if (e.code === "Space") { e.preventDefault(); setPlaying(!playing); }
   if (e.code === "ArrowLeft") $("back").click();
   if (e.code === "ArrowRight") $("fwd").click();
@@ -1235,7 +1257,10 @@ new MutationObserver(applyTheme).observe(document.documentElement, { attributes:
     $("clipSub").textContent = "Model file not found next to this page: open myofullbody_model.elvw together with a clip.";
   }
   const q = new URLSearchParams(location.search).get("clip");
-  if (q && model) { try { const r = await fetch(q); await loadClipBuffer(await r.arrayBuffer(), q.split("/").pop()); } catch (e) {} }
+  if (q && model) {
+    try { const r = await fetch(q); if (!r.ok) throw new Error(`HTTP ${r.status}`); await loadClipBuffer(await r.arrayBuffer(), q.split("/").pop()); }
+    catch (e) { $("clipSub").textContent = `Could not open ${q}: ${e.message}`; }
+  }
   else if (model) { $("hudSub").textContent = "Loading the demo…"; await loadDemos(); }
   if (!clip) { $("dropzone").hidden = false; $("hudSub").textContent = "MyoFullBody · rest pose"; }
   resize();
