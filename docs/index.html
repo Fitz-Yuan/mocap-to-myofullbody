@@ -7,7 +7,7 @@
 <meta name="description" content="An open pipeline from raw OptiTrack motion capture to motions of MyoFullBody, a MuJoCo musculoskeletal model, with a handbook and a browser viewer.">
 <meta name="theme-color" content="#000000">
 <meta name="color-scheme" content="dark">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='4' fill='%23d4906f'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='4' fill='%23e0605a'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap">
@@ -54,7 +54,7 @@
   --fg-3: #6e6e73;
   --line: rgba(255, 255, 255, 0.16);
   --line-2: rgba(255, 255, 255, 0.08);
-  --accent: #d4906f;
+  --accent: #e0605a;
   --bar-2: #5a5a5f;            /* the OpenSim bars */
   --gutter: clamp(16px, 5vw, 80px);
   --nav-h: 52px;
@@ -985,7 +985,7 @@ async function main() {
     STICKS.forEach(([a, b], i) => { const ca = new THREE.Color(SEGC[mkSeg[a]]), cb = new THREE.Color(SEGC[mkSeg[b]]); C.set([ca.r, ca.g, ca.b, cb.r, cb.g, cb.b], 6 * i); });
     sticks.col.needsUpdate = true;
   }
-  const resid = lineSet(NM, { color: new THREE.Color("#d4906f"), linewidth: 1.6 });
+  const resid = lineSet(NM, { color: new THREE.Color("#e0605a"), linewidth: 1.6 });
 
   // labels (HTML overlay, stage 2)
   const labelHost = $("mkLabels");

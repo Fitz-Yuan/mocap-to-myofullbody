@@ -28,7 +28,7 @@
   --fg: #e8eaee;
   --muted: #979ea8;
   --line: #31363e;
-  --accent: #d4906f;      /* right side, primary actions */
+  --accent: #e0605a;      /* right side, primary actions */
   --accent-2: #86b2d8;    /* left side, scene objects */
   --ok: #82c49c;
   --warn: #dcb46c;
@@ -40,7 +40,7 @@
   --scene-floor: #262a31;
   --scene-grid: #353b44;
   --bone: #e4ddcf;
-  --muscle: #b65a4c;
+  --muscle: #d2584b;
   --skin: #c7a58b;
 
   --hover: rgba(255, 255, 255, 0.06);
@@ -838,19 +838,31 @@ $("curveSel").addEventListener("change", () => { buildChartLegend(); drawChart()
     vector: array of forces in N (same layout), m_per_N, color}; hidden below min_N. */
 let arrows = [];
 const arrowGroup = new THREE.Group(); scene.add(arrowGroup);
-// solid arrows drawn over the body (a force on the foot runs up inside the shank)
-const shaftGeo = new THREE.CylinderGeometry(1, 1, 1, 10).translate(0, 0.5, 0);
-const headGeo = new THREE.ConeGeometry(1, 1, 14).translate(0, 0.5, 0);
-function makeArrow(color) {
-  const mat = new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.92 });
-  const g = new THREE.Group(), shaft = new THREE.Mesh(shaftGeo, mat), head = new THREE.Mesh(headGeo, mat);
-  shaft.renderOrder = head.renderOrder = 20;
-  g.add(shaft, head);
-  g.setColor = c => mat.color.set(c);
+// Force arrows: a slim tapered shaft and a smooth cone, lit, plus a faint see-through pass
+// so the part hidden inside the body (a foot force runs up the shank) still reads. The
+// point of application gets a marker: a ring on the floor for a ground reaction, a bead
+// for a load on a hand.
+const shaftGeo = new THREE.CylinderGeometry(1, 0.45, 1, 24, 1).translate(0, 0.5, 0);
+const headGeo = new THREE.ConeGeometry(1, 1, 32).translate(0, 0.5, 0);
+const ringGeo = new THREE.RingGeometry(0.7, 1, 40).rotateX(-Math.PI / 2);
+const beadGeo = new THREE.SphereGeometry(1, 20, 14);
+function makeArrow(color, anchor) {
+  const lit = new THREE.MeshStandardMaterial({ color, roughness: 0.32, metalness: 0.15, emissive: color, emissiveIntensity: 0.18 });
+  const xray = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.22, depthTest: false, depthWrite: false });
+  const ringMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide });
+  const g = new THREE.Group(), parts = [];
+  for (const [geo, mat, order] of [[shaftGeo, lit, 0], [headGeo, lit, 0], [shaftGeo, xray, 21], [headGeo, xray, 21]]) {
+    const m = new THREE.Mesh(geo, mat); m.renderOrder = order; parts.push(m); g.add(m);
+  }
+  const mark = new THREE.Mesh(anchor === "tail" ? ringGeo : beadGeo, anchor === "tail" ? ringMat : lit);
+  mark.renderOrder = 2; g.add(mark);
+  g.setColor = c => { lit.color.set(c); lit.emissive.set(c); xray.color.set(c); ringMat.color.set(c); };
   g.setArrow = (len) => {
-    const hl = Math.min(0.07, 0.35 * len), r = 0.007;
-    shaft.scale.set(r, Math.max(1e-4, len - hl), r);
-    head.position.y = len - hl; head.scale.set(2.6 * r, hl, 2.6 * r);
+    const hl = Math.min(0.065, 0.3 * len), r = 0.0055;
+    for (const k of [0, 2]) parts[k].scale.set(r, Math.max(1e-4, len - hl), r);
+    for (const k of [1, 3]) { parts[k].position.y = len - hl; parts[k].scale.set(2.7 * r, hl, 2.7 * r); }
+    if (anchor === "tail") { mark.position.y = 0.002; mark.scale.setScalar(0.035); }
+    else { mark.position.y = len; mark.scale.setScalar(0.011); }
   };
   return g;
 }
@@ -859,7 +871,7 @@ function buildArrows(meta) {
   arrowGroup.clear(); arrows = [];
   for (const ar of meta.arrows ?? []) {
     if (!clip.a[ar.origin] || !clip.a[ar.vector]) continue;
-    const h = makeArrow(new THREE.Color(css(ar.color ?? "--force")));
+    const h = makeArrow(new THREE.Color(css(ar.color ?? "--force")), ar.anchor);
     h.userData.ar = ar;
     arrows.push(h); arrowGroup.add(h);
   }
@@ -869,7 +881,9 @@ const aDir = new THREE.Vector3(), aOrg = new THREE.Vector3();
 function updateArrows() {
   const ps = clip.meta.pos_scale;
   for (const h of arrows) {
-    const ar = h.userData.ar, o = at3(clip.a[ar.origin], frame, ar.col), v = at3(clip.a[ar.vector], frame, ar.col);
+    const ar = h.userData.ar;
+    if (!clip.a[ar.origin] || !clip.a[ar.vector]) { h.visible = false; continue; }
+    const o = at3(clip.a[ar.origin], frame, ar.col), v = at3(clip.a[ar.vector], frame, ar.col);
     const mag = Math.hypot(...v);
     if (o[0] === MISSING || !Number.isFinite(mag) || mag < (ar.min_N ?? 2)) { h.visible = false; continue; }
     h.visible = true;
@@ -903,7 +917,9 @@ function buildCompare(meta) {
 }
 function updateCompare() {
   if (!cmpLines || !cmpGroup.visible) return;
-  const c = clip.meta.compare, ps = clip.meta.pos_scale, A = clip.a[c.pos], nj = c.joints.length;
+  const c = clip.meta.compare;
+  if (!c || !clip.a[c.pos]) return;
+  const ps = clip.meta.pos_scale, A = clip.a[c.pos], nj = c.joints.length;
   const J = [];
   for (let j = 0; j < nj; j++) {
     const o = 3 * (frame * nj + j), p = [A.data[o] * ps, A.data[o + 1] * ps, A.data[o + 2] * ps];
@@ -984,7 +1000,8 @@ async function loadClipBuffer(buf, name, opts = {}) {
 }
 function selectClip(i) {
   clip = clips[i];
-  buildScene(clip.meta); buildArrows(clip.meta); buildCompare(clip.meta); buildPlotMenu(); showMeta(clip.meta);
+  // arrows and the comparison first: buildScene draws a frame, which must not use the previous clip's
+  buildArrows(clip.meta); buildCompare(clip.meta); buildScene(clip.meta); buildPlotMenu(); showMeta(clip.meta);
   $("dropzone").hidden = true;
   $("dropHint").hidden = !clip.demo;
   $("view").classList.toggle("demo", !!clip.demo);
@@ -1107,7 +1124,10 @@ function loop(now) {
   if (playing && clip) {
     tAcc += dt * parseFloat($("speed").value);
     const f = Math.floor(tAcc * clip.meta.fps) % clip.meta.frames;
-    if (f !== frame) showFrame(f);
+    if (f !== frame) {
+      try { showFrame(f); }
+      catch (err) { if (!loop.warned) { console.error(err); loop.warned = true; } frame = f; }
+    }
   }
   sun.target.position.copy(controls.target); sun.position.set(controls.target.x + 2.5, controls.target.y - 2, 5);
   controls.update();
