@@ -21,30 +21,31 @@
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   --font-ui: var(--font-text);
 
-  --bg: #000000;
-  --panel: #0f0f11;
-  --panel-2: #1c1c1f;
-  --fg: #f5f5f7;
-  --muted: #8e8e93;
-  --line: #26262a;
-  --accent: #ff5a36;      /* right side, primary actions */
-  --accent-2: #64d2ff;    /* left side, scene objects */
-  --ok: #30d158;
-  --warn: #ff9f0a;
-  --bad: #ff453a;
-  --ghost: #a1a1a6;
-  --force: #ffd60a;
-  --osim: #bf5af2;
-  --scene-bg: #0a0a0c;
-  --scene-floor: #131316;
-  --scene-grid: #26262b;
-  --bone: #ece6d6;
-  --muscle: #e8432b;
+  /* graphite, not black; muted clay / dusty blue instead of saturated red / cyan */
+  --bg: #17191d;
+  --panel: #1d2025;
+  --panel-2: #262a30;
+  --fg: #e8eaee;
+  --muted: #979ea8;
+  --line: #31363e;
+  --accent: #d4906f;      /* right side, primary actions */
+  --accent-2: #86b2d8;    /* left side, scene objects */
+  --ok: #82c49c;
+  --warn: #dcb46c;
+  --bad: #de7d70;
+  --ghost: #a9afb8;
+  --force: #e2c675;
+  --osim: #b4a0dc;
+  --scene-bg: #1e2127;
+  --scene-floor: #262a31;
+  --scene-grid: #353b44;
+  --bone: #e4ddcf;
+  --muscle: #b65a4c;
   --skin: #c7a58b;
 
-  --hover: rgba(255, 255, 255, 0.07);
-  --press: rgba(255, 255, 255, 0.14);
-  --glass: rgba(20, 20, 22, 0.72);
+  --hover: rgba(255, 255, 255, 0.06);
+  --press: rgba(255, 255, 255, 0.12);
+  --glass: rgba(29, 32, 37, 0.78);
   --hud-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
   --top-h: 44px;
   --side-w: 340px;
@@ -102,8 +103,8 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
   font: 500 11.5px/1 var(--font-ui); padding: 6px 10px; border-radius: 99px; color: var(--muted);
   background: var(--glass); border: 1px solid var(--line); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
 }
-.badge.on { color: var(--bg); background: var(--accent); border-color: var(--accent); }
-.badge.shelf.on { background: var(--accent-2); border-color: var(--accent-2); }
+.badge.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
+.badge.shelf.on { color: var(--accent-2); background: color-mix(in srgb, var(--accent-2) 16%, transparent); border-color: color-mix(in srgb, var(--accent-2) 45%, transparent); }
 
 .dropzone { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; padding: 16px; }
 .dropcard {
@@ -114,6 +115,17 @@ code { font-family: var(--font-mono); font-size: 0.92em; }
 .dropcard b { font: 600 18px/1.2 var(--font-display); letter-spacing: -0.02em; }
 .dropcard p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
 .drag-on .dropcard { border-color: var(--accent); }
+/* while a demo plays, a dashed frame marks the 3D view as the place to drop a file */
+#view.demo::after { content: ""; position: absolute; inset: 12px; border: 1.5px dashed color-mix(in srgb, var(--fg) 22%, transparent);
+  border-radius: 16px; pointer-events: none; transition: border-color .15s; }
+.drag-on #view::after { content: ""; position: absolute; inset: 12px; border: 2px dashed var(--accent); border-radius: 16px; pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.droparea { width: 100%; display: flex; align-items: center; gap: 12px; text-align: left; padding: 14px; border-radius: 12px;
+  border: 1.5px dashed color-mix(in srgb, var(--fg) 28%, transparent); background: color-mix(in srgb, var(--fg) 3%, transparent); height: auto; }
+.droparea:hover, .drag-on .droparea { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
+.droparea svg { width: 26px; height: 26px; flex: 0 0 auto; color: var(--accent); }
+.droparea b { display: block; font-size: 13.5px; font-weight: 600; color: var(--fg); }
+.droparea small { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
 .drophint {
   position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px;
   padding: 5px 5px 5px 16px; border-radius: 99px; font-size: 12.5px; color: var(--fg); white-space: nowrap;
@@ -223,8 +235,8 @@ input[type=file] { display: none; }
     <div id="view">
       <div class="hud"><span class="t" id="hudTime">0.00 s</span><span class="s" id="hudSub">MyoFullBody · rest pose</span></div>
       <div class="badges" id="badges"></div>
-      <div class="drophint" id="dropHint" hidden><span><span class="long">Playing a demo. </span>Drop your own <b>.elvw</b> clip anywhere here</span><button id="openBtn3" type="button">Open…</button></div>
-      <div class="dropzone" id="dropzone">
+      <div class="drophint" id="dropHint" hidden><span><span class="long">This is a demo. </span>Drag your own <b>.elvw</b> clip onto this view</span><button id="openBtn3" type="button">Open…</button></div>
+      <div class="dropzone" id="dropzone" hidden>
         <div class="dropcard">
           <b>Drop a clip file (.elvw)</b>
           <p>Clips are written by <code>pipeline/export_viewer.py clip</code>. Files are read in this browser only; nothing is uploaded.</p>
@@ -262,8 +274,8 @@ input[type=file] { display: none; }
       <div class="title" id="clipTitle">No clip loaded</div>
       <div class="sub" id="clipSub">Model loaded from myofullbody_model.elvw</div>
       <select id="demoList" aria-label="Demo clips" hidden></select>
+      <button id="openBtn" class="droparea" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg><span><b>Drop your .elvw clip here</b><small>or click to choose a file · it is read in this browser, nothing is uploaded</small></span></button>
       <div class="row">
-        <button id="openBtn" type="button">Open clip…</button>
         <select id="clipList" aria-label="Loaded clips" hidden></select>
         <input type="file" id="file" accept=".elvw" multiple>
       </div>
@@ -975,6 +987,7 @@ function selectClip(i) {
   buildScene(clip.meta); buildArrows(clip.meta); buildCompare(clip.meta); buildPlotMenu(); showMeta(clip.meta);
   $("dropzone").hidden = true;
   $("dropHint").hidden = !clip.demo;
+  $("view").classList.toggle("demo", !!clip.demo);
   tAcc = 0; frame = 0;
   const pi = pelvisIdx(), P = clip.a.body_pos.data, ps = clip.meta.pos_scale, nb = model.meta.bodies.length;
   controls.autoRotate = false;  // the rest-pose turntable orbits the camera, never the body
@@ -994,7 +1007,7 @@ async function loadFiles(files) {
 for (const id of ["openBtn", "openBtn2", "openBtn3"]) $(id).addEventListener("click", () => $("file").click());
 $("file").addEventListener("change", e => loadFiles(e.target.files));
 addEventListener("dragover", e => { e.preventDefault(); document.body.classList.add("drag-on"); $("dropzone").hidden = false; });
-addEventListener("dragleave", e => { if (e.target === document.documentElement || !e.relatedTarget) document.body.classList.remove("drag-on"); });
+addEventListener("dragleave", e => { if (e.target === document.documentElement || !e.relatedTarget) { document.body.classList.remove("drag-on"); if (clip) $("dropzone").hidden = true; } });
 addEventListener("drop", e => { e.preventDefault(); document.body.classList.remove("drag-on"); loadFiles(e.dataTransfer.files); });
 
 /* ---------- demos: demos/index.json lists clips shipped with the page ---------- */
@@ -1126,7 +1139,8 @@ new MutationObserver(applyTheme).observe(document.documentElement, { attributes:
   }
   const q = new URLSearchParams(location.search).get("clip");
   if (q && model) { try { const r = await fetch(q); await loadClipBuffer(await r.arrayBuffer(), q.split("/").pop()); } catch (e) {} }
-  else if (model) await loadDemos();
+  else if (model) { $("hudSub").textContent = "Loading the demo…"; await loadDemos(); }
+  if (!clip) { $("dropzone").hidden = false; $("hudSub").textContent = "MyoFullBody · rest pose"; }
   resize();
   requestAnimationFrame(loop);
 })();
