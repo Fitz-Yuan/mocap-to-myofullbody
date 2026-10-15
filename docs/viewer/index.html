@@ -74,6 +74,12 @@ body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--fo
 .dropcard b { font-size: 15px; }
 .dropcard p { margin: 0; color: var(--muted); font-size: 13px; }
 .drag-on .dropcard { border-color: var(--accent); }
+.drophint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px;
+  padding: 7px 8px 7px 14px; border: 1px dashed var(--muted); border-radius: 99px; font-size: 12.5px; color: var(--fg);
+  background: color-mix(in srgb, var(--panel) 82%, transparent); backdrop-filter: blur(8px); white-space: nowrap; }
+.drophint button { padding: 3px 10px; border-radius: 99px; font-size: 12px; }
+.drag-on .drophint { border-color: var(--accent); color: var(--accent); }
+@media (max-width: 600px) { .drophint span.long { display: none; } }
 .timeline { padding: 8px 14px 0; background: var(--panel); border-top: 1px solid var(--line); }
 #tl { display: block; width: 100%; height: 54px; cursor: pointer; touch-action: none; }
 .transport { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 14px calc(10px + env(safe-area-inset-bottom, 0px)); background: var(--panel); }
@@ -129,6 +135,7 @@ input[type=file] { display: none; }
     <div id="view">
       <div class="hud"><span class="t" id="hudTime">0.00 s</span><span class="s" id="hudSub">MyoFullBody · rest pose</span></div>
       <div class="badges" id="badges"></div>
+      <div class="drophint" id="dropHint" hidden><span><span class="long">Playing a demo. </span>Drop your own <b>.elvw</b> clip anywhere here</span><button id="openBtn3" type="button">Open…</button></div>
       <div class="dropzone" id="dropzone">
         <div class="dropcard">
           <b>Drop a clip file (.elvw)</b>
@@ -161,6 +168,7 @@ input[type=file] { display: none; }
       <div class="title" id="clipTitle">No clip loaded</div>
       <div class="sub" id="clipSub">Model loaded from myofullbody_model.elvw</div>
       <div class="sub"><a href="../" style="color:var(--accent)">mocap-to-myofullbody</a> · <a href="../handbook/" style="color:var(--accent)">Handbook</a></div>
+      <select id="demoList" aria-label="Demo clips" hidden></select>
       <div class="row">
         <button id="openBtn" type="button">Open clip…</button>
         <select id="clipList" aria-label="Loaded clips" hidden></select>
@@ -724,12 +732,29 @@ $("curveSel").addEventListener("change", () => { buildChartLegend(); drawChart()
     vector: array of forces in N (same layout), m_per_N, color}; hidden below min_N. */
 let arrows = [];
 const arrowGroup = new THREE.Group(); scene.add(arrowGroup);
+// solid arrows drawn over the body (a force on the foot runs up inside the shank)
+const shaftGeo = new THREE.CylinderGeometry(1, 1, 1, 10).translate(0, 0.5, 0);
+const headGeo = new THREE.ConeGeometry(1, 1, 14).translate(0, 0.5, 0);
+function makeArrow(color) {
+  const mat = new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: 0.92 });
+  const g = new THREE.Group(), shaft = new THREE.Mesh(shaftGeo, mat), head = new THREE.Mesh(headGeo, mat);
+  shaft.renderOrder = head.renderOrder = 20;
+  g.add(shaft, head);
+  g.setColor = c => mat.color.set(c);
+  g.setArrow = (len) => {
+    const hl = Math.min(0.07, 0.35 * len), r = 0.007;
+    shaft.scale.set(r, Math.max(1e-4, len - hl), r);
+    head.position.y = len - hl; head.scale.set(2.6 * r, hl, 2.6 * r);
+  };
+  return g;
+}
+const yAxis = new THREE.Vector3(0, 1, 0);
 function buildArrows(meta) {
   arrowGroup.clear(); arrows = [];
   for (const ar of meta.arrows ?? []) {
     if (!clip.a[ar.origin] || !clip.a[ar.vector]) continue;
-    const h = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(), 0.1, new THREE.Color(css(ar.color ?? "--force")), 0.05, 0.03);
-    h.line.material.linewidth = 2; h.userData.ar = ar;
+    const h = makeArrow(new THREE.Color(css(ar.color ?? "--force")));
+    h.userData.ar = ar;
     arrows.push(h); arrowGroup.add(h);
   }
 }
@@ -743,11 +768,11 @@ function updateArrows() {
     if (o[0] === MISSING || !Number.isFinite(mag) || mag < (ar.min_N ?? 2)) { h.visible = false; continue; }
     h.visible = true;
     aOrg.set(o[0] * ps, o[1] * ps, o[2] * ps); aDir.set(v[0] / mag, v[1] / mag, v[2] / mag);
-    const len = mag * ar.m_per_N, head = Math.min(0.07, 0.35 * len);
+    const len = mag * ar.m_per_N;
     // anchor "head": the arrow ends at the point of application (a load pressing on it);
     // "tail": it starts there (a ground reaction pushing up from the floor)
     h.position.copy(aOrg); if (ar.anchor !== "tail") h.position.addScaledVector(aDir, -len);
-    h.setDirection(aDir); h.setLength(len, head, 0.55 * head);
+    h.quaternion.setFromUnitVectors(yAxis, aDir); h.setArrow(len);
   }
 }
 
@@ -838,11 +863,12 @@ for (const id of ["lyBones", "lyMus", "lyMk", "lyMkModel", "lyErr", "lyScene", "
 $("lyOsim").addEventListener("change", () => setOsim($("lyOsim").checked));
 
 /* ---------- loading ---------- */
-async function loadClipBuffer(buf, name) {
+async function loadClipBuffer(buf, name, opts = {}) {
   const c = parseELVW(buf);
   if (c.meta.format?.startsWith("elvw-model")) { buildModel(c); return; }
   if (!model) throw new Error("Model not loaded yet");
   c.name = name;
+  c.demo = !!opts.demo;
   upgradeLegacy(c);
   clips.push(c);
   const opt = document.createElement("option"); opt.value = clips.length - 1; opt.textContent = name; $("clipList").append(opt);
@@ -853,6 +879,7 @@ function selectClip(i) {
   clip = clips[i];
   buildScene(clip.meta); buildArrows(clip.meta); buildCompare(clip.meta); buildPlotMenu(); showMeta(clip.meta);
   $("dropzone").hidden = true;
+  $("dropHint").hidden = !clip.demo;
   tAcc = 0; frame = 0;
   const pi = pelvisIdx(), P = clip.a.body_pos.data, ps = clip.meta.pos_scale, nb = model.meta.bodies.length;
   controls.autoRotate = false;  // the rest-pose turntable orbits the camera, never the body
@@ -869,11 +896,33 @@ async function loadFiles(files) {
     catch (err) { $("clipSub").textContent = `${f.name}: ${err.message}. Pick a file written by pipeline/export_viewer.py.`; }
   }
 }
-for (const id of ["openBtn", "openBtn2"]) $(id).addEventListener("click", () => $("file").click());
+for (const id of ["openBtn", "openBtn2", "openBtn3"]) $(id).addEventListener("click", () => $("file").click());
 $("file").addEventListener("change", e => loadFiles(e.target.files));
 addEventListener("dragover", e => { e.preventDefault(); document.body.classList.add("drag-on"); $("dropzone").hidden = false; });
 addEventListener("dragleave", e => { if (e.target === document.documentElement || !e.relatedTarget) document.body.classList.remove("drag-on"); });
 addEventListener("drop", e => { e.preventDefault(); document.body.classList.remove("drag-on"); loadFiles(e.dataTransfer.files); });
+
+/* ---------- demos: demos/index.json lists clips shipped with the page ---------- */
+async function loadDemo(d) {
+  const had = clips.findIndex(c => c.name === d.title);
+  if (had >= 0) { selectClip(had); $("clipList").value = had; return; }
+  const r = await fetch(`demos/${d.file}`);
+  if (!r.ok) throw new Error(r.status);
+  await loadClipBuffer(await r.arrayBuffer(), d.title, { demo: true });
+}
+async function loadDemos() {
+  try {
+    const r = await fetch("demos/index.json");
+    if (!r.ok) return;
+    const demos = await r.json();
+    if (!demos.length) return;
+    const sel = $("demoList");
+    sel.innerHTML = `<option value="" disabled>Demos</option>` + demos.map((d, i) => `<option value="${i}">${d.title}</option>`).join("");
+    sel.hidden = false; sel.value = "0";
+    sel.addEventListener("change", () => loadDemo(demos[+sel.value]).catch(() => {}));
+    await loadDemo(demos[0]);
+  } catch (e) { /* no demos next to the page: the empty model and the drop card stay */ }
+}
 
 /* ---------- transport and camera ---------- */
 let follow = true;
@@ -982,6 +1031,7 @@ new MutationObserver(applyTheme).observe(document.documentElement, { attributes:
   }
   const q = new URLSearchParams(location.search).get("clip");
   if (q && model) { try { const r = await fetch(q); await loadClipBuffer(await r.arrayBuffer(), q.split("/").pop()); } catch (e) {} }
+  else if (model) await loadDemos();
   resize();
   requestAnimationFrame(loop);
 })();

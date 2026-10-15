@@ -358,7 +358,7 @@ footer a { color: var(--fg-2); }
   <section class="hero" id="hero">
     <div class="hero-copy" data-reveal>
       <h1>From raw optical motion capture to a <span class="nowrap"><span data-fact="muscles"></span>-muscle</span> body.</h1>
-      <p class="lede">Mocap to MyoFullBody reads OptiTrack recordings without Motive, calibrates each subject on a static standing trial, and solves the motion on MyoFullBody, a MuJoCo model with <span data-fact="muscles"></span> muscles. <span class="more">On the same data it matches OpenSim where it should, and fits the markers twice as closely.</span></p>
+      <p class="lede">Raw OptiTrack takes in, motion of a <span data-fact="muscles"></span>-muscle MuJoCo body out. <span class="more">Half the marker error of OpenSim on the same data.</span></p>
       <div class="actions">
         <a class="btn" href="handbook/">Read the handbook</a>
         <a class="tlink" href="viewer/">Open the viewer <span class="arr" aria-hidden="true">→</span></a>
@@ -557,7 +557,7 @@ window.FACTS = {
 };
 /* Plug-in-Gait markers placed on the model at rest (model coordinates, metres,
    z up, facing -y). These are the starting guesses of the calibration
-   (_ANAT_L / _ANAT_MID in pipeline/mmh_ik.py), not measured data. */
+   (_PIG_ANAT_L / _PIG_ANAT_MID in mocap2myo/markerset.py), not measured data. */
 window.M2M_MARKERS = [
   ["LFHD","head",0.035,0.12,1.69],["RFHD","head",-0.085,0.12,1.69],["LBHD","head",0.035,0.29,1.67],["RBHD","head",-0.085,0.29,1.67],
   ["C7","thorax",-0.025,0.27,1.48],["T10","thorax",-0.025,0.26,1.24],["CLAV","thorax",-0.025,0.14,1.45],["STRN","thorax",-0.025,0.1,1.27],["RBAK","thorax",-0.105,0.28,1.37],
