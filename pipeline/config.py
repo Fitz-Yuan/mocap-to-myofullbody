@@ -172,6 +172,9 @@ STATIC_MARKERS = _env("M2M_STATIC_MARKERS", "legs")
 # the 6 cm cap with the flat-foot calibration -> 10 cm
 FOOT_CAP = float(_env("M2M_FOOT_CAP", 0.10))
 FLAT_W = float(_env("M2M_FLAT_W", 30.0))
+# opt-in: a 3-hinge neck in the IK model (ik.NECK), so the head follows its markers; the
+# IK output keeps the plain model's qpos layout plus neck_qpos [T, 3]
+NECK = _env("M2M_NECK", "0") == "1"
 IK_FRAMES = _env("M2M_IK_FRAMES", "")  # "a:b": tracking IK on that frame range only (pilot / timing)
 LOMO_EVERY_S = float(_env("M2M_LOMO_EVERY_S", 1.0))  # validate/lomo.py: one frame per this many s
 

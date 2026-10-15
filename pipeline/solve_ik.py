@@ -111,7 +111,7 @@ def calib(subj):
   loaded = [mk.load_trial(os.path.join(NPZ, f"{t}.npz"), lowpass_hz=LOWPASS_HZ or None)[:2]
             for t in config.trials(NPZ) if config.subject_of(t) == subj]
   trials = [P for P, _ in loaded]
-  mm = mk.MarkerModel()
+  mm = mk.MarkerModel(neck=config.NECK)
   off = mk.calibrate(mm, trials, n_frames=40, iters=8, max_shift=max_shift(mk.LABELS),
                      outlier=OUTLIER, stand=standing_frames(loaded), flat=FLAT_W,
                      static=static_frames(subj, loaded) if STATIC else None,
@@ -122,7 +122,8 @@ def calib(subj):
   # marker, then moved that marker's offset to where it was -- S05 / S10 offsets
   # drifted 34-40 mm (median), tracking error +4-5 mm; robust is for tracking only
   np.savez(f[:-4] + ".part.npz", offsets=off, labels=np.array(mk.LABELS), static=STATIC,
-           static_share=STATIC_SHARE, static_w=STATIC_W, static_markers=STATIC_MARKERS)
+           static_share=STATIC_SHARE, static_w=STATIC_W, static_markers=STATIC_MARKERS,
+           neck=config.NECK)
   os.replace(f[:-4] + ".part.npz", f)
   return subj, "done"
 
@@ -139,7 +140,7 @@ def ik(name):
   if rng:
     a, b = (int(x) for x in rng.split(":"))
     P = P[a:b]
-  mm = mk.MarkerModel()
+  mm = mk.MarkerModel(neck=config.NECK)
   mm.set_offsets(np.load(os.path.join(OUT, f"{config.subject_of(name)}_offsets.npz"))["offsets"])
   # 5 cm outlier rejection: label swaps (case study, S11 Solid export: LWRB / C7
   # jump onto other markers, p95 > 0.9 m) and S01's differently placed TIB
@@ -148,6 +149,8 @@ def ik(name):
                      anchor_centroid=ANCHOR_CENTROID, pelvis_gap=PELVIS_GAP,
                      robust=ROBUST or None, root_init=ROOT_INIT)
   tmp = f[:-4] + ".part.npz"
+  Q, neck = mm.split_qpos(Q)  # the plain model's layout; the neck angles apart
+  extra = dict(neck_qpos=neck.astype(np.float32), neck_joints=np.array(mk.NECK)) if mm.neck else {}
   solved = ~np.isnan(E).all(1)
   rejected = np.isnan(E) & ~np.isnan(P[..., 0]) & solved[:, None]
   np.savez_compressed(tmp, qpos=Q.astype(np.float32), marker_err=E.astype(np.float32),
@@ -159,7 +162,8 @@ def ik(name):
                       scale=s, rate=rate, labels=np.array(mk.LABELS),
                       frame0=int(rng.split(":")[0]) if rng else 0,
                       model=str(MYOFULLBODY_XML),
-                      joint_names=np.array([mm.m.joint(j).name for j in range(mm.m.njnt)]))
+                      joint_names=np.array([mm.m.joint(j).name for j in range(mm.m.njnt)
+                                            if mm.m.joint(j).name not in mk.NECK]), **extra)
   os.replace(tmp, f)
   return name, (f"median err {1e3 * np.nanmedian(E):.1f} mm, rejected "
                 f"{rejected.mean():.4f}, unsolved {int((~solved).sum())}"), time.time() - t0

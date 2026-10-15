@@ -41,6 +41,15 @@ FREE = [f"{j}_{s}" for s in ("r", "l") for j in
 
 
 LUMBAR = ("flex_extension", "lat_bending", "axial_rotation")
+# Optional neck (MarkerModel(neck=True)): MyoFullBody has no neck joint, so the head is
+# rigid on the trunk and its markers miss by ~3 cm (9 cm in the worst frames) whenever
+# the subject nods or turns. Three hinges at the neck body, pivot at about C7/T1,
+# appended to the IK's free joints; the IK output keeps the model's own qpos layout
+# and stores these three angles separately (split_qpos / full_qpos).
+NECK = ("neck_extension", "neck_bending", "neck_rotation")
+_NECK_PIVOT = (0.0, 0.39, 0.0)  # in the neck body's frame (y up): ~1.49 m at qpos0
+_NECK_AXES = ((0, 0, 1), (1, 0, 0), (0, 1, 0))  # extension (+), bending to the right (+), rotation
+_NECK_RANGE = ((-1.2, 1.0), (-0.8, 0.8), (-1.4, 1.4))
 
 
 def load_trial(path, max_gap_s=0.25, lowpass_hz=None):
@@ -81,10 +90,16 @@ def load_trial(path, max_gap_s=0.25, lowpass_hz=None):
 
 
 class MarkerModel:
-  def __init__(self):
+  def __init__(self, neck=False):
     spec = mujoco.MjSpec.from_file(str(MYOFULLBODY_XML))
     for l, (b, _) in MARKERS.items():
       spec.body(b).add_site(name=f"mk_{l}", pos=[0, 0, 0], size=[0.01, 0, 0])
+    self.neck = neck
+    self.free = list(FREE) + (list(NECK) if neck else [])
+    if neck:
+      for n, ax, rg in zip(NECK, _NECK_AXES, _NECK_RANGE):
+        spec.body("neck").add_joint(name=n, type=mujoco.mjtJoint.mjJNT_HINGE, pos=list(_NECK_PIVOT),
+                                    axis=list(ax), range=list(rg), limited=1)
     self.m = spec.compile()
     self.d = mujoco.MjData(self.m)
     m = self.m
@@ -95,9 +110,10 @@ class MarkerModel:
     m.site_sameframe[self.sid] = 0
     self.bid = np.array([m.body(MARKERS[l][0]).id for l in LABELS])
     self.w = np.array([MARKERS[l][1] for l in LABELS])
-    self.adr = np.array([m.jnt_qposadr[m.joint(n).id] for n in FREE])
-    self.mtp = np.array([FREE.index(f"mtp_angle_{sd}") for sd in ("r", "l")])
-    jid = [m.joint(n).id for n in FREE]
+    self.adr = np.array([m.jnt_qposadr[m.joint(n).id] for n in self.free])
+    self.mtp = np.array([self.free.index(f"mtp_angle_{sd}") for sd in ("r", "l")])
+    self.neck_adr = np.array([m.jnt_qposadr[m.joint(n).id] for n in NECK]) if neck else np.zeros(0, int)
+    jid = [m.joint(n).id for n in self.free]
     self.lo = np.array([m.jnt_range[j][0] if m.jnt_limited[j] else -np.pi for j in jid])
     self.hi = np.array([m.jnt_range[j][1] if m.jnt_limited[j] else np.pi for j in jid])
     self._foot_points()
@@ -110,6 +126,19 @@ class MarkerModel:
     for sd, b in zip("lr", self.hand_b):
       v = self.d.xpos[m.body(f"3proxph_{sd}").id] - self.d.xpos[b]
       self.palm_d.append(self.d.xmat[b].reshape(3, 3).T @ (v / np.linalg.norm(v)))
+
+  def split_qpos(self, Q):
+    """IK qpos of this model -> (qpos in the plain model's layout, neck angles [.., 3])."""
+    Q = np.asarray(Q)
+    return np.delete(Q, self.neck_adr, axis=-1), Q[..., self.neck_adr]
+
+  def full_qpos(self, q, neck):
+    """Inverse of split_qpos."""
+    q = np.asarray(q)
+    out = q
+    for k, a in enumerate(self.neck_adr):  # increasing addresses: insert in order
+      out = np.insert(out, a, np.asarray(neck)[..., k], axis=-1)
+    return out
 
   def palms(self):
     """Hand sphere centres, palm normals, finger axes [2, 3] each (l, r)."""
@@ -163,7 +192,7 @@ class MarkerModel:
     self.m.site_pos[self.sid] = off
 
   def pose(self, x, q_root_ref):
-    """x = [root pos 3, root rotvec 3 (relative to q_root_ref), FREE joints]."""
+    """x = [root pos 3, root rotvec 3 (relative to q_root_ref), self.free joints]."""
     q = self.m.qpos0.copy()
     q[:3] = x[:3]
     r = sRot.from_rotvec(x[3:6]) * sRot.from_quat(q_root_ref[[1, 2, 3, 0]])
@@ -404,7 +433,9 @@ def calibrate(mm, trials, n_frames=24, iters=5, prior=2.0, max_shift=0.06, seed=
     st = [P for P in static if not np.isnan(P[PELVIS]).any()]
     frames += st
     wt = np.r_[wt, np.full(len(st), static_share / (1 - static_share) * n_dyn / max(len(st), 1))]
-    pidx = np.array([FREE.index(j) for j in STATIC_NEUTRAL])
+    # with the optional neck, the static trial also holds the neck near neutral: the head
+    # markers' placement and the neck angles are not separable otherwise (as for the knees)
+    pidx = np.array([mm.free.index(j) for j in STATIC_NEUTRAL + (list(NECK) if mm.neck else [])])
     posture = (pidx, np.zeros(len(pidx)), static_w)
   use_static = np.ones(len(LABELS), bool)
   if static_segments is not None:
@@ -545,9 +576,9 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
     # (a constant 1.0 lagged the raised arm: elbow marker error 8.7 -> 14 mm;
     # 0.2 on every joint lagged fast clips)
     base = np.array([ankle_smooth if n.startswith(("ankle_angle", "subtalar")) else 0.05
-                     for n in FREE])
-    elv = [FREE.index(f"elv_angle_{sd}") for sd in ("r", "l")]
-    selv = [FREE.index(f"shoulder_elv_{sd}") for sd in ("r", "l")]
+                     for n in mm.free])
+    elv = [mm.free.index(f"elv_angle_{sd}") for sd in ("r", "l")]
+    selv = [mm.free.index(f"shoulder_elv_{sd}") for sd in ("r", "l")]
 
     def smooth_at(x):
       w = base.copy()

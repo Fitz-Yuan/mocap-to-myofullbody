@@ -178,11 +178,16 @@ def export_clip(a):
   step = max(1, int(round(rate / a.fps)))
   idx = np.arange(lo, hi, step)
   fps = rate / step
-  mm = mk.MarkerModel()
+  # an IK run with the optional neck stores its angles apart: draw the head with them
+  ikf = np.load(os.path.join(a.ik_dir, f"{trial}.npz"))
+  neck = ikf["neck_qpos"][idx].astype(np.float64) if "neck_qpos" in ikf.files else None
+  mm = mk.MarkerModel(neck=neck is not None)
   m, d = mm.m, mm.d
   subj = config.subject_of(trial)
   mm.set_offsets(np.load(os.path.join(a.ik_dir, f"{subj}_offsets.npz"))["offsets"])
   Q = ref["qpos"][idx].astype(np.float64)
+  if neck is not None:
+    Q = mm.full_qpos(Q, neck)
   bp, bq = body_poses(m, d, Q)
   model_mk = np.stack([mm.markers(q) for q in Q])
   # measured markers in the reference frame: scaled like the IK, moved with the human
@@ -208,9 +213,12 @@ def export_clip(a):
   ghost = None
   if a.ghost_ref_dir:
     gref = np.load(os.path.join(a.ghost_ref_dir, f"{trial}.npz"))
-    gp, gq = body_poses(m, d, gref["qpos"][idx].astype(np.float64))
+    gQ = gref["qpos"][idx].astype(np.float64)
+    if mm.neck:  # the ghost run is drawn with a straight neck
+      gQ = mm.full_qpos(gQ, np.zeros((len(gQ), len(mk.NECK))))
+    gp, gq = body_poses(m, d, gQ)
     arrays["ghost_pos"], arrays["ghost_quat"] = q16(gp, ps), q16(gq, 1 / 32767)
-    arrays["ghost_curves"] = np.degrees(gref["qpos"][idx][:, adr]).astype(np.float32)
+    arrays["ghost_curves"] = np.degrees(gQ[:, adr]).astype(np.float32)
     ghost = a.ghost_label or os.path.basename(os.path.normpath(a.ghost_ref_dir))
   # inverse dynamics and the OpenSim comparison, when their files exist
   opt = lambda d, f: np.load(os.path.join(d, f)) if d and os.path.exists(os.path.join(d, f)) else None
