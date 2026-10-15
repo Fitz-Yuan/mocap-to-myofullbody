@@ -1,18 +1,18 @@
-"""Diagnose the joint-angle offsets of the MMH Elevator IK on the static trials.
+"""Diagnose the joint-angle offsets of an IK run on the static trials.
 
-Each subject (except S07) has a 5 s static trial (Raw Take Files/Subject<ss>_Anatomy.tak:
-standing still, arms down, all 39 markers visible). For each subject:
+Each subject with a static trial (raw_tak/static/<static name>.tak, M2M_STATIC_NAME;
+case study: 5 s standing still, arms down, all markers visible; S07 has none):
   1. the IK pose of the static trial with the subject's current calibration
-     (ELEV_IK_DIR/S<ss>_offsets.npz): knee / hip / ankle / lumbar flexion while
+     (<M2M_IK_DIR>/<subject>_offsets.npz): knee / hip / ankle / lumbar flexion while
      the subject stands still and upright;
   2. segment lengths from marker pairs (subject markers scaled to the model's
      height, as the IK does) against the same pairs of the model's anatomical
-     marker guesses (mmh_ik.anat_world), as ratios: a ratio away from 1 is a
+     marker guesses (markerset.anat_world), as ratios: a ratio away from 1 is a
      segment the uniformly scaled model cannot match.
 Ratios use bony landmarks only (ASIS, PSIS, knee, ankle, heel, toe, shoulder,
-elbow, wrist, finger, C7).
+elbow, wrist, finger, C7; Plug-in-Gait labels). Subjects: the anthropometrics file.
 
-  uv run --with olefile python -I logs/rsl_rl/fullbody_liftbox/scripts/elev_static_diag.py
+  python pipeline/validate/static_pose.py        (needs olefile)
 """
 
 import os
@@ -20,14 +20,15 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import elev_convert as C  # noqa: E402
-import mmh_ik as mk  # noqa: E402
-import optitrack_tak as tak  # noqa: E402
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from mocap2myo import ik as mk  # noqa: E402
+from mocap2myo import markerset as ms  # noqa: E402
+from mocap2myo import tak  # noqa: E402
+from pipeline import config  # noqa: E402
+from pipeline import prepare_markers as C  # noqa: E402
 
-ROOT = os.path.expanduser(os.environ.get("ELEV_ROOT", "~/data/mmh_elevator"))
-STATIC = os.path.join(ROOT, "raw_tak", "static")  # S<ss>_Anatomy.tak (raw)
-IKD = os.environ.get("ELEV_IK_DIR", os.path.join(ROOT, "ik_tak"))
+STATIC = os.path.join(config.RAW_TAK_DIR, "static")  # <static name>.tak (raw)
+IKD = config.IK_DIR
 PAIRS = {
   "pelvis width": [("LASI", "RASI")],
   "pelvis depth": [("LASI", "LPSI"), ("RASI", "RPSI")],
@@ -45,20 +46,19 @@ JOINTS = ["knee_angle_r", "knee_angle_l", "hip_flexion_r", "hip_flexion_l",
 
 
 def static_markers(subj, anthro):
-  """Mean static pose [39, 3] in the IK's scaled-subject frame (Z up)."""
-  tk = tak.read_tak(os.path.join(STATIC, f"{subj}_Anatomy.tak"))
+  """Mean static pose [n, 3] in the IK's scaled-subject frame (Z up)."""
+  tk = tak.read_tak(os.path.join(STATIC, f"{config.static_name(subj)}.tak"))
   A = C.zup(tk["xyz"])
   P, H, _ = C.body_markers(tk["names"], A)
-  hk = [mk.LABELS.index(l) for l in C.HEAD_PIG]
+  hk = [mk.LABELS.index(l) for l in ms.HEAD_LABELS]
   P[:, hk], _ = C.assign_head(P, H)
-  scale = mk.MODEL_HEIGHT / (anthro[int(subj[1:])] / 100)
+  scale = mk.MODEL_HEIGHT / (anthro[subj] / 100)
   return np.nanmedian(P, 0) * scale
 
 
 def main():
-  rows = np.genfromtxt(os.path.join(ROOT, "meta", "anthropometrics.csv"), delimiter=",",
-                       names=True, dtype=None, encoding=None)
-  anthro = {int(r["Subject"]): float(r["Height"]) for r in rows}
+  config.usage(__doc__)
+  anthro = {s: a["height_cm"] for s, a in config.anthropometrics().items()}
   anat = np.array([mk.anat_world(l) for l in mk.LABELS])
   L = mk.LABELS
 
@@ -73,9 +73,8 @@ def main():
   print(f"{'subj':5s} " + " ".join(f"{k[:9]:>9s}" for k in PAIRS) + " | static IK pose (deg): "
         + " ".join(j.replace("_angle", "").replace("flexion", "flx").replace("flex_extension", "lumbar")
                    for j in JOINTS) + " | err mm")
-  for s in range(1, 12):
-    subj = f"S{s:02d}"
-    if not os.path.exists(os.path.join(STATIC, f"{subj}_Anatomy.tak")):
+  for subj in sorted(anthro):
+    if not os.path.exists(os.path.join(STATIC, f"{config.static_name(subj)}.tak")):
       print(f"{subj}  no static trial")
       continue
     P = static_markers(subj, anthro)

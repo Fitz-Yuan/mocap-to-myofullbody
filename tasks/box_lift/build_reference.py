@@ -1,17 +1,17 @@
-"""Per-trial reference of the MMH Elevator trials (input to the replay videos and
-to the training dataset): human IK + measured box + scene, one frame.
+"""Per-trial reference of the box-lifting trials (input to the replay videos, the
+viewer and the training dataset): human IK + measured box + scene, one frame.
 
-Frame: scaled subject (markers x scale, see mmh_ik.load_trial), floor at z = 0.
+Frame: scaled subject (markers x scale, see mocap2myo.ik.load_trial), floor at z = 0.
   Scene and box: shifted by -floor (the elevator markers' floor).
   Human: shifted so the median lowest sole point is on the floor while the
   feet are on the elevator platform (kinematics.sole_height); elsewhere the
   feet are up to ~1.5 cm above z = 0 (the force plates are raised). The subjects wore thick-soled
   slides: the barefoot model fitted to their markers floats 2.5-5.5 cm
-  (elev_qa), so the human moves down by that much relative to the box; the
+  (pipeline/qa.py), so the human moves down by that much relative to the box; the
   hands hold the end faces, so this moves the grip down along those faces.
-Box: Kabsch pose of the 6 markers (elev_convert), centre moved along x to the
+Box: Kabsch pose of the 6 markers (box_fit.py), centre moved along x to the
   middle between the palms (median over trials). Size: width / height from the
-  marker layout (elev_convert.BOX_SIZE); length from the palms -- the palm
+  marker layout (box_fit.BOX_SIZE); length from the palms -- the palm
   spheres sit beyond the 0.36 m estimate while carrying (end handles), so the
   end faces are put at the median |palm x| - HAND_R over all trials (unscaled).
 Shelf: top = median box bottom while the box rests on it (the shelf markers
@@ -23,11 +23,12 @@ Grasp [T, 2] (l, r): the box is not resting (on floor / shelf) and that palm
 Support [T]: 0 floor, 1 hands, 2 shelf. Cycles: box lifted off the floor ->
   set back on it; clip bounds = middle of the floor rests between cycles.
 
-  uv run python logs/rsl_rl/fullbody_liftbox/scripts/elev_build_reference.py
-Output: ~/Projects/datasets/MMH_Elevator/ref/<trial>.npz + summary.json
+  python tasks/box_lift/build_reference.py [trial ...]
+Input: <M2M_IK_DIR>/<trial>.npz, <M2M_NPZ_DIR>/<trial>.npz.
+Output: <M2M_REF_DIR>/<trial>.npz + summary.json. The box length and centre are
+medians over the trials given (default: all), so build all trials together.
 """
 
-import glob
 import json
 import os
 import sys
@@ -36,16 +37,16 @@ import mujoco
 import numpy as np
 from scipy.spatial.transform import Rotation as sRot
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from mocap2myo import objects as O  # noqa: E402
 from mocap2myo.kinematics import (  # noqa: E402
   foot_collision_geoms, sole_height)
 from mocap2myo.model import MYOFULLBODY_XML  # noqa: E402
+from pipeline import config  # noqa: E402
 
-ROOT = os.path.expanduser(os.environ.get("ELEV_ROOT", "~/data/mmh_elevator"))
-IK_DIR = os.environ.get("ELEV_IK_DIR", os.path.join(ROOT, "ik"))
-NPZ_DIR = os.environ.get("ELEV_NPZ_DIR", os.path.join(ROOT, "npz"))
-REF_DIR = os.environ.get("ELEV_REF_DIR", os.path.join(ROOT, "ref"))
+IK_DIR = config.IK_DIR
+NPZ_DIR = config.NPZ_DIR
+REF_DIR = config.REF_DIR
 GRASP_D = 0.03  # m, palm-sphere surface to box surface
 REST_V = 0.02  # m/s
 
@@ -87,13 +88,13 @@ def sdf(loc, half):
 
 
 def main():
+  config.usage(__doc__)
   m = mujoco.MjModel.from_xml_path(str(MYOFULLBODY_XML))
   d = mujoco.MjData(m)
   foot = foot_collision_geoms(m)
   hand = [m.body("thirdmc_l").id, m.body("thirdmc_r").id]
   sph = O.hand_sphere_local()
-  names = sys.argv[1:] or sorted(os.path.basename(p)[:-4] for p in
-                                 glob.glob(os.path.join(IK_DIR, "S*_NE.npz")))
+  names = sys.argv[1:] or config.trials(IK_DIR)
   os.makedirs(REF_DIR, exist_ok=True)
   # pass 1: kinematics, shifts, palm positions in the box frame
   T1 = {}

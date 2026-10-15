@@ -249,7 +249,7 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     <div class="node data" role="listitem"><b>Motion dataset</b><span>npz, merged with MMH</span></div>
   </div>
   <div class="legend"><span><i></i>processing step</span><span><i class="d"></i>data</span></div>
-  <p class="note">Scripts: <code>pipeline/</code>. Data: <code>$ELEV_ROOT</code> (default <code>~/data/mmh_elevator</code>). CPU only.</p>
+  <p class="note">Scripts: <code>pipeline/</code> (generic stages) and <code>tasks/box_lift/</code> (the lifting task); library: <code>mocap2myo/</code>. Data: <code>$M2M_ROOT</code> (default <code>~/data/mocap2myo</code>); paths and file naming in <code>pipeline/config.py</code>. CPU only.</p>
 </section>
 
 <section>
@@ -262,7 +262,7 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
         <tr><td>Input</td><td>Marker coordinates exported from Motive by a collaborating group, converted to xlsx</td><td><code>Raw Take Files/*.tak</code> for each subject</td></tr>
         <tr><td>Body labels</td><td>Edited and gap-filled by them in Motive</td><td>Labels Motive assigned live during recording</td></tr>
         <tr><td>Box and scene markers</td><td>Labels lost in the export; recovered from geometry</td><td>Owning rigid body is in the file; still matched by geometry</td></tr>
-        <tr><td>Switch and outputs</td><td>Default: <code>npz/ ik/ ref/</code>, <code>lift_elev_v2</code></td><td><code>ELEV_SOURCE=tak</code>: <code>npz_tak/ ik_tak/ ref_tak/</code>, <code>lift_elev_tak_v1</code></td></tr>
+        <tr><td>Switch and outputs</td><td>Default <code>M2M_SOURCE=export</code>: <code>markers_from_export/</code> (case study: <code>lift_elev_v2</code>)</td><td><code>M2M_SOURCE=tak</code>: <code>markers/</code> (case study: <code>lift_elev_tak_v1</code>)</td></tr>
       </tbody>
     </table>
   </div>
@@ -276,11 +276,11 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       <div class="num">1</div>
       <div class="body">
         <h3>Stage 1 · .tak parsing (OLE compound file: Channels.dat, Nodes.dat)</h3>
-        <div class="files">optitrack_tak.py · elev_tak_cache.py · tak_reader_check.py</div>
+        <div class="files">mocap2myo/tak.py · pipeline/cache_takes.py · pipeline/validate/tak_reader.py</div>
         <p>A .tak file is a Microsoft OLE compound file, which the open-source library olefile can open. The marker trajectories are in <code>Channels.dat</code>: one record of frame number plus x, y, z per marker per frame, with no record when the marker was not seen. Marker names, the skeleton or rigid body each marker belongs to, and each rigid body's marker layout are in <code>Nodes.dat</code>. We worked out this layout ourselves; there is no official specification and no existing open-source reader.</p>
         <div class="io"><span><b>In</b> .tak</span><span><b>Out</b> <code>tak_cache/</code>: marker trajectories per trial (Motive world, Y up, metres)</span></div>
         <div class="callout check"><b>Checked.</b> All 11 processed takes in the dataset (S01, S03, S04, S09, S10, S11: anatomy, platform and S03's two NE trials) are identical to Motive's own TRC exports, largest difference 0.005 mm (float32 rounding). Raw takes match the TRC exports wherever both have a sample; they differ only where the lab edited the take in Motive before exporting.</div>
-        <div class="callout pit"><b>Caution.</b> Verified for this study's Motive version. For data from another Motive version, compare against one TRC export first: <code>optitrack_tak.py IN.tak --compare EXPORT.trc</code>.</div>
+        <div class="callout pit"><b>Caution.</b> Verified for this study's Motive version. For data from another Motive version, compare against one TRC export first: <code>python -m mocap2myo.tak IN.tak --compare EXPORT.trc</code>.</div>
       </div>
     </article>
 
@@ -288,7 +288,7 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       <div class="num">2</div>
       <div class="body">
         <h3>Stage 2 · Marker conditioning: label mapping, mislabel rejection, rigid-body fits</h3>
-        <div class="files">elev_convert.py</div>
+        <div class="files">pipeline/prepare_markers.py · mocap2myo/markerset.py · tasks/box_lift/box_fit.py (box, shelf, platform, floor)</div>
         <p>Brings every trial to one format: the 39 Plug-in-Gait body markers, the box's 6 markers and pose, the shelf and elevator platform positions, and the floor height.</p>
         <ul>
           <li>Coordinates are turned to Z up.</li>
@@ -298,7 +298,7 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
           <li>Shelf and floor: static markers, sorted by height.</li>
           <li>Raw-take route only: S01's labels are renamed (below), and the four head markers of every trial are assigned by their front/back and left/right position.</li>
         </ul>
-        <div class="io"><span><b>In</b> step 1 trajectories, subject height and weight (<code>meta/Anthropometrics.xlsx</code>, the lab's own file)</span><span><b>Out</b> <code>npz/</code> or <code>npz_tak/</code></span></div>
+        <div class="io"><span><b>In</b> step 1 trajectories, subject height and weight (<code>meta/Anthropometrics.xlsx</code>, the lab's own file)</span><span><b>Out</b> <code>markers/</code> (<code>M2M_NPZ_DIR</code>)</span></div>
         <div class="callout check"><b>Checked.</b> Both routes compared point by point. In 18 of 22 trials, 98–99.9% of the shared samples are identical; box pose, floor and shelf heights are identical in all 22. S06: the export was smoothed (3–5 mm per point, no time shift). S01: it was reconstructed again in Motive (differences below 1 mm). The default route was re-run on S09 and its output is unchanged.</div>
       </div>
     </article>
@@ -307,7 +307,7 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       <div class="num">3</div>
       <div class="body">
         <h3>Stage 3 · Subject marker registration and per-frame bounded least-squares IK</h3>
-        <div class="files">elev_ik.py · mmh_ik.py (the solver)</div>
+        <div class="files">pipeline/solve_ik.py · mocap2myo/ik.py (the solver)</div>
         <p>IK finds the joint angles that bring the model's virtual markers as close as possible to the measured ones. It is the same idea as OpenSim's IK, written directly on MuJoCo's MyoFullBody and solved with <code>scipy.optimize.least_squares</code>; joint limits are the bounds of the variables.</p>
         <ul>
           <li><b>Scaling.</b> The model stays as it is; the markers are scaled by the ratio of model height to subject height.</li>
@@ -326,7 +326,7 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       <div class="num">4</div>
       <div class="body">
         <h3>Stage 4 · Reference construction: floor alignment, box pose, grasp and support labels</h3>
-        <div class="files">elev_build_reference.py</div>
+        <div class="files">tasks/box_lift/build_reference.py</div>
         <ul>
           <li>The body is lowered onto the floor. Subjects wore thick-soled slides, so the barefoot model floats 2.5–5.5 cm.</li>
           <li>Box size: width and height from the marker layout; length from the distance between the palms while carrying (0.426 m). Box mass 30 lb (13.6 kg).</li>
@@ -334,7 +334,7 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
           <li>Grasp label: the box is off the floor and shelf, and that palm is close enough to the box surface.</li>
           <li>Support state (floor, hands, shelf) is labelled, and each carry cycle is found: box lifted off the floor until it is set back down.</li>
         </ul>
-        <div class="io"><span><b>Out</b> <code>ref/</code> or <code>ref_tak/</code></span></div>
+        <div class="io"><span><b>Out</b> <code>ref/</code> (<code>M2M_REF_DIR</code>)</span></div>
       </div>
     </article>
 
@@ -342,13 +342,13 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       <div class="num">5</div>
       <div class="body">
         <h3>Stage 5 · QA gating and carry-cycle segmentation</h3>
-        <div class="files">elev_qa.py · elev_build_dataset.py · merge_lift_stage3.py · elev_report.py</div>
+        <div class="files">pipeline/qa.py · tasks/box_lift/build_dataset.py · merge_lift_stage3.py · pipeline/report.py</div>
         <ul>
           <li>Each carry cycle becomes one clip at 100 Hz.</li>
           <li>Clips that fail the checks are dropped automatically: 95th-percentile marker residual above 6 cm, unsolved frames, sudden pelvis jumps, or the pelvis turning too fast (IK loses the pelvis when a deep squat goes past the model's limits).</li>
           <li>Human review on top: after watching the replay videos, subjects S10 and S11 and the 5th cycle of S09 Spring were removed.</li>
           <li>The clips are merged with the public MMH lifting data, and starting muscle activations are computed for each clip.</li>
-          <li>New: <code>elev_report.py</code> grades every trial on gaps, fit, leave-one-marker-out prediction, joint flips and standing posture (PASS / WARN / FAIL with reasons). It does not drop anything by itself.</li>
+          <li>New: <code>report.py</code> grades every trial on gaps, fit, leave-one-marker-out prediction, joint flips and standing posture (PASS / WARN / FAIL with reasons). It does not drop anything by itself.</li>
         </ul>
         <div class="io"><span><b>Out</b> v10: 76 cycles, 31.1 min. Raw-take route: 73 cycles, 30.0 min (S01–S09)</span></div>
       </div>
@@ -379,7 +379,7 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   <div class="sub">
     <h3 id="lomo">Leave-one-marker-out (LOMO) cross-validation</h3>
-    <p>Every body marker is left out in turn (one frame per second, all 22 trials), the frame is solved again, and the model's prediction of the missing marker is compared with where it was measured. Script: <code>elev_ik_lomo.py</code>.</p>
+    <p>Every body marker is left out in turn (one frame per second, all 22 trials), the frame is solved again, and the model's prediction of the missing marker is compared with where it was measured. Script: <code>pipeline/validate/lomo.py</code>.</p>
     <ul class="plain">
       <li>Prediction error per trial: median 11.8–20.2 mm (median 14.9), against a residual of 6.6–10.4 mm with all markers.</li>
       <li>Legs are pinned down well: ankle 7–8 mm, knee 9–11 mm, shank 7–13 mm.</li>
@@ -391,7 +391,7 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
   <div class="sub">
     <h3 id="xsens">Xsens MVN knee-angle agreement (S11 Spring)</h3>
-    <p>The subjects also wore an Xsens suit. Only S11 Spring NE has a usable export (a c3d of MVN's 64 virtual anatomical points, 60 Hz; the other trials exist only as raw .mvn files, and S11 Solid's c3d is empty). The same geometric angles were computed on both sides and aligned by cross-correlation (lag 0.05 s). Script: <code>elev_xsens_compare.py</code>.</p>
+    <p>The subjects also wore an Xsens suit. Only S11 Spring NE has a usable export (a c3d of MVN's 64 virtual anatomical points, 60 Hz; the other trials exist only as raw .mvn files, and S11 Solid's c3d is empty). The same geometric angles were computed on both sides and aligned by cross-correlation (lag 0.05 s). Script: <code>pipeline/validate/xsens.py</code>.</p>
     <div class="tbl">
       <table class="tabnum">
         <thead><tr><th>Angle</th><th>Correlation</th><th>Mean offset (IK − Xsens)</th><th>RMS after removing the offset</th></tr></thead>
@@ -418,7 +418,7 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 <section>
   <h2 id="static">Calibration fix: anchoring on the static trial</h2>
-  <p class="lede">Each subject was recorded standing still and upright for 5 s before the task (<code>Subject&lt;ss&gt;_Anatomy.tak</code>; S07 has none and uses quiet standing from its trials). Those frames join the calibration with the hips, knees, ankles and subtalar joints pulled toward 0°, and carry half the weight of every update of the marker placements (<code>ELEV_STATIC=1</code>; <code>mmh_ik.calibrate(static=...)</code>). This is the role of the static trial in OpenSim's Scale and Marker Placer.</p>
+  <p class="lede">Each subject was recorded standing still and upright for 5 s before the task (<code>Subject&lt;ss&gt;_Anatomy.tak</code>; S07 has none and uses quiet standing from its trials). Those frames join the calibration with the hips, knees, ankles and subtalar joints pulled toward 0°, and carry half the weight of every update of the marker placements (<code>M2M_STATIC=1</code>; <code>mocap2myo.ik.calibrate(static=...)</code>). This is the role of the static trial in OpenSim's Scale and Marker Placer.</p>
   <div class="tbl">
     <table class="tabnum">
       <thead><tr><th>Measure (22 trials)</th><th>Motion trials only</th><th>With static trial (all markers)</th></tr></thead>
@@ -434,12 +434,12 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       </tbody>
     </table>
   </div>
-  <p class="note">The offsets are gone; the cost is in the upper body. With the arms hanging loosely in the static pose, the hand markers were placed poorly, and S01, whose right PSIS marker is unreliable, lost more cycles to pelvis jumps. The second round lets the static trial place only the pelvis and leg markers (<code>ELEV_STATIC_MARKERS=legs</code>, the default in <code>run_all.sh</code>); its results replace this table when it finishes. The default route without the static trial is unchanged bit for bit.</p>
+  <p class="note">The offsets are gone; the cost is in the upper body. With the arms hanging loosely in the static pose, the hand markers were placed poorly, and S01, whose right PSIS marker is unreliable, lost more cycles to pelvis jumps. The second round lets the static trial place only the pelvis and leg markers (<code>M2M_STATIC_MARKERS=legs</code>, the default in <code>run_all.sh</code>); its results replace this table when it finishes. The default route without the static trial is unchanged bit for bit.</p>
 </section>
 
 <section>
   <h2 id="report">Per-trial QA report (raw-take route, before the calibration fix)</h2>
-  <p class="lede">From <code>ik_tak/report.json</code>. Shaded cells are WARN or FAIL. Limits: residual median 12 / 20 mm and 95th pct 40 / 60 mm; leave-one-out 20 / 30 mm; standing knee and hip 10 / 20°; worst placed marker missing 20% / 90% of frames. Cycles kept include the human review (S10 and S11 removed).</p>
+  <p class="lede">From the raw-take run's <code>report.json</code> (<code>pipeline/report.py</code>). Shaded cells are WARN or FAIL. Limits: residual median 12 / 20 mm and 95th pct 40 / 60 mm; leave-one-out 20 / 30 mm; standing knee and hip 10 / 20°; worst placed marker missing 20% / 90% of frames. Cycles kept include the human review (S10 and S11 removed).</p>
   <div class="tbl">
     <table class="tabnum tight">
       <thead><tr><th>Trial</th><th>Verdict</th><th>Residual med / p95 (mm)</th><th>Leave-one-out (mm)</th><th>Stand knee (°)</th><th>Stand hip (°)</th><th>Worst gap</th><th>Cycles kept</th></tr></thead>
@@ -474,7 +474,7 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 <section>
   <h2 id="problems">Data anomalies in the raw takes</h2>
   <ul class="plain">
-    <li><b>S01 was labelled with the wrong skeleton template.</b> Motive used a template with ISB landmark names (LIAS, LFAL, LHLE, ...) on the subject's Plug-in-Gait markers. An anatomy-based name map turns them back (<code>ISB_TO_PIG</code> in <code>elev_convert.py</code>); the single elbow marker took either epicondyle name and is merged. The collaborators' export had renamed them the same way, which confirms the map.</li>
+    <li><b>S01 was labelled with the wrong skeleton template.</b> Motive used a template with ISB landmark names (LIAS, LFAL, LHLE, ...) on the subject's Plug-in-Gait markers. An anatomy-based name map turns them back (<code>ISB_TO_PIG</code> in <code>mocap2myo/markerset.py</code>); the single elbow marker took either epicondyle name and is merged. The collaborators' export had renamed them the same way, which confirms the map.</li>
     <li><b>Head labels rotated by 90°</b> in S01 and S10. The four head markers are now assigned by position in every trial.</li>
     <li><b>S01 has no forearm markers</b> (LFRM, RFRM) in any source.</li>
     <li><b>Large live-labelling gaps</b> in some markers: C7 in S02 (75–98% of frames missing) and S11 Solid (88%), RUPA in S06 (65–72%), RTHI in S08 (34–42%). The collaborators' export had these filled.</li>
@@ -491,7 +491,7 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       <thead><tr><th>Item</th><th>Why</th><th>What it involves</th></tr></thead>
       <tbody>
         <tr><td>Finish the static-trial calibration</td><td>Remove the joint-angle offsets without losing the upper-body fit</td><td>Second round places only pelvis and leg markers from the static trial; then rebuild the clips and the report.</td></tr>
-        <tr><td>OpenSim head-to-head</td><td>Evidence that this IK can stand in for OpenSim's</td><td>Rajagopal 2016 model, Scale with the static trial, Marker Placer and IK on the same markers (<code>elev_osim_ik.py</code>), scored with the residual, quiet standing, Xsens and runtime.</td></tr>
+        <tr><td>OpenSim head-to-head</td><td>Evidence that this IK can stand in for OpenSim's</td><td>Rajagopal 2016 model, Scale with the static trial, Marker Placer and IK on the same markers (<code>pipeline/validate/opensim_ik.py</code>, scored by <code>opensim_compare.py</code>), scored with the residual, quiet standing, Xsens and runtime.</td></tr>
         <tr><td>Xsens exports for all trials</td><td>Independent joint-angle check for every subject, not one trial</td><td>Ask the lab to batch-export the NE trials from MVN Analyze (Excel or MVNX); the comparison script then runs on all of them.</td></tr>
         <tr><td>Per-subject segment scaling</td><td>Pelvis depth and hand length differ from the model by 10–40 %</td><td>Optional, if the upper-body residual stays high after the second round.</td></tr>
         <tr><td>Make it general</td><td>Reuse on other datasets (firefighter next)</td><td>Marker set as a config file per dataset (segment, weight, rough anatomical position, pelvis and foot markers), input adapters (tak, TRC, C3D, Xsens), scene layer optional.</td></tr>
@@ -512,23 +512,24 @@ a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 pip install -e ".[tak,xsens]"
 
 # whole pipeline from the raw takes (CPU, ~1 h for 22 trials on 22 cores)
-ELEV_ROOT=~/data/mmh_elevator IK_WORKERS=22 bash pipeline/run_all.sh
+M2M_ROOT=~/data/mocap2myo IK_WORKERS=22 bash pipeline/run_all.sh
 
 # check the take reader against Motive's TRC exports (folder of .tak / .trc pairs)
-python pipeline/tak_reader_check.py DIR
+python pipeline/validate/tak_reader.py DIR
 
 # validation: leave-one-marker-out, Xsens, static-trial diagnosis
-ELEV_NPZ_DIR=$ELEV_ROOT/npz_tak ELEV_IK_DIR=$ELEV_ROOT/ik_tak python pipeline/elev_ik_lomo.py
-python pipeline/elev_xsens_compare.py $ELEV_ROOT/ik_tak
-python pipeline/elev_static_diag.py
+python pipeline/validate/lomo.py
+python pipeline/validate/xsens.py $M2M_ROOT/ik
+python pipeline/validate/static_pose.py
 
 # viewer files: the model once, then clips (optionally with a ghost from another run)
-python pipeline/elev_export_viewer.py model OUT_DIR
-python pipeline/elev_export_viewer.py clip S08_Solid_NE OUT_DIR --clip 1 --ghost-ref-dir OTHER_REF_DIR
+python pipeline/export_viewer.py model OUT_DIR
+python pipeline/export_viewer.py clip S08_Solid_NE OUT_DIR --clip 1 --ghost-ref-dir OTHER_REF_DIR
 
 # OpenSim baseline (opensim from conda)
-python pipeline/elev_osim_ik.py</pre>
-  <p class="note">Data layout under <code>$ELEV_ROOT</code>: <code>raw_tak/</code> (trial takes), <code>raw_tak/static/</code> (static trials), <code>meta/anthropometrics.csv</code>; written by the pipeline: <code>tak_cache/</code>, <code>npz_tak/</code>, <code>ik_tak/</code> (with <code>qa.json</code>, <code>lomo.json</code>, <code>report.json</code>), <code>ref_tak/</code>. No subject data is part of this repository.</p>
+python pipeline/validate/opensim_ik.py
+python pipeline/validate/opensim_compare.py "ours=$M2M_ROOT/ik"</pre>
+  <p class="note">Data layout under <code>$M2M_ROOT</code>: <code>raw_tak/</code> (trial takes), <code>raw_tak/static/</code> (static trials), <code>meta/anthropometrics.csv</code>; written by the pipeline: <code>tak_cache/</code>, <code>markers/</code>, <code>ik/</code> (with <code>qa.json</code>, <code>lomo.json</code>, <code>report.json</code>), <code>ref/</code>. Every folder, file-naming rule and setting (environment variables <code>M2M_*</code>) is in <code>pipeline/config.py</code>. No subject data is part of this repository.</p>
 </section>
 
 <section>
@@ -537,15 +538,18 @@ python pipeline/elev_osim_ik.py</pre>
     <table>
       <thead><tr><th>File</th><th>What</th></tr></thead>
       <tbody>
-        <tr><td><code>pipeline/optitrack_tak.py</code></td><td>Reads .tak files without Motive; exports TRC; compares against a TRC export</td></tr>
-        <tr><td><code>pipeline/elev_tak_cache.py</code></td><td>Raw takes (trials and static trials) to the cache the cleaning step reads</td></tr>
-        <tr><td><code>pipeline/elev_convert.py</code></td><td>Marker conditioning: label maps, head by position, mislabel rejection, pelvis refill, box and scene</td></tr>
-        <tr><td><code>pipeline/mmh_ik.py</code></td><td>The IK solver: marker model, per-frame least squares, subject calibration (with the static-trial option)</td></tr>
-        <tr><td><code>pipeline/elev_ik.py</code></td><td>Calibration and IK for all trials in parallel</td></tr>
-        <tr><td><code>pipeline/elev_build_reference.py</code>, <code>elev_qa.py</code>, <code>elev_build_dataset.py</code>, <code>motion_io.py</code></td><td>Reference, QA, carry-cycle clips, motion-dataset writer</td></tr>
-        <tr><td><code>pipeline/elev_report.py</code>, <code>elev_ik_lomo.py</code>, <code>elev_xsens_compare.py</code>, <code>elev_static_diag.py</code></td><td>Validation</td></tr>
-        <tr><td><code>pipeline/elev_osim_ik.py</code></td><td>OpenSim baseline on the same markers</td></tr>
-        <tr><td><code>pipeline/elev_export_viewer.py</code></td><td>Model and clip files for the browser viewer</td></tr>
+        <tr><td><code>mocap2myo/tak.py</code></td><td>Reads .tak files without Motive; exports TRC; compares against a TRC export</td></tr>
+        <tr><td><code>pipeline/config.py</code></td><td>Folders, file naming (trials, subjects, static trials, anthropometrics) and every setting / environment variable</td></tr>
+        <tr><td><code>pipeline/cache_takes.py</code></td><td>Raw takes (trials and static trials) to the cache the cleaning step reads</td></tr>
+        <tr><td><code>pipeline/prepare_markers.py</code></td><td>Marker conditioning: label maps, head by position, mislabel rejection, pelvis refill (the task adds box and scene)</td></tr>
+        <tr><td><code>mocap2myo/markerset.py</code></td><td>The marker set (Plug-in-Gait): body, weight and anatomical guess per marker, label aliases</td></tr>
+        <tr><td><code>mocap2myo/ik.py</code></td><td>The IK solver: marker model, per-frame least squares, subject calibration (with the static-trial option)</td></tr>
+        <tr><td><code>pipeline/solve_ik.py</code></td><td>Calibration and IK for all trials in parallel</td></tr>
+        <tr><td><code>pipeline/qa.py</code></td><td>QA of an IK run (with the task's checks)</td></tr>
+        <tr><td><code>tasks/box_lift/</code>: <code>box_fit.py</code>, <code>build_reference.py</code>, <code>checks.py</code>, <code>build_dataset.py</code>, <code>motion_io.py</code>, <code>viewer_scene.py</code></td><td>The lifting task: box and scene, reference, its QA checks, carry-cycle clips, motion-dataset writer, viewer objects</td></tr>
+        <tr><td><code>pipeline/report.py</code>, <code>pipeline/validate/lomo.py</code>, <code>xsens.py</code>, <code>static_pose.py</code></td><td>Validation</td></tr>
+        <tr><td><code>pipeline/validate/opensim_ik.py</code>, <code>opensim_compare.py</code></td><td>OpenSim baseline on the same markers, and the side-by-side scores</td></tr>
+        <tr><td><code>pipeline/export_viewer.py</code></td><td>Model and clip files for the browser viewer</td></tr>
         <tr><td><code>mocap2myo/</code></td><td>MyoFullBody model files (MuscleMimic, Apache-2.0) and small kinematic helpers</td></tr>
       </tbody>
     </table>
@@ -570,13 +574,13 @@ python pipeline/elev_osim_ik.py</pre>
 <section>
   <h2 id="reading">Code reading order</h2>
   <ol class="read">
-    <li><code>optitrack_tak.py</code>: the format notes at the top explain what a raw file contains.</li>
-    <li><code>elev_convert.py</code>: read <code>convert()</code> from top to bottom; each helper is one bullet of step 2.</li>
-    <li><code>mmh_ik.py</code>, the core: <code>MARKERS</code> (which segment each marker is on), then <code>MarkerModel.solve</code> (one frame), <code>calibrate</code> (calibration) and <code>ik_trial</code> (a whole trial, including foot locking).</li>
-    <li><code>elev_ik.py</code>: runs the functions above in parallel with the current settings.</li>
-    <li><code>elev_build_reference.py</code>, <code>elev_qa.py</code>, <code>elev_build_dataset.py</code>: scene, checks, clips.</li>
-    <li><code>elev_report.py</code>, <code>elev_ik_lomo.py</code>, <code>elev_xsens_compare.py</code>: the validation.</li>
-    <li><code>run_all.sh</code>: the script that chains it all.</li>
+    <li><code>mocap2myo/tak.py</code>: the format notes at the top explain what a raw file contains.</li>
+    <li><code>pipeline/prepare_markers.py</code>: read <code>convert()</code> from top to bottom; each helper is one bullet of step 2 (the box and scene part is <code>tasks/box_lift/box_fit.py</code>).</li>
+    <li><code>mocap2myo/markerset.py</code> (which segment each marker is on), then the core, <code>mocap2myo/ik.py</code>: <code>MarkerModel.solve</code> (one frame), <code>calibrate</code> (calibration) and <code>ik_trial</code> (a whole trial, including foot locking).</li>
+    <li><code>pipeline/solve_ik.py</code>: runs the functions above in parallel with the current settings (<code>pipeline/config.py</code>).</li>
+    <li><code>tasks/box_lift/build_reference.py</code>, <code>pipeline/qa.py</code>, <code>tasks/box_lift/build_dataset.py</code>: scene, checks, clips.</li>
+    <li><code>pipeline/report.py</code>, <code>pipeline/validate/lomo.py</code>, <code>pipeline/validate/xsens.py</code>: the validation.</li>
+    <li><code>pipeline/run_all.sh</code>: the script that chains it all.</li>
   </ol>
   <p class="note">For background, work through OpenSim's Scale and IK tutorial first; the principle is the same. Solver details: <a href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html" target="_blank" rel="noopener">scipy least_squares</a>. Model and forward kinematics: <a href="https://mujoco.readthedocs.io/" target="_blank" rel="noopener">MuJoCo documentation</a>.</p>
 </section>

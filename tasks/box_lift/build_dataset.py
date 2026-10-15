@@ -1,11 +1,10 @@
-"""MMH Elevator references (elev_build_reference.py) -> lift motion dataset.
+"""Box-lifting references (build_reference.py) -> lift motion dataset.
 
 One clip per carry cycle (box on the elevator floor -> shelf -> back on the
 floor; clip bounds at the middle of the floor rests between cycles), 100 Hz,
-scaled-subject frame with z = 0 at the elevator platform. Shared keys as the
-MMH / OMOMO datasets (mmh_build_lift_dataset.write), plus the per-clip object /
-scene descriptor every lift dataset gets from stage 3 on (merge_lift_stage3.py
-adds it to the MMH / OMOMO clips):
+scaled-subject frame with z = 0 at the elevator platform. The motion format
+of motion_io.write (shared with the other lift datasets), plus the per-clip
+object / scene descriptor:
   obj_mass [n] kg (30 lb here), grip_local [n, 2, 3] (l, r palm-sphere centres
   in the box frame while grasped = the grasp anchors), has_shelf [n],
   shelf_pos [n, 3] (centre of the board's top surface), shelf_half [n, 2]
@@ -18,11 +17,11 @@ markers > 5 cm off in at most PELVIS_OFF_MAX frames and the pelvis turning at mo
 PELVIS_W_MAX (where the model cannot reach the pose -- deep squats past its 120 deg
 knee / hip limits -- the IK fit loses the pelvis and snaps back).
 
-  uv run python logs/rsl_rl/fullbody_liftbox/scripts/elev_build_dataset.py
-Output: logs/rsl_rl/fullbody_liftbox/data/lift_elev_v1/
+  python tasks/box_lift/build_dataset.py
+Input: <M2M_REF_DIR>, <M2M_IK_DIR>. Output: data/<M2M_DATA>/ (motion_<M2M_DATA_STEM>
+[_ok]_100hz.npz, initial_poses_..., index.json).
 """
 
-import glob
 import json
 import os
 import sys
@@ -31,14 +30,14 @@ import mujoco
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from motion_io import TRACKED, write  # noqa: E402
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from mocap2myo import markerset as ms  # noqa: E402
 from mocap2myo.model import MYOFULLBODY_XML  # noqa: E402
+from pipeline import config  # noqa: E402
+from tasks.box_lift.motion_io import TRACKED, write  # noqa: E402
 
-ROOT = os.path.expanduser(os.environ.get("ELEV_ROOT", "~/data/mmh_elevator"))
-OUT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data",
-                   os.environ.get("ELEV_DATA", "lift_elev_v1"))
-STEM = "lift_elev"
+OUT = config.DATA_DIR
+STEM = config.DATA_STEM
 QUALITY_P95 = 0.06
 ROOT_STEP_MAX = 0.05  # m per 10 ms frame (5 m/s; walking is ~0.015)
 PELVIS_OFF_MAX = 10  # frames with the pelvis markers > 5 cm off (median of >= 3)
@@ -48,12 +47,13 @@ PELVIS_W_MAX = 700.0  # deg/s pelvis rotation (MMH v4: 5 of 310 clips above)
 EXCLUDE = {"S10": "user review: poor reference overall",
            "S11": "user review: poor reference overall",
            "S09_Spring_NE_c5": "user review: right hand never reaches the box"}
-IK_DIR = os.environ.get("ELEV_IK_DIR", os.path.join(ROOT, "ik"))
-REF_DIR = os.environ.get("ELEV_REF_DIR", os.path.join(ROOT, "ref"))
+IK_DIR = config.IK_DIR
+REF_DIR = config.REF_DIR
 SHELF_BOARD_MARGIN = 0.02  # m added around the 4 shelf markers
 
 
 def main():
+  config.usage(__doc__)
   m = mujoco.MjModel.from_xml_path(str(MYOFULLBODY_XML))
   d = mujoco.MjData(m)
   tb = [m.body(b).id for b in TRACKED]
@@ -61,13 +61,12 @@ def main():
                          "grasp", "phase")}
   extra = {k: [] for k in ("obj_mass", "grip_local", "has_shelf", "shelf_pos", "shelf_half")}
   support_all, index = [], []
-  for p in sorted(glob.glob(os.path.join(REF_DIR, "S*_NE.npz"))):
-    name = os.path.basename(p)[:-4]
-    R = np.load(p)
+  for name in config.trials(REF_DIR):
+    R = np.load(os.path.join(REF_DIR, f"{name}.npz"))
     K = np.load(os.path.join(IK_DIR, f"{name}.npz"))
-    body = [i for i, l in enumerate(K["labels"]) if not l.endswith("HD")]
+    body = [i for i, l in enumerate(K["labels"]) if l not in ms.HEAD_LABELS]
     E = K["marker_err"][:, body]
-    pel = [i for i, l in enumerate(K["labels"]) if l[1:] in ("ASI", "PSI")]
+    pel = [i for i, l in enumerate(K["labels"]) if l in ms.PELVIS_LABELS]
     Q = R["qpos"].astype(np.float64)
     sh = R["shelf_xy"]
     lo, hi = sh.min(0) - SHELF_BOARD_MARGIN, sh.max(0) + SHELF_BOARD_MARGIN
@@ -103,7 +102,7 @@ def main():
       extra["has_shelf"].append(True)
       extra["shelf_pos"].append([*(lo + hi) / 2, float(R["shelf_top"])])
       extra["shelf_half"].append((hi - lo) / 2)
-      subj, floor = name.split("_")[:2]
+      subj, floor = config.subject_of(name), name.split("_")[1]  # trial = <subject>_<floor>_NE
       excl = EXCLUDE.get(subj) or EXCLUDE.get(f"{name}_c{c + 1}")
       index.append({"clip": len(index), "file": f"{name}_c{c + 1}", "subject": subj,
                     "condition": floor, "technique": f"elevator_{floor.lower()}",
@@ -137,7 +136,7 @@ def main():
     z["support"] = np.concatenate([support_all[i] for i in keep])
     np.savez(f, **z)
   json.dump({"clips": index, "ok_clips_in_order": ok,
-             "source": "elev_build_reference.py refs (IK v7)"},
+             "source": "build_reference.py refs (IK v7)"},
             open(os.path.join(OUT, "index.json"), "w"), indent=1)
   n = sum(c["frames"] for c in index)
   print(f"{len(index)} clips, {n / 100 / 60:.1f} min; {len(ok)} quality-ok "

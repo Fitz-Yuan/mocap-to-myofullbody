@@ -1,25 +1,30 @@
 #!/bin/bash
-# The whole pipeline for the MMH Elevator data, from raw OptiTrack takes to motion clips.
-#   ELEV_ROOT=~/data/mmh_elevator bash pipeline/run_all.sh
-# Inputs under $ELEV_ROOT: raw_tak/S<ss>_<floor>_NE.tak, raw_tak/static/S<ss>_Anatomy.tak,
-# meta/anthropometrics.csv (Subject, Height cm, Weight kg). Outputs: tak_cache/, npz_tak/,
-# ik_tak/ (IK, QA, report), ref_tak/, and data/<ELEV_DATA> in the repository.
-# CPU only. IK_WORKERS parallel processes (~1-2 GB each).
+# The whole pipeline, from raw OptiTrack takes to motion clips (the case study's settings).
+#   M2M_ROOT=~/data/mocap2myo bash pipeline/run_all.sh
+# Inputs under $M2M_ROOT: raw_tak/<trial>.tak, raw_tak/static/<subject>_Anatomy.tak,
+# meta/anthropometrics.csv (Subject, Height cm, Weight kg); names and folders: see
+# pipeline/config.py. Outputs: tak_cache/, markers/, ik/ (IK, QA, report), ref/, and
+# data/<M2M_DATA> in the repository. With M2M_TASK=none only the body motion (no
+# reference, no dataset). CPU only. IK_WORKERS parallel processes (~1-2 GB each).
 set -eu
 HERE=$(cd "$(dirname "$0")" && pwd)
+REPO=$(dirname "$HERE")
 PY=${PY:-python}
-export ELEV_ROOT=${ELEV_ROOT:-$HOME/data/mmh_elevator}
-export OMP_NUM_THREADS=1 IK_WORKERS=${IK_WORKERS:-12} ELEV_SOURCE=tak
-export ELEV_STATIC=${ELEV_STATIC:-1}            # calibrate on the static standing trials
-export ELEV_STATIC_MARKERS=${ELEV_STATIC_MARKERS:-legs}
-export ELEV_NPZ_DIR=$ELEV_ROOT/npz_tak ELEV_IK_OUT=$ELEV_ROOT/ik_tak ELEV_IK_DIR=$ELEV_ROOT/ik_tak
-export ELEV_REF_DIR=$ELEV_ROOT/ref_tak ELEV_DATA=${ELEV_DATA:-lift_elev_tak}
+export M2M_ROOT=${M2M_ROOT:-$HOME/data/mocap2myo}
+export OMP_NUM_THREADS=1 IK_WORKERS=${IK_WORKERS:-12} M2M_SOURCE=tak
+export M2M_STATIC=${M2M_STATIC:-1}            # calibrate on the static standing trials
+export M2M_STATIC_MARKERS=${M2M_STATIC_MARKERS:-legs}
+TASK=${M2M_TASK:-box_lift}
 say() { echo "[$(date '+%m-%d %H:%M:%S')] $*"; }
-say "read takes";  $PY -u "$HERE/elev_tak_cache.py"      # needs olefile
-say "convert";     $PY -u "$HERE/elev_convert.py"
-say "IK";          $PY -u "$HERE/elev_ik.py"
-say "references";  $PY -u "$HERE/elev_build_reference.py"
-say "QA";          $PY -u "$HERE/elev_qa.py"
-say "dataset";     $PY -u "$HERE/elev_build_dataset.py"
-say "report";      $PY -u "$HERE/elev_report.py"
+say "read takes";    $PY -u "$HERE/cache_takes.py"       # needs olefile
+say "markers";       $PY -u "$HERE/prepare_markers.py"
+say "IK";            $PY -u "$HERE/solve_ik.py"
+if [ -f "$REPO/tasks/$TASK/build_reference.py" ]; then
+  say "references";  $PY -u "$REPO/tasks/$TASK/build_reference.py"
+fi
+say "QA";            $PY -u "$HERE/qa.py"
+if [ -f "$REPO/tasks/$TASK/build_dataset.py" ]; then
+  say "dataset";     $PY -u "$REPO/tasks/$TASK/build_dataset.py"
+fi
+say "report";        $PY -u "$HERE/report.py"
 say "done"

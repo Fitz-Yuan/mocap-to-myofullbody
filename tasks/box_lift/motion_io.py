@@ -1,5 +1,6 @@
-"""Motion-dataset writer shared by the dataset builders (the format the imitation
-environment reads: one npz with all clips concatenated + their initial poses)."""
+"""Motion-dataset writer of the lift datasets (the format the imitation environment
+reads: one npz with all clips concatenated + their initial poses; box pose, grasp
+and phase per frame)."""
 
 import os
 

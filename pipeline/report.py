@@ -1,28 +1,28 @@
-"""Per-trial accuracy report of an MMH Elevator IK run (one table, one JSON).
+"""Per-trial accuracy report of an IK run (one table, one JSON).
 
 Collects what the other steps measured and adds the checks a small marker
 residual cannot show:
   input      body-marker gaps (share of frames missing, over markers that were
              placed: a marker never seen is listed as absent), mislabel rejections
-  fit        body-marker residual median / p95 (elev_qa), IK joint flips
-  predict    leave-one-marker-out prediction error (elev_ik_lomo, if run)
+  fit        body-marker residual median / p95 (qa.py), IK joint flips
+  predict    leave-one-marker-out prediction error (validate/lomo.py, if run)
   posture    quiet-standing posture: median knee and hip flexion over frames
              where the pelvis and both ankles move < 5 cm/s for 0.5 s and the
              pelvis is within 3 cm of its upright height (quiet standing: knee
              ~0-5 deg, hip ~0 deg). Subject calibration can trade pelvis tilt for
-             hip / knee flexion, which shifts every frame of that subject.
-  clips      carry cycles kept / dropped and why (elev_build_dataset)
+             hip / knee flexion, which shifts every frame of that subject
+             (mocap2myo.ik.standing).
+  clips      the task dataset's clips kept / dropped and why (box_lift: carry
+             cycles, tasks/box_lift/build_dataset.py), if it was built
 Each trial gets PASS / WARN / FAIL per check against the limits in LIMITS;
 WARN and FAIL name the reason. Nothing is dropped here: the dataset's own
 quality_ok decides what is trained on.
 
-  ELEV_NPZ_DIR=... ELEV_IK_DIR=... ELEV_DATA=... uv run python \
-    logs/rsl_rl/fullbody_liftbox/scripts/elev_report.py
-Writes <ELEV_IK_DIR>/report.json and report.md.
+  M2M_NPZ_DIR=... M2M_IK_DIR=... M2M_DATA=... python pipeline/report.py
+Writes <M2M_IK_DIR>/report.json and report.md.
 """
 
 import collections
-import glob
 import json
 import os
 import sys
@@ -30,15 +30,14 @@ import sys
 import mujoco
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import mmh_ik as mk  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from mocap2myo import ik as mk  # noqa: E402
 from mocap2myo.model import MYOFULLBODY_XML  # noqa: E402
+from pipeline import config  # noqa: E402
 
-ROOT = os.path.expanduser(os.environ.get("ELEV_ROOT", "~/data/mmh_elevator"))
-NPZ = os.environ.get("ELEV_NPZ_DIR", os.path.join(ROOT, "npz"))
-IKD = os.environ.get("ELEV_IK_DIR", os.path.join(ROOT, "ik"))
-DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data",
-                    os.environ.get("ELEV_DATA", "lift_elev_v2"))
+NPZ = config.NPZ_DIR
+IKD = config.IK_DIR
+DATA = config.DATA_DIR
 # (warn above, fail above); mm, share of frames, or degrees
 LIMITS = {
   "gap_max": (0.20, 0.90),          # worst placed body marker missing
@@ -56,39 +55,25 @@ def grade(value, key):
   return "FAIL" if value > f else "WARN" if value > w else "PASS"
 
 
-def standing(P, rate):
-  """Quiet upright standing frames from the markers (scaled-subject frame)."""
-  L = mk.LABELS
-  pel = P[:, [L.index(l) for l in ("LASI", "RASI", "LPSI", "RPSI")]].mean(1)
-  ank = P[:, [L.index("LANK"), L.index("RANK")]]
-
-  def speed(x):  # [T] m/s; for several points the fastest one; NaN when unseen
-    s = np.linalg.norm(np.diff(x, axis=0), axis=-1) * rate
-    return np.r_[np.nan, s.max(1) if s.ndim == 2 else s]
-
-  slow = (speed(pel) < 0.05) & (speed(ank) < 0.05)
-  up = pel[:, 2] > np.nanpercentile(pel[:, 2], 95) - 0.03
-  ok = slow & up
-  w = int(0.5 * rate)  # sustained for 0.5 s
-  run = np.convolve(ok.astype(float), np.ones(w), "same") >= w - 1
-  return ok & run
-
-
 def main():
+  config.usage(__doc__)
   m = mujoco.MjModel.from_xml_path(str(MYOFULLBODY_XML))
   adr = {j: m.jnt_qposadr[m.joint(j).id] for j in
          ("knee_angle_r", "knee_angle_l", "hip_flexion_r", "hip_flexion_l")}
   qa = json.load(open(os.path.join(IKD, "qa.json")))
   lomo_p = os.path.join(IKD, "lomo.json")
   lomo = json.load(open(lomo_p)) if os.path.exists(lomo_p) else {}
-  idx = json.load(open(os.path.join(DATA, "index.json")))
-  clips = collections.defaultdict(list)
-  for c in idx["clips"]:
-    clips[c["file"].rsplit("_c", 1)[0]].append(c)
-  head = np.array([l.endswith("HD") for l in mk.LABELS])
+  # the task dataset's clips, named <trial>_c<k> (tasks/box_lift/build_dataset.py)
+  idx_p = os.path.join(DATA, "index.json")
+  clips = None
+  if os.path.exists(idx_p):
+    clips = collections.defaultdict(list)
+    for c in json.load(open(idx_p))["clips"]:
+      clips[c["file"].rsplit("_c", 1)[0]].append(c)
+  head = mk.HEAD
   rows = {}
-  for p in sorted(glob.glob(os.path.join(IKD, "S*_NE.npz"))):
-    n = os.path.basename(p)[:-4]
+  for n in config.trials(IKD):
+    p = os.path.join(IKD, f"{n}.npz")
     D, K = np.load(os.path.join(NPZ, f"{n}.npz")), np.load(p)
     Pall = D["markers"].astype(np.float64)
     P = Pall[:, ~head]
@@ -97,7 +82,7 @@ def main():
     absent = [l for l, g in zip(body, gaps) if g == 1.0]
     gaps[gaps == 1.0] = 0.0
     Q = K["qpos"].astype(np.float64)
-    st = standing(Pall, float(D["marker_rate"]))[:len(Q)]
+    st = mk.standing(Pall, float(D["marker_rate"]))[:len(Q)]
     med = lambda j: float(np.degrees(np.nanmedian(Q[:len(st)][st, adr[j]])))
     knee = max(med(f"knee_angle_{s}") for s in "rl")
     hip = max(abs(med(f"hip_flexion_{s}")) for s in "rl")
@@ -112,11 +97,12 @@ def main():
       v = lomo[n]
       r["lomo_med_mm"] = float(np.median([x["pred_med"] for x in v.values()]))
       r["lomo_worst"] = max(v, key=lambda l: v[l]["pred_med"])
-    cl = clips.get(n, [])
-    r["clips_ok"] = sum(c["quality_ok"] for c in cl)
-    r["clips_total"] = len(cl)
-    r["clips_dropped"] = dict(collections.Counter(c["excluded"] or "failed QA"
-                                                  for c in cl if not c["quality_ok"]))
+    if clips is not None:
+      cl = clips.get(n, [])
+      r["clips_ok"] = sum(c["quality_ok"] for c in cl)
+      r["clips_total"] = len(cl)
+      r["clips_dropped"] = dict(collections.Counter(c["excluded"] or "failed QA"
+                                                    for c in cl if not c["quality_ok"]))
     r["grades"] = {k: grade(r[k], k) for k in LIMITS if k in r}
     r["verdict"] = ("FAIL" if "FAIL" in r["grades"].values()
                     else "WARN" if "WARN" in r["grades"].values() else "PASS")
@@ -130,8 +116,9 @@ def main():
     reasons = [f"{k} {r['grades'][k]}" for k in cols if r["grades"].get(k, "PASS") != "PASS"]
     vals = [f"{r[k]:.3f}" if k in ("gap_max", "flips") else f"{r[k]:.1f}" if k in r else "-"
             for k in cols]
+    kept = f"{r['clips_ok']}/{r['clips_total']}" if "clips_ok" in r else "-"
     lines.append(f"| {n} | {r['verdict']} | " + " | ".join(vals) +
-                 f" | {r['clips_ok']}/{r['clips_total']} | {', '.join(reasons) or '-'} |")
+                 f" | {kept} | {', '.join(reasons) or '-'} |")
   open(os.path.join(IKD, "report.md"), "w").write("\n".join(lines) + "\n")
   print("\n".join(lines))
   print(dict(collections.Counter(r["verdict"] for r in rows.values())))

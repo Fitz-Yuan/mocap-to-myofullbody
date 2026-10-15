@@ -1,7 +1,8 @@
-"""Marker-based IK from the MMH Plug-in-Gait markers onto MyoFullBody.
+"""Marker-based IK onto MyoFullBody: marker model, per-frame solve, subject calibration.
 
-Data: ~/Projects/datasets/MMH/npz/<S>_<L>.npz (from c3d_to_npz.py): 39 standard
-Plug-in-Gait markers at 120 Hz, metres, Z-up.
+Input: marker npz files (pipeline/prepare_markers.py): markers [T, n, 3] in the
+order of the marker set's labels (mocap2myo.markerset), marker_rate, height_m;
+metres, Z-up.
 
 Pipeline per subject:
   1. scale the marker cloud by MODEL_HEIGHT / subject height (the model is not
@@ -25,57 +26,11 @@ from scipy.spatial.transform import Rotation as sRot
 
 from mocap2myo import objects as O
 from mocap2myo.kinematics import apply_joint_equalities
+from mocap2myo.markerset import (  # noqa: F401  (re-exported for the stage scripts)
+  ANKLES, HEAD, LABELS, MARKERS, PELVIS, PELVIS_LABELS, PELVIS_MASK, SOLE, anat_world)
 from mocap2myo.model import MYOFULLBODY_XML
 
 MODEL_HEIGHT = 1.72  # bone height 1.689 m + soft tissue
-# marker -> (body, weight). Head is rigid on the thorax in MyoFullBody (no neck
-# joint), so head markers get a low weight; thigh/shank wands and the
-# asymmetric RBAK marker are soft-tissue/placement noisy -> medium weight.
-MARKERS = {
-  "LFHD": ("head", 0.3), "RFHD": ("head", 0.3), "LBHD": ("head", 0.3),
-  "RBHD": ("head", 0.3),
-  "C7": ("thorax", 1.0), "T10": ("thorax", 1.0), "CLAV": ("thorax", 1.0),
-  "STRN": ("thorax", 1.0), "RBAK": ("thorax", 0.3),
-  "LSHO": ("scapula_l", 1.0), "LUPA": ("humerus_l", 0.5),
-  "LELB": ("humerus_l", 1.0), "LFRM": ("radius_l", 0.5),
-  "LWRA": ("radius_l", 1.0), "LWRB": ("ulna_l", 1.0), "LFIN": ("thirdmc_l", 1.0),
-  "RSHO": ("scapula_r", 1.0), "RUPA": ("humerus_r", 0.5),
-  "RELB": ("humerus_r", 1.0), "RFRM": ("radius_r", 0.5),
-  "RWRA": ("radius_r", 1.0), "RWRB": ("ulna_r", 1.0), "RFIN": ("thirdmc_r", 1.0),
-  "LASI": ("pelvis", 1.0), "RASI": ("pelvis", 1.0), "LPSI": ("pelvis", 1.0),
-  "RPSI": ("pelvis", 1.0),
-  "LTHI": ("femur_l", 0.5), "LKNE": ("femur_l", 1.0), "LTIB": ("tibia_l", 0.5),
-  "LANK": ("tibia_l", 1.0), "LHEE": ("calcn_l", 1.0), "LTOE": ("calcn_l", 1.0),
-  "RTHI": ("femur_r", 0.5), "RKNE": ("femur_r", 1.0), "RTIB": ("tibia_r", 0.5),
-  "RANK": ("tibia_r", 1.0), "RHEE": ("calcn_r", 1.0), "RTOE": ("calcn_r", 1.0),
-}
-LABELS = list(MARKERS)
-HEAD = np.array([l.endswith("HD") for l in LABELS])
-PELVIS_MASK = np.array([l[1:] in ("ASI", "PSI") for l in LABELS])
-# Anatomical guesses (world, model at qpos0, root at (0,0,0.99) identity: faces
-# -y, left = +x) for the LEFT-side / midline markers; right side mirrors x.
-# Built from the model's joint centres (hip 0.077,0.056,0.911; knee z .507;
-# ankle z .107; shoulder .17,.10,1.464; elbow .158,.093,1.174; wrist .203,.075,
-# .92) plus typical skin-marker offsets. Calibration refines them.
-_ANAT_L = {
-  "FHD": (0.06, 0.02, 1.68), "BHD": (0.06, 0.19, 1.66),
-  "SHO": (0.17, 0.10, 1.51), "UPA": (0.23, 0.10, 1.32), "ELB": (0.193, 0.093, 1.17),
-  "FRM": (0.21, 0.09, 1.04), "WRA": (0.205, 0.045, 0.925), "WRB": (0.205, 0.105, 0.925),
-  "FIN": (0.215, 0.065, 0.81),
-  "ASI": (0.125, -0.014, 0.98), "PSI": (0.05, 0.146, 0.985),
-  "THI": (0.147, 0.056, 0.71), "KNE": (0.126, 0.056, 0.507), "TIB": (0.136, 0.06, 0.31),
-  "ANK": (0.116, 0.066, 0.10), "HEE": (0.084, 0.135, 0.045), "TOE": (0.08, -0.055, 0.035),
-}
-_ANAT_MID = {"C7": (0, 0.17, 1.47), "T10": (0, 0.16, 1.23), "CLAV": (0, 0.04, 1.44),
-             "STRN": (0, 0.0, 1.26), "RBAK": (-0.08, 0.18, 1.36)}
-
-
-def anat_world(label):
-  if label in _ANAT_MID:
-    return np.array(_ANAT_MID[label], float)
-  side, key = label[0], label[1:]
-  x, y, z = _ANAT_L[key]
-  return np.array([x if side == "L" else -x, y, z], float)
 FREE = [f"{j}_{s}" for s in ("r", "l") for j in
         ("hip_flexion", "hip_adduction", "hip_rotation", "knee_angle", "ankle_angle",
          "subtalar_angle", "mtp_angle")] + \
@@ -89,7 +44,7 @@ LUMBAR = ("flex_extension", "lat_bending", "axial_rotation")
 
 
 def load_trial(path, max_gap_s=0.25, lowpass_hz=None):
-  """Standard markers [T, 39, 3] scaled to the model; short gaps interpolated.
+  """Markers [T, n, 3] (LABELS order) scaled to the model; short gaps interpolated.
   lowpass_hz (opt-in, default off = MMH / OMOMO unchanged): zero-phase 2nd-order
   Butterworth (filtfilt) per marker coordinate over each gap-free run, the usual
   marker filtering before IK (Winter: ~6 Hz for whole-body motion)."""
@@ -224,7 +179,7 @@ class MarkerModel:
 
   def solve(self, P, x0, q_root_ref, x_prev=None, smooth=0.0, contact=None, outlier=None,
             mtp_prior=0.0, flat=0.0, robust=None, posture=None):
-    """IK for one frame. P [39, 3] with NaN = missing.
+    """IK for one frame. P [n, 3] (LABELS order) with NaN = missing.
 
     robust (optional, m; replaces the outlier re-solve): Cauchy loss on each
     marker's distance, rho = f^2 log(1 + (d / f)^2) with f = robust, so a
@@ -359,9 +314,6 @@ def anat_offsets(mm):
   return off
 
 
-PELVIS = [LABELS.index(l) for l in ("LASI", "RASI", "LPSI", "RPSI")]
-
-
 def root_from_pelvis(mm, P):
   """Root pose from a rigid (Kabsch) fit of the model pelvis markers."""
   m, d = mm.m, mm.d
@@ -382,9 +334,9 @@ def root_from_pelvis(mm, P):
 
 def pelvis_frame(P):
   """Root guess from pelvis markers: yaw + position (model faces -y, left +x)."""
-  L = {l: P[LABELS.index(l)] for l in ("LASI", "RASI", "LPSI", "RPSI")}
-  asis = (L["LASI"] + L["RASI"]) / 2
-  psis = (L["LPSI"] + L["RPSI"]) / 2
+  lasi, rasi, lpsi, rpsi = (P[LABELS.index(l)] for l in PELVIS_LABELS)
+  asis = (lasi + rasi) / 2
+  psis = (lpsi + rpsi) / 2
   fwd = asis - psis
   fwd[2] = 0
   fwd /= np.linalg.norm(fwd)
@@ -403,6 +355,10 @@ STATIC_NEUTRAL = [f"{j}_{s}" for s in ("r", "l") for j in
 # Segments whose marker placement the static trial decides (the posture prior holds
 # for them); see calibrate(static_segments=...)
 STATIC_SEGMENTS_LEGS = ("pelvis", "femur_r", "femur_l", "tibia_r", "tibia_l", "calcn_r", "calcn_l")
+# legs only: the pelvis markers stay with the motion trials (skin over the iliac
+# crests slides in deep stoops; placed from the upright static pose they made the
+# pelvis jump in S01 / S06 when both ASIS were hidden by the box)
+STATIC_SEGMENTS_LEGS_ONLY = STATIC_SEGMENTS_LEGS[1:]
 
 
 def calibrate(mm, trials, n_frames=24, iters=5, prior=2.0, max_shift=0.06, seed=0,
@@ -410,12 +366,12 @@ def calibrate(mm, trials, n_frames=24, iters=5, prior=2.0, max_shift=0.06, seed=
               static_share=0.5, static_w=1.0, static_segments=None):
   """Fit per-marker body offsets for one subject from several trials.
   robust: MarkerModel.solve (Cauchy marker loss instead of the outlier re-solve).
-  max_shift: float or per-marker array [39] (m) bounding the move from the
+  max_shift: float or per-marker array [n] (m) bounding the move from the
   anatomical guess. outlier: see MarkerModel.solve; rejected samples are left
   out of the offset update. stand (optional): extra quiet-standing frames
-  [k, 39, 3], solved with the flat-foot term (weight `flat`).
+  [k, n, 3], solved with the flat-foot term (weight `flat`).
 
-  static (optional, default off): frames [k, 39, 3] of the subject's static
+  static (optional, default off): frames [k, n, 3] of the subject's static
   standing trial. They are solved with flat feet and the STATIC_NEUTRAL joints
   pulled toward 0 (weight static_w per rad), and carry static_share of the
   weight of every offset update. Without them the offsets and the pose are not
@@ -437,15 +393,15 @@ def calibrate(mm, trials, n_frames=24, iters=5, prior=2.0, max_shift=0.06, seed=
   frames = []
   for P in trials:
     idx = rng.choice(len(P), size=max(1, n_frames // len(trials)), replace=False)
-    frames += [P[i] for i in idx if not np.isnan(P[i, 23:27]).any()]
+    frames += [P[i] for i in idx if not np.isnan(P[i, PELVIS]).any()]
   n_rand = len(frames)
   if stand is not None:
-    frames += [P for P in stand if not np.isnan(P[23:27]).any()]
+    frames += [P for P in stand if not np.isnan(P[PELVIS]).any()]
   n_dyn = len(frames)
   wt = np.ones(n_dyn)
   posture = None
   if static is not None:
-    st = [P for P in static if not np.isnan(P[23:27]).any()]
+    st = [P for P in static if not np.isnan(P[PELVIS]).any()]
     frames += st
     wt = np.r_[wt, np.full(len(st), static_share / (1 - static_share) * n_dyn / max(len(st), 1))]
     pidx = np.array([FREE.index(j) for j in STATIC_NEUTRAL])
@@ -508,8 +464,8 @@ def sole_stance(P, rate, v_max=0.1, dz=0.02, min_s=0.1):
   than min_s dropped."""
   out = {}
   for side in ("l", "r"):
-    for kind, lab in (("heel", "HEE"), ("toe", "TOE")):
-      p = P[:, LABELS.index(side.upper() + lab)]
+    for kind in ("heel", "toe"):
+      p = P[:, LABELS.index(SOLE[(side, kind)])]
       v = np.r_[0.0, np.linalg.norm(np.diff(p, axis=0), axis=1) * rate]
       k = max(1, int(0.05 * rate))
       v = np.convolve(np.nan_to_num(v, nan=1e3), np.ones(k) / k, "same")
@@ -523,11 +479,29 @@ def sole_stance(P, rate, v_max=0.1, dz=0.02, min_s=0.1):
   return out
 
 
+def standing(P, rate):
+  """Quiet upright standing frames from the markers (scaled-subject frame)."""
+  L = LABELS
+  pel = P[:, PELVIS].mean(1)
+  ank = P[:, [L.index(l) for l in ANKLES]]
+
+  def speed(x):  # [T] m/s; for several points the fastest one; NaN when unseen
+    s = np.linalg.norm(np.diff(x, axis=0), axis=-1) * rate
+    return np.r_[np.nan, s.max(1) if s.ndim == 2 else s]
+
+  slow = (speed(pel) < 0.05) & (speed(ank) < 0.05)
+  up = pel[:, 2] > np.nanpercentile(pel[:, 2], 95) - 0.03
+  ok = slow & up
+  w = int(0.5 * rate)  # sustained for 0.5 s
+  run = np.convolve(ok.astype(float), np.ones(w), "same") >= w - 1
+  return ok & run
+
+
 def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
              v_joint=15.0, w_floor=10.0, w_anchor=3.0, grasp2h=None, w_grasp=0.3,
              ankle_smooth=0.3, outlier=None, mtp_prior=0.0, anchor_centroid=False,
              pelvis_gap="carry", robust=None, root_init="prev"):
-  """Per-frame IK over a whole trial. Returns qpos [T, nq] and marker err [T, 39]
+  """Per-frame IK over a whole trial. Returns qpos [T, nq] and marker err [T, n]
   (NaN where a marker is missing or was rejected, see MarkerModel.solve).
   anchor_centroid: lock each stance foot at the centroid of its anchored sole
   points instead of every point, so it may turn about it. MyoFullBody's knee
@@ -600,7 +574,7 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
         anchors[i] = np.r_[fp[i, :2], max(fp[i, 2], floor)]
 
   for t in range(T):
-    if np.isnan(P[t, 23:27]).any() and (x_prev is None or pelvis_gap == "carry"):
+    if np.isnan(P[t, PELVIS]).any() and (x_prev is None or pelvis_gap == "carry"):
       if x_prev is not None:  # no pelvis -> carry previous pose
         Q[t] = mm.pose(x_prev, q_ref)
       continue

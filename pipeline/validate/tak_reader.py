@@ -1,4 +1,4 @@
-"""Check optitrack_tak.py against Motive's own TRC exports of the same takes.
+"""Check the take reader (mocap2myo/tak.py) against Motive's own TRC exports of the same takes.
 
 For every (take, TRC) pair: markers matched by name, and over the samples present
 in both, the share that are identical (< 0.01 mm) and the largest difference.
@@ -6,7 +6,7 @@ A processed take must match its TRC exactly. A raw take differs where the lab
 edited it in Motive before exporting (gap filling adds samples; relabelling
 moves a few), so for raw takes only the identical share is informative.
 
-  uv run --no-project --with olefile --with numpy python -I tak_reader_check.py DIR
+  python pipeline/validate/tak_reader.py DIR        (needs olefile)
 DIR holds S<ss>_<take>.tak (raw), proc_S<ss>_<take>.tak (processed) and
 S<ss>_<take>.trc (Motive export).
 """
@@ -17,8 +17,9 @@ import sys
 
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import optitrack_tak as tak  # noqa: E402
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from mocap2myo import tak  # noqa: E402
+from pipeline import config  # noqa: E402
 
 
 def _identical_share(X, y):
@@ -63,6 +64,7 @@ def check(take_path, trc_path):
 
 
 def main():
+  config.usage(__doc__)
   d = sys.argv[1]
   rows = []
   for trc in sorted(glob.glob(os.path.join(d, "S*.trc"))):

@@ -24,8 +24,8 @@ Coordinates: Motive world (Y-up), metres, as in a TRC export.
 Not an official format: check a new Motive version against one of its TRC
 exports before trusting it (compare_trc below).
 
-  uv run --no-project --with olefile --with numpy python -I optitrack_tak.py IN.tak [OUT.trc]
-  uv run ... optitrack_tak.py IN.tak --compare EXPORT.trc
+  python -m mocap2myo.tak IN.tak [OUT.trc]        (needs olefile: pip install -e ".[tak]")
+  python -m mocap2myo.tak IN.tak --compare EXPORT.trc
 """
 
 import re
@@ -207,6 +207,9 @@ def compare_trc(take, trc_path):
 
 
 if __name__ == "__main__":
+  if len(sys.argv) < 2 or sys.argv[1] in ("-h", "--help"):
+    print(__doc__.strip())
+    sys.exit(0)
   tk = read_tak(sys.argv[1])
   lab = [n for n in tk["names"] if not n.startswith("Unlabeled")]
   print(f"{sys.argv[1]}: {tk['n_frames']} frames @ {tk['rate']:g} Hz, {len(lab)} labelled + "

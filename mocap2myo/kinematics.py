@@ -2,13 +2,9 @@
 
 from __future__ import annotations
 
-import functools
-
 import mujoco
 import numpy as np
 from scipy.spatial.transform import Rotation as sRot
-
-from mocap2myo.model import MYOFULLBODY_XML
 
 
 def _pelvis_rot(m: mujoco.MjModel) -> sRot:
@@ -80,3 +76,14 @@ def sole_height(m: mujoco.MjModel, d: mujoco.MjData, geoms: list[int]) -> float:
   g = np.asarray(geoms)
   rot = d.geom_xmat[g].reshape(-1, 3, 3)[:, 2, :]
   return float(geom_lowest_z(m.geom_type[g], m.geom_size[g], d.geom_xpos[g, 2], rot).min())
+
+
+# --- rigid fits --------------------------------------------------------------
+
+def kabsch(A, B):
+  """R, t minimising |R A + t - B| (rows = points)."""
+  ca, cb = A.mean(0), B.mean(0)
+  U, _, Vt = np.linalg.svd((A - ca).T @ (B - cb))
+  D = np.diag([1, 1, np.sign(np.linalg.det(Vt.T @ U.T))])
+  R = Vt.T @ D @ U.T
+  return R, cb - R @ ca

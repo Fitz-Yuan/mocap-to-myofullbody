@@ -179,9 +179,9 @@ def add_toolcase(body, size, collision_name="obj_col") -> None:
 
 
 def add_storage_box(body, size, collision_name="obj_col") -> None:
-  """Elevator data: clear storage box (translucent walls, lid, a dark weight
-  inside, blue latches on the two ends = where the hands hold it), as drawn by
-  elev_render_replay.py. Size L (between the hands) x W x H."""
+  """The case study's box (MMH Elevator data): clear storage box (translucent
+  walls, lid, a dark weight inside, blue latches on the two ends = where the
+  hands hold it). Size L (between the hands) x W x H."""
   L, W, H = size
   clear, lid = [0.82, 0.90, 0.98, 0.30], [0.55, 0.72, 0.92, 0.65]
   latch_rgba, weight = [0.12, 0.33, 0.78, 1], [0.22, 0.23, 0.25, 1]

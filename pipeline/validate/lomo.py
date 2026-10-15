@@ -1,4 +1,4 @@
-"""Leave-one-marker-out check of the MMH Elevator IK (independent of the fit itself).
+"""Leave-one-marker-out check of an IK run (independent of the fit itself).
 
 The marker residual of the IK only says how tightly the model was fitted to the
 markers it saw. Here every body marker is left out in turn: the frame is solved
@@ -12,38 +12,36 @@ all markers gives the residual to compare with.
 Sampled frames: one per second per trial. Head markers are skipped (no neck
 joint; they only follow the thorax).
 
-  ELEV_NPZ_DIR=... ELEV_IK_DIR=... OMP_NUM_THREADS=1 uv run python \
-    logs/rsl_rl/fullbody_liftbox/scripts/elev_ik_lomo.py [trial ...]
-Writes <ELEV_IK_DIR>/lomo.json (per trial and per marker: median / p95
-prediction error and residual, mm).
+  M2M_NPZ_DIR=... M2M_IK_DIR=... python pipeline/validate/lomo.py [trial ...]
+Writes <M2M_IK_DIR>/lomo.json (all trials only; per trial and per marker: median /
+p95 prediction error and residual, mm). M2M_LOMO_EVERY_S sets the frame spacing.
 """
 
-import glob
 import json
 import multiprocessing as mp
 import os
 import sys
 
 os.environ["OMP_NUM_THREADS"] = "1"
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 import numpy as np  # noqa: E402
 
-ROOT = os.path.expanduser(os.environ.get("ELEV_ROOT", "~/data/mmh_elevator"))
-NPZ = os.environ.get("ELEV_NPZ_DIR", os.path.join(ROOT, "npz"))
-IKD = os.environ.get("ELEV_IK_DIR", os.path.join(ROOT, "ik"))
-EVERY_S = float(os.environ.get("ELEV_LOMO_EVERY_S", 1.0))
+from pipeline import config as E  # noqa: E402
+
+NPZ = E.NPZ_DIR
+IKD = E.IK_DIR
+EVERY_S = E.LOMO_EVERY_S
 
 
 def trial(name):
-  import elev_ik as E
-  import mmh_ik as mk
+  from mocap2myo import ik as mk
   K = np.load(os.path.join(IKD, f"{name}.npz"))
   P, rate, _ = mk.load_trial(os.path.join(NPZ, f"{name}.npz"), lowpass_hz=E.LOWPASS_HZ or None)
   Q = K["qpos"].astype(np.float64)
   mm = mk.MarkerModel()
-  mm.set_offsets(np.load(os.path.join(IKD, f"{name.split('_')[0]}_offsets.npz"))["offsets"])
-  body = [k for k, l in enumerate(mk.LABELS) if not l.endswith("HD")]
+  mm.set_offsets(np.load(os.path.join(IKD, f"{E.subject_of(name)}_offsets.npz"))["offsets"])
+  body = [k for k, l in enumerate(mk.LABELS) if not mk.HEAD[k]]
   frames = np.arange(0, min(len(P), len(Q)), int(EVERY_S * rate))
   pred = {k: [] for k in body}
   resid = {k: [] for k in body}
@@ -74,9 +72,9 @@ def trial(name):
 
 
 def main():
-  names = sys.argv[1:] or sorted(os.path.basename(p)[:-4]
-                                 for p in glob.glob(os.path.join(IKD, "S*_NE.npz")))
-  workers = int(os.environ.get("IK_WORKERS", 12))
+  E.usage(__doc__)
+  names = sys.argv[1:] or E.trials(IKD)
+  workers = E.workers(12)
   res = {}
   with mp.get_context("spawn").Pool(min(len(names), workers)) as pool:
     for name, out in pool.imap_unordered(trial, names):

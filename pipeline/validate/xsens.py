@@ -1,8 +1,9 @@
-"""Independent check of the MMH Elevator IK against the Xsens suit recorded at the same time.
+"""Independent check of an IK run against an Xsens suit recorded at the same time.
 
-Only S11 Spring NE has a usable Xsens export (c3d of MVN's 64 virtual anatomical
-points, 60 Hz; the other trials are raw .mvn, which needs MVN Analyze to export;
-S11 Solid's c3d is empty). The same geometric angles are computed on both sides:
+One trial (M2M_XSENS_TRIAL) against its Xsens export (M2M_XSENS_C3D: a c3d of MVN's
+64 virtual anatomical points). Case study: only S11 Spring NE has a usable one
+(60 Hz; the other trials are raw .mvn, which needs MVN Analyze to export; S11
+Solid's c3d is empty). The same geometric angles are computed on both sides:
   knee flexion   180 deg - angle(hip centre -> knee centre, knee centre -> ankle centre)
   elbow flexion  same with shoulder -> elbow -> wrist
   trunk lean     angle between vertical and (pelvis centre -> C7)
@@ -15,8 +16,7 @@ iliac spine). The two recordings are aligned in time by cross-correlating the
 right knee angle. Xsens has its own error (several degrees against optical
 systems), so this is supporting evidence, not ground truth.
 
-  uv run --with ezc3d python -I logs/rsl_rl/fullbody_liftbox/scripts/elev_xsens_compare.py \
-    IK_DIR [NPZ_DIR]
+  python pipeline/validate/xsens.py IK_DIR        (needs ezc3d)
 """
 
 import os
@@ -26,12 +26,12 @@ import ezc3d
 import mujoco
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import mmh_ik as mk  # noqa: E402
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from mocap2myo import ik as mk  # noqa: E402
+from pipeline import config  # noqa: E402
 
-ROOT = os.path.expanduser(os.environ.get("ELEV_ROOT", "~/data/mmh_elevator"))
-TRIAL = "S11_Spring_NE"
-C3D = os.path.join(ROOT, "xsens_s11", "S11_Spring_NE.c3d")
+TRIAL = config.XSENS_TRIAL
+C3D = config.XSENS_C3D
 
 
 def angle(a, b):
@@ -88,13 +88,13 @@ def ik_angles(ik_dir):
   K = np.load(os.path.join(ik_dir, f"{TRIAL}.npz"))
   Q = K["qpos"].astype(np.float64)
   mm = mk.MarkerModel()
-  mm.set_offsets(np.load(os.path.join(ik_dir, f"{TRIAL.split('_')[0]}_offsets.npz"))["offsets"])
+  mm.set_offsets(np.load(os.path.join(ik_dir, f"{config.subject_of(TRIAL)}_offsets.npz"))["offsets"])
   m, d = mm.m, mm.d
   bodies = ["femur_r", "tibia_r", "talus_r", "humerus_r", "ulna_r", "lunate_r",
             "femur_l", "tibia_l", "talus_l", "humerus_l", "ulna_l", "lunate_l"]
   bid = [m.body(b).id for b in bodies]
   L = mk.LABELS
-  pk = [L.index(n) for n in ("LASI", "RASI", "LPSI", "RPSI")]
+  pk = mk.PELVIS
   B = np.full((len(Q), len(bodies), 3), np.nan)
   M = np.full((len(Q), len(L), 3), np.nan)
   for t in range(len(Q)):
@@ -122,6 +122,7 @@ def resample(x, rate_in, rate_out, n_out=None):
 
 
 def main():
+  config.usage(__doc__)
   ik_dir = sys.argv[1]
   xa, xr = xsens_angles(C3D)
   ia, ir = ik_angles(ik_dir)

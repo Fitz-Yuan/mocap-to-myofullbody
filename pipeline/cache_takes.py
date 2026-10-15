@@ -1,43 +1,42 @@
-""".tak -> npz cache for elev_convert.py with ELEV_SOURCE=tak (no Motive, no earlier export).
+""".tak -> npz cache for prepare_markers.py with M2M_SOURCE=tak (no Motive, no export).
 
-Reads the raw Motive takes of the NE trials (lab storage <Subject>/Raw Take Files/, saved as
-~/Projects/datasets/MMH_Elevator/raw_tak/S<ss>_<floor>_NE.tak) with optitrack_tak.py
-and writes tak_cache/<trial>.npz in the xlsx_cache layout (names [n], data
-[T, 2 + 3n] = Frame#, Time, X/Y/Z per marker, Motive world Y-up, metres; NaN =
-not seen) plus assets [n] (skeleton / rigid body each marker is labelled to) and
-the rigid-body definitions (rb_<name> [k, 3], marker k in the body frame).
-Marker names: Plug-in-Gait labels from Motive's live skeleton labelling;
-rigid-body markers <body>_<k> (Box_1.., Shelf_.., Elevator_.., Platform_..,
-FP1_.., FP2_..; k = Motive's index in the asset, not the hand-given numbers of
-the lab's processed exports); unlabelled tracks "Unlabeled NNNN".
+Reads the raw Motive takes of the trials (raw_tak/<trial>.tak, trials matching
+M2M_TRIAL_GLOB) with mocap2myo.tak and writes tak_cache/<trial>.npz in the
+xlsx_cache layout (names [n], data [T, 2 + 3n] = Frame#, Time, X/Y/Z per marker,
+Motive world Y-up, metres; NaN = not seen) plus assets [n] (skeleton / rigid body
+each marker is labelled to) and the rigid-body definitions (rb_<name> [k, 3],
+marker k in the body frame). Marker names: the labels from Motive's live skeleton
+labelling (Plug-in-Gait in the case study); rigid-body markers <body>_<k> (case
+study: Box_1.., Shelf_.., Elevator_.., Platform_.., FP1_.., FP2_..; k = Motive's
+index in the asset, not the hand-given numbers of processed exports); unlabelled
+tracks "Unlabeled NNNN".
 
-Static standing trials (raw_tak/static/S<ss>_Anatomy.tak, lab storage <Subject>/Raw Take
-Files/Subject<ss>_Anatomy.tak; S07 has none) go to tak_cache/static/ the same way.
+Static standing trials (raw_tak/static/<static name>.tak, M2M_STATIC_NAME; a subject
+may have none) go to tak_cache/static/ the same way.
 
-  uv run --no-project --with olefile --with numpy python -I \
-    logs/rsl_rl/fullbody_liftbox/scripts/elev_tak_cache.py [trial ...]
+  python pipeline/cache_takes.py [trial ... | static/<static name> ...]   (needs olefile)
 """
 
-import glob
 import os
 import sys
 
 import numpy as np
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import optitrack_tak as tak  # noqa: E402
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from mocap2myo import tak  # noqa: E402
+from pipeline import config  # noqa: E402
 
-ROOT = os.path.expanduser(os.environ.get("ELEV_ROOT", "~/data/mmh_elevator"))
-SRC = os.path.join(ROOT, "raw_tak")
-OUT = os.path.join(ROOT, "tak_cache")
+SRC = config.RAW_TAK_DIR
+OUT = config.TAK_CACHE_DIR
 
 
 def main():
+  config.usage(__doc__)
   os.makedirs(os.path.join(OUT, "static"), exist_ok=True)
   names = sys.argv[1:] or (
-    sorted(os.path.basename(p)[:-4] for p in glob.glob(os.path.join(SRC, "S*_NE.tak")))
-    + sorted("static/" + os.path.basename(p)[:-4]
-             for p in glob.glob(os.path.join(SRC, "static", "S*_Anatomy.tak"))))
+    config.trials(SRC, ".tak")
+    + ["static/" + os.path.basename(p)[:-4]
+       for _, p in config.static_files(os.path.join(SRC, "static"), ".tak")])
   for n in names:
     tk = tak.read_tak(os.path.join(SRC, f"{n}.tak"))
     T, X = tk["n_frames"], tk["xyz"]

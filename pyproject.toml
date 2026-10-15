@@ -10,7 +10,7 @@ dependencies = ["numpy>=1.24", "scipy>=1.10", "mujoco==3.11.0"]
 [project.optional-dependencies]
 tak = ["olefile>=0.46"]      # reading OptiTrack .tak files
 xsens = ["ezc3d>=1.5"]       # Xsens c3d comparison
-# The OpenSim baseline (pipeline/elev_osim_ik.py) needs the opensim package from conda:
+# The OpenSim baseline (pipeline/validate/opensim_ik.py) needs the opensim package from conda:
 #   conda install -c opensim-org opensim
 
 [build-system]
