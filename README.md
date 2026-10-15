@@ -18,6 +18,8 @@ flowchart LR
   D --> E[per-frame IK<br/>MyoFullBody]
   E --> F[reference: floor, box,<br/>grasp, carry cycles]
   F --> G[QA report + motion clips]
+  F --> H[inverse dynamics<br/>joint loads]
+  E -. optional .-> I[OpenSim Scale + IK + ID<br/>same markers, same loads]
 ```
 
 1. **Read** OptiTrack `.tak` files directly (`mocap2myo/tak.py`, `pipeline/cache_takes.py`). A `.tak` is an OLE compound file; the marker trajectories, labels and rigid bodies are parsed from its `Channels.dat` and `Nodes.dat` streams. Checked against Motive's own TRC exports: identical to 0.005 mm on 11 takes.
@@ -25,18 +27,20 @@ flowchart LR
 3. **Calibrate each subject** (`mocap2myo.ik.calibrate`): where each marker sits on its bone. With `M2M_STATIC=1` the subject's static standing trial anchors the joint angles (hips, knees, ankles near 0°); without it the marker placement and the joint angles are not separable and some subjects come out with 20° of knee flexion while standing.
 4. **Solve IK per frame** (`mocap2myo/ik.py`, `pipeline/solve_ik.py`): bounded least squares over 37 degrees of freedom on MyoFullBody, with a robust loss, floor contact, stance-foot locking and joint speed limits.
 5. **Build the reference, check it, cut clips** (`tasks/box_lift/build_reference.py`, `pipeline/qa.py`, `tasks/box_lift/build_dataset.py`, `pipeline/report.py`).
+6. **Inverse dynamics** (`mocap2myo/kinetics.py`, `pipeline/kinetics.py`): net joint forces and moments by Newton–Euler on subtrees of MyoFullBody at the subject's size and mass. The low back (L5/S1), shoulders and elbows come top-down from the body motion and the carried box (no force plates needed); the total ground reaction and its centre of pressure from the whole body; hips, knees and ankles from that reaction shared between the feet (estimated in double support).
+7. **Optional OpenSim run** (`run_all.sh --opensim`): the standard Scale + Marker Placer + IK with the Rajagopal 2016 model on the same markers, then OpenSim Inverse Dynamics with the same external loads, scored side by side (`pipeline/validate/opensim_compare.py`, `kinetics_compare.py`).
 
 ## Results on the case study
 
 | Check | Result |
 |---|---|
 | Take reader vs Motive TRC export | identical (max 0.005 mm), 11 takes |
-| Marker residual, median per trial | 7.5–12.3 mm (OpenSim IK with the Rajagopal model, S09: about 21 mm) |
-| Leave-one-marker-out prediction, median | 14.9 mm |
-| Knee angle vs Xsens (S11), shape | r = 0.995 |
-| Knee offset vs Xsens, before / after the static-trial calibration | −8 to −10° / +0.7 to −2.4° |
-| Quiet-standing knee flexion, median over 22 trials, before / after | 18° / 0° |
-| Machine time, 22 trials | about 1 h on 22 CPU cores |
+| Marker residual, median / 95th pct (22 trials) | 9.2 / 32.7 mm (OpenSim IK on the same markers: 19.8 / 77.3 mm) |
+| Quiet-standing knee flexion, median | 0.1° (without the static-trial calibration 18°; OpenSim 10.6°) |
+| Low-back (L5/S1) extension moment vs OpenSim Inverse Dynamics, same loads | r = 0.984, RMS difference 13 N·m |
+| Shoulder / elbow / hip moments vs OpenSim ID | r = 0.96–0.99 |
+| Total vertical ground force vs the lab's force plates | RMS 1.8 % of body weight; box mass recovered from the plates 13.2 kg (nominal 13.6) |
+| Machine time, 22 trials | about 1 h on 22 CPU cores (IK); inverse dynamics a few seconds per trial |
 
 Details, caveats and open items are in the [handbook](https://fitz-yuan.github.io/mocap-to-myofullbody/handbook/).
 
@@ -65,9 +69,12 @@ Then:
 
 ```bash
 M2M_ROOT=~/data/mocap2myo IK_WORKERS=22 bash pipeline/run_all.sh
+# also run the OpenSim workflow on the same data for the comparison (needs opensim from conda;
+# OSIM_PY=path/to/that/python if it is another environment)
+M2M_ROOT=~/data/mocap2myo IK_WORKERS=22 bash pipeline/run_all.sh --opensim
 ```
 
-This writes `tak_cache/`, `markers/`, `ik/` (IK, `qa.json`, `report.json`, `report.md`), `ref/` under `M2M_ROOT`, and the motion dataset under `data/<M2M_DATA>/` (default `data/box_lift/`).
+This writes `tak_cache/`, `markers/`, `ik/` (IK, `qa.json`, `report.json`, `report.md`), `ref/` and `kin/` (joint loads, `summary.json`) under `M2M_ROOT`, and the motion dataset under `data/<M2M_DATA>/` (default `data/box_lift/`). With `--opensim` also `opensim_ik/`, `opensim_id/`, `compare_osim/` and `kin/compare_opensim.md`.
 
 | Script | Input | Output |
 |---|---|---|
@@ -78,6 +85,8 @@ This writes `tak_cache/`, `markers/`, `ik/` (IK, `qa.json`, `report.json`, `repo
 | `pipeline/qa.py` | IK, `markers/` | `ik/qa.json` |
 | `tasks/box_lift/build_dataset.py` | IK, refs | `data/<M2M_DATA>/` |
 | `pipeline/report.py` | all of the above | `ik/report.json`, `report.md` |
+| `pipeline/kinetics.py` | IK, refs (the task's loads), anthropometrics | `kin/` (`M2M_KIN_DIR`: joint loads per trial, `summary.json`) |
+| `pipeline/validate/opensim_ik.py`, `pipeline/opensim_id.py` (`--opensim`) | `markers/`, `kin/`, `opensim_setup/` | `opensim_ik/`, `opensim_id/` |
 
 Every path, file-naming rule and environment variable is in `pipeline/config.py`:
 
@@ -93,6 +102,8 @@ Every path, file-naming rule and environment variable is in `pipeline/config.py`
 | `M2M_STATIC`, `M2M_STATIC_MARKERS`, `M2M_STATIC_SHARE`, `M2M_STATIC_W` | `0` (`run_all.sh`: `1`), `legs`, `0.5`, `1.0` | static-trial calibration: on/off, which markers it places (`legs`, `legs_only`, `all`), its share of the offset update, posture weight |
 | `M2M_OUTLIER`, `M2M_ROBUST`, `M2M_LOWPASS_HZ`, `M2M_MTP_PRIOR`, `M2M_ROOT_INIT`, `M2M_PELVIS_GAP`, `M2M_ANCHOR_CENTROID`, `M2M_FOOT_CAP`, `M2M_FLAT_W` | see `config.py` | IK settings |
 | `M2M_IK_FRAMES` | (all) | `a:b`: IK on a frame range only |
+| `M2M_KIN_DIR` | `kin/` | inverse-dynamics output |
+| `M2M_CARRIED_COLUMN`, `M2M_CARRIED_BODY` | `Wgt+K5`, `torso` | a CSV column with the mass while recorded (equipment worn, here a metabolic system); the extra mass is lumped at that body |
 | `IK_WORKERS` | 12 | parallel processes (~1-2 GB each) |
 | `MYOFULLBODY_MODEL` | `kneefix` | `original`: the released model file unchanged |
 
@@ -106,16 +117,20 @@ Every path, file-naming rule and environment variable is in `pipeline/config.py`
 | `pipeline/validate/static_pose.py` | IK pose of the static trials and bone-length ratios against the model |
 | `pipeline/validate/opensim_ik.py` | OpenSim Scale + Marker Placer + IK on the same markers |
 | `pipeline/validate/opensim_compare.py ["LABEL=IK_DIR" ...]` | our IK runs and the OpenSim run scored with the same checks |
+| `pipeline/validate/kinetics_compare.py` | our joint moments against OpenSim Inverse Dynamics with the same loads |
+| `tasks/box_lift/force_plates.py` | the ground reaction against the lab's force plates (case study; plate delay, gain, total force, foot split, box mass) |
 
 ## Viewer
 
 ```bash
 python pipeline/export_viewer.py model OUT_DIR                     # once
 python pipeline/export_viewer.py clip S08_Solid_NE OUT_DIR --clip 1  # one carry cycle
+#   joint loads and the OpenSim overlay are included when kin/ and opensim_id/ exist
+#   --public "Demo 1" writes a de-identified clip for a public page
 #   --ghost-ref-dir OTHER_REF_DIR overlays a second IK run (e.g. another calibration)
 ```
 
-Open the [viewer](https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/) and drop the `.elvw` clip on it. The file is read in the browser; nothing is uploaded. A clip carries body poses per frame, measured and model markers, joint-angle curves, the QA grades, and two task-neutral lists the viewer draws as given: objects (shape, size, pose) and state tracks (for example hand contact), both from the task (`tasks/box_lift/viewer_scene.py`).
+Open the [viewer](https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/) (it plays a demo) and drop your `.elvw` clip on it. The plot menu switches between joint angles, joint loads and the ground reaction; the OpenSim button overlays the OpenSim skeleton and its curves (dashed). The file is read in the browser; nothing is uploaded. A clip carries body poses per frame, measured and model markers, joint-angle curves, the QA grades, and two task-neutral lists the viewer draws as given: objects (shape, size, pose) and state tracks (for example hand contact), both from the task (`tasks/box_lift/viewer_scene.py`).
 
 ## Adapting to other data
 

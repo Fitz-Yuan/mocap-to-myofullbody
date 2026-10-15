@@ -1055,7 +1055,17 @@ function setPlaying(p) { playing = p && !!clip; $("play").textContent = playing 
 $("play").addEventListener("click", () => setPlaying(!playing));
 $("back").addEventListener("click", () => { setPlaying(false); showFrame(frame - 1); tAcc = frame / (clip?.meta.fps ?? 1); });
 $("fwd").addEventListener("click", () => { setPlaying(false); showFrame(frame + 1); tAcc = frame / (clip?.meta.fps ?? 1); });
-$("follow").addEventListener("click", () => { follow = !follow; $("follow").setAttribute("aria-pressed", follow); });
+function recentre() {  // put the pelvis back under the orbit target, keeping the view direction and zoom
+  if (!clip) return;
+  const nb = model.meta.bodies.length, o = 3 * (frame * nb + pelvisIdx()), P = clip.a.body_pos.data, ps = clip.meta.pos_scale;
+  const d = new THREE.Vector3(P[o] * ps - controls.target.x, P[o + 1] * ps - controls.target.y, 0);
+  controls.target.add(d); camera.position.add(d); controls.update();
+  lastPelvis = new THREE.Vector3(P[o] * ps, P[o + 1] * ps, 0);
+}
+$("follow").addEventListener("click", () => {
+  follow = !follow; $("follow").setAttribute("aria-pressed", follow);
+  if (follow) recentre();  // back on the body at once, not only for the motion that follows
+});
 function setCam(kind, dist) {
   const t = controls.target, d = dist ?? camera.position.distanceTo(t);
   const dir = { side: [1, -0.17, 0.15], front: [0.11, -1, 0.15], top: [0.003, -0.003, 1] }[kind];

@@ -464,7 +464,7 @@ footer a { color: var(--fg-2); }
           <div class="vs-fig">
             <div class="vs-stats">
               <div><span class="big"><span class="pre">r =</span><span data-count="lowBackR" data-dec="2"></span></span><span class="cap">Correlation of the moment</span></div>
-              <div><span class="big"><span class="pre">within</span><span data-fact="lowBackPeakPct"></span><small>%</small></span><span class="cap">Difference between the peaks</span></div>
+              <div><span class="big"><span data-fact="lowBackPeakPct"></span><small>%</small></span><span class="cap">Median difference between the peaks, 22 trials</span></div>
             </div>
             <p class="vs-note">Peak moment on one trial</p>
             <div class="vbar ours" data-v="lowBackPeakOursNm" data-max="400"><span class="who">This pipeline</span><span class="track"><span class="fill"></span></span><span class="val"><span data-count="lowBackPeakOursNm"></span><small>N·m</small></span></div>
@@ -548,10 +548,10 @@ window.FACTS = {
   kneeStandBeforeDeg: 18,     // quiet-standing knee flexion, median: this pipeline without the static trial
   kneeStandAfterDeg: 0,       // ... this pipeline with the static trial
   kneeStandOpenSimDeg: 11,    // ... OpenSim Scale + IK (about)
-  lowBackR: 0.98,             // L5/S1 extension moment, MyoFullBody inverse dynamics vs OpenSim Inverse Dynamics: correlation
-  lowBackPeakPct: 2,          // ... peaks agree within this many percent
-  lowBackPeakOursNm: 333,     // ... example trial peak, this pipeline (N·m)
-  lowBackPeakOpenSimNm: 336,  // ... same trial, OpenSim (N·m)
+  lowBackR: 0.98,             // L5/S1 extension moment, MyoFullBody inverse dynamics vs OpenSim Inverse Dynamics: correlation (median over 22 trials, 0.984)
+  lowBackPeakPct: 5,          // ... median over the 22 trials of the peak difference, percent
+  lowBackPeakOursNm: 343,     // ... example trial peak, this pipeline (N·m)
+  lowBackPeakOpenSimNm: 347,  // ... same trial, OpenSim (N·m)
   cpuHours: 1,                // whole dataset (about)
   cpuCores: 22,
 };
