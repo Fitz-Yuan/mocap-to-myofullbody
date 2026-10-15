@@ -503,7 +503,7 @@ footer a { color: var(--fg-2); }
         </div>
         <div class="stat s-d" data-reveal style="--d:.12s">
           <div class="num"><span data-fact="cpuHours"></span><small>hour</small></div>
-          <p>Approximate CPU time for the whole dataset, on <span data-fact="cpuCores"></span> cores.</p>
+          <p>Wall-clock time for the whole dataset on one workstation, <span data-fact="cpuCores"></span> trials solved in parallel.</p>
         </div>
       </div>
     </div>
@@ -539,7 +539,7 @@ footer a { color: var(--fg-2); }
 /* =====================================================================
    FACTS. Every number on this page is read from here; edit here only.
    Sources: the README results table and the handbook; the OpenSim
-   comparison (knee 11 degrees, L5/S1 moment) as supplied by the author.
+   comparison (knee 11 degrees, L5/S1 moment) from the pipeline's comparison outputs.
    ===================================================================== */
 window.FACTS = {
   muscles: 416,               // MyoFullBody muscle count
@@ -558,8 +558,8 @@ window.FACTS = {
   lowBackPeakPct: 5,          // ... median over the 22 trials of the peak difference, percent
   lowBackPeakOursNm: 343,     // ... example trial peak, this pipeline (N·m)
   lowBackPeakOpenSimNm: 347,  // ... same trial, OpenSim (N·m)
-  cpuHours: 1,                // whole dataset (about)
-  cpuCores: 22,
+  cpuHours: 1,                // whole dataset, wall clock (the IK, about 45 min, is nearly all of it)
+  cpuCores: 22,               // trials solved in parallel (IK_WORKERS)
 };
 /* Plug-in-Gait markers placed on the model at rest (model coordinates, metres,
    z up, facing -y). These are the starting guesses of the calibration
