@@ -109,7 +109,7 @@ def layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_marker
       arrows.append(dict(name=f"Carried load on the {nm} hand", origin="arr_hand_o", vector="arr_hand_v", col=h,
                          m_per_N=0.004, color="--force", anchor="head", min_N=3))
       arrows.append(dict(name=f"Ground reaction, {nm} foot", origin="arr_foot_o", vector="arr_foot_v", col=h,
-                         m_per_N=0.0008, color="--accent", anchor="tail", min_N=10))
+                         m_per_N=0.0008, color="--accent-2", anchor="tail", min_N=10))
   if osim is not None and "joints" in osim.files:
     n = len(osim["joints"])
     jj = np.minimum(idx, n - 1)
