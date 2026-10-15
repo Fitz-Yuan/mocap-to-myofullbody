@@ -22,6 +22,8 @@
   --warn: #e3b25a;
   --bad: #ef7d7d;
   --ghost: #7fb2ff;
+  --force: #f2d16b;
+  --osim: #c39bff;
   --scene-bg: #0b1014;
   --scene-floor: #141c22;
   --scene-grid: #22303a;
@@ -37,14 +39,14 @@
     --bg: #eef2f5; --panel: #ffffff; --panel-2: #f3f6f8; --fg: #18222b; --muted: #5d6b77;
     --line: #d4dce3; --accent: #0b7480; --accent-2: #b5651d; --ok: #2b7a3c; --warn: #8a5a06;
     --bad: #b3302f; --ghost: #2f6fd6; --scene-bg: #e6ebef; --scene-floor: #d7dee4; --scene-grid: #c0cad2;
-    --bone: #e8dfc8; --muscle: #c0473b; --skin: #b98f73; color-scheme: light;
+    --bone: #e8dfc8; --muscle: #c0473b; --skin: #b98f73; --force: #a07a00; --osim: #7a3fd1; color-scheme: light;
   }
 }
 :root[data-theme="light"] {
   --bg: #eef2f5; --panel: #ffffff; --panel-2: #f3f6f8; --fg: #18222b; --muted: #5d6b77;
   --line: #d4dce3; --accent: #0b7480; --accent-2: #b5651d; --ok: #2b7a3c; --warn: #8a5a06;
   --bad: #b3302f; --ghost: #2f6fd6; --scene-bg: #e6ebef; --scene-floor: #d7dee4; --scene-grid: #c0cad2;
-  --bone: #e8dfc8; --muscle: #c0473b; --skin: #b98f73; color-scheme: light;
+  --bone: #e8dfc8; --muscle: #c0473b; --skin: #b98f73; --force: #a07a00; --osim: #7a3fd1; color-scheme: light;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -98,7 +100,10 @@ button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent);
 .toggles label { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
 .toggles input { accent-color: var(--accent); }
 .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; flex: 0 0 auto; }
-#chart { width: 100%; height: 170px; display: block; }
+#chart { width: 100%; height: 190px; display: block; }
+#curveSel { width: 100%; }
+button.osim[aria-pressed="true"] { border-color: var(--osim); color: var(--osim); }
+.note { color: var(--muted); font-size: 12px; }
 .legend { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--muted); }
 .legend div { display: flex; gap: 8px; align-items: center; }
 input[type=file] { display: none; }
@@ -127,7 +132,7 @@ input[type=file] { display: none; }
       <div class="dropzone" id="dropzone">
         <div class="dropcard">
           <b>Drop a clip file (.elvw)</b>
-          <p>Clips are written by <span style="font-family:var(--font-mono)">elev_export_viewer.py clip</span>. Files are read in this browser only; nothing is uploaded.</p>
+          <p>Clips are written by <span style="font-family:var(--font-mono)">pipeline/export_viewer.py clip</span>. Files are read in this browser only; nothing is uploaded.</p>
           <div class="row" style="justify-content:center"><button class="primary" id="openBtn2" type="button">Open clip…</button></div>
         </div>
       </div>
@@ -145,6 +150,7 @@ input[type=file] { display: none; }
       <button id="zoomIn" type="button" aria-label="Zoom in">＋</button>
       <button id="zoomOut" type="button" aria-label="Zoom out">−</button>
       <button id="fit" type="button" title="Back to the body (R)">Fit</button>
+      <button id="osimBtn" class="osim" type="button" aria-pressed="false" title="Overlay the OpenSim result of the same trial (O)" hidden>OpenSim</button>
       <span class="time" id="frameInfo">—</span>
     </div>
   </main>
@@ -175,25 +181,16 @@ input[type=file] { display: none; }
         <label><input type="checkbox" id="lyErr"><span class="swatch" style="background:var(--bad)"></span>Error vectors</label>
         <label><input type="checkbox" id="lyScene" checked><span class="swatch" style="background:var(--accent-2)"></span>Objects & scene</label>
         <label><input type="checkbox" id="lyGhost" checked disabled><span class="swatch" style="background:var(--ghost)"></span><span id="ghostName">Ghost</span></label>
+        <label><input type="checkbox" id="lyForce" checked disabled><span class="swatch" style="background:var(--force)"></span>Forces</label>
+        <label><input type="checkbox" id="lyOsim" disabled><span class="swatch" style="background:var(--osim)"></span>OpenSim</label>
       </div>
     </section>
     <section class="sec">
-      <h2>Joint angle</h2>
-      <select id="curveSel" aria-label="Joint angle to plot">
-        <option value="knee">Knee flexion</option>
-        <option value="hipf">Hip flexion</option>
-        <option value="hipa">Hip adduction</option>
-        <option value="ankle">Ankle dorsiflexion</option>
-        <option value="lumbar">Lumbar flexion</option>
-        <option value="shoulder">Shoulder elevation</option>
-        <option value="elbow">Elbow flexion</option>
-      </select>
-      <canvas id="chart" aria-label="Joint angle over the clip"></canvas>
-      <div class="legend">
-        <div><span class="swatch" style="background:var(--accent)"></span>Right</div>
-        <div><span class="swatch" style="background:var(--accent-2)"></span>Left</div>
-        <div id="ghostLeg" hidden><span class="swatch" style="background:var(--ghost)"></span><span id="ghostLegTxt">Ghost (dashed)</span></div>
-      </div>
+      <h2>Plot</h2>
+      <select id="curveSel" aria-label="Quantity to plot"></select>
+      <canvas id="chart" aria-label="The selected quantity over the clip"></canvas>
+      <div class="legend" id="chartLegend"></div>
+      <div class="note" id="chartNote"></div>
     </section>
     <section class="sec">
       <h2>Legend</h2>
@@ -204,7 +201,7 @@ input[type=file] { display: none; }
         <div><span class="swatch" style="background:var(--bad)"></span>Above 25 mm</div>
         <div id="trackLegend" class="legend"></div>
         <div>Muscles are straight lines through their attachment sites; wrapping surfaces are not drawn.</div>
-        <div>Mouse: drag to orbit, right-drag to pan, wheel to zoom toward the pointer. Keys: space play / pause, ← → step, + − zoom, R fit, F follow.</div>
+        <div>Mouse: drag to orbit, right-drag to pan, wheel to zoom toward the pointer. Keys: space play / pause, ← → step, + − zoom, R fit, F follow, O OpenSim.</div>
       </div>
     </section>
   </aside>
@@ -282,7 +279,9 @@ function applyTheme() {
   mats.bone.color.set(css("--bone")); mats.skin.color.set(css("--skin")); mats.ghost.color.set(css("--ghost"));
   musMat.color.set(css("--muscle")); ghostLineMat.color.set(css("--ghost"));
   errMat.color.set(css("--bad"));
-  drawTimeline(); drawChart();
+  cmpLineMat.color.set(css("--osim")); cmpDotMat.color.set(css("--osim"));
+  for (const h of arrows) h.setColor(new THREE.Color(css(h.userData.ar.color ?? "--force")));
+  drawTimeline(); drawChart(); buildChartLegend();
 }
 const mats = {
   bone: new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.0 }),
@@ -297,6 +296,8 @@ const mats = {
 const musMat = new LineMaterial({ linewidth: 1.6, transparent: true, opacity: 0.9 });
 const ghostLineMat = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.5 });
 const errMat = new THREE.LineBasicMaterial();
+const cmpLineMat = new LineMaterial({ linewidth: 3, transparent: true, opacity: 0.95 });
+const cmpDotMat = new THREE.MeshStandardMaterial({ roughness: 0.5 });
 
 /* ---------- model ---------- */
 let model = null, bodyGroups = [], ghostGroups = [], volGroup = new THREE.Group();
@@ -532,7 +533,7 @@ function showFrame(f) {
     if (mkMeas.instanceColor) mkMeas.instanceColor.needsUpdate = true;
     errLines.geometry.attributes.position.needsUpdate = true;
   }
-  updateTracks();
+  updateTracks(); updateArrows(); updateCompare();
   const t = frame / meta.fps;
   $("hudTime").textContent = `${t.toFixed(2)} s`;
   $("frameInfo").textContent = `frame ${frame + 1} / ${meta.frames} · ${meta.fps.toFixed(0)} Hz` + (a.resid_mm ? ` · residual ${a.resid_mm.data[frame].toFixed(1)} mm` : "");
@@ -590,37 +591,203 @@ function scrubFrom(ev) {
 $("tl").addEventListener("pointerdown", e => { $("tl").setPointerCapture(e.pointerId); scrubFrom(e); });
 $("tl").addEventListener("pointermove", e => { if (e.buttons) scrubFrom(e); });
 
-/* ---------- joint-angle chart ---------- */
-const CURVES = { knee: ["knee_angle_r", "knee_angle_l"], hipf: ["hip_flexion_r", "hip_flexion_l"], hipa: ["hip_adduction_r", "hip_adduction_l"],
-  ankle: ["ankle_angle_r", "ankle_angle_l"], lumbar: ["flex_extension"], shoulder: ["shoulder_elv_r", "shoulder_elv_l"], elbow: ["elbow_flex_r", "elbow_flex_l"] };
+/* ---------- plots ----------
+   A clip lists its plots (meta.plots): a title, a unit, a menu group and series read from
+   the clip's arrays ({label, array, col, side}); optionally "cmp" series (the same quantity
+   from another method, dashed, shown with the OpenSim toggle), "shade" (frames greyed out,
+   e.g. where a load is not determined) and reference lines. Clips without plots get the
+   joint-angle plots built from meta.curves. */
+const ANGLE_PLOTS = [["knee", "Knee flexion", ["knee_angle_r", "knee_angle_l"]], ["hipf", "Hip flexion", ["hip_flexion_r", "hip_flexion_l"]],
+  ["hipa", "Hip adduction", ["hip_adduction_r", "hip_adduction_l"]], ["ankle", "Ankle dorsiflexion", ["ankle_angle_r", "ankle_angle_l"]],
+  ["lumbar", "Lumbar flexion", ["flex_extension"]], ["shoulder", "Shoulder elevation", ["shoulder_elv_r", "shoulder_elv_l"]],
+  ["elbow", "Elbow flexion", ["elbow_flex_r", "elbow_flex_l"]]];
+function plotsOf(meta) {
+  if (meta.plots) return meta.plots;
+  if (meta._plots) return meta._plots;
+  const out = [];
+  for (const [id, title, names] of ANGLE_PLOTS) {
+    const cols = names.map(n => meta.curves?.indexOf(n) ?? -1);
+    if (cols.some(c => c < 0)) continue;
+    const two = names.length > 1;
+    out.push({ id, group: "Joint angles", title, unit: "°",
+      series: cols.map((c, j) => ({ label: two ? (j ? "Left" : "Right") : title, array: "curves", col: c, side: two ? (j ? "l" : "r") : "" })),
+      ghost: cols.map(c => ({ array: "ghost_curves", col: c })) });
+  }
+  return (meta._plots = out);
+}
+function seriesVal(sr, i) {
+  const A = clip.a[sr.array]; if (!A) return NaN;
+  const k = A.shape.length > 1 ? A.shape[1] : 1;
+  return A.data[i * k + (sr.col ?? 0)];
+}
+const osimOn = () => !$("lyOsim").disabled && $("lyOsim").checked;
+function currentPlot() { const P = plotsOf(clip.meta); return P.find(p => p.id === $("curveSel").value) ?? P[0]; }
+function plotLines(plot) {
+  const pal = [css("--accent"), css("--accent-2"), css("--ok"), css("--warn"), css("--ghost")];
+  const L = plot.series.map((sr, j) => ({ sr, color: sr.side === "l" ? css("--accent-2") : sr.side === "r" ? css("--accent") : pal[j % pal.length], dash: [] }));
+  if (plot.cmp && osimOn()) for (const sr of plot.cmp)
+    L.push({ sr, color: css("--osim"), dash: [5, 3], cmp: true });
+  if (plot.ghost && clip.a.ghost_curves && $("lyGhost").checked) for (const sr of plot.ghost)
+    L.push({ sr, color: css("--ghost"), dash: [4, 3], cmp: true });
+  return L;
+}
+function niceStep(range) {
+  const r = range / 4, p = 10 ** Math.floor(Math.log10(r)), m = r / p;
+  return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
+}
+const fmtTick = v => Math.abs(v) >= 1000 ? `${+(v / 1000).toFixed(1)}k` : `${+v.toFixed(2)}`;
 function drawChart() {
   const [ctx, W, H] = sizeCanvas($("chart"));
   ctx.clearRect(0, 0, W, H);
-  if (!clip) { ctx.fillStyle = css("--muted"); ctx.font = "12px " + css("--font-ui"); ctx.fillText("No clip loaded", 6, 18); return; }
-  const { meta, a } = clip, names = CURVES[$("curveSel").value], nc = meta.curves.length, n = meta.frames;
-  const series = names.map(nm => meta.curves.indexOf(nm));
-  const C = a.curves.data, G = a.ghost_curves?.data;
+  ctx.font = "12px " + css("--font-ui");
+  if (!clip) { ctx.fillStyle = css("--muted"); ctx.fillText("No clip loaded", 6, 18); return; }
+  const plot = currentPlot();
+  if (!plot) { ctx.fillStyle = css("--muted"); ctx.fillText("This clip has no curves", 6, 18); return; }
+  const n = clip.meta.frames, lines = plotLines(plot);
   let lo = Infinity, hi = -Infinity;
-  for (const k of series) for (let i = 0; i < n; i++) { const v = C[i * nc + k]; lo = Math.min(lo, v); hi = Math.max(hi, v); if (G) { lo = Math.min(lo, G[i * nc + k]); hi = Math.max(hi, G[i * nc + k]); } }
-  const pad = Math.max(5, (hi - lo) * 0.08); lo -= pad; hi += pad;
-  const L = 34, B = 18, x = i => L + (i / Math.max(1, n - 1)) * (W - L - 4), y = v => 4 + (1 - (v - lo) / (hi - lo)) * (H - B - 4);
+  for (const ln of lines) for (let i = 0; i < n; i++) { const v = seriesVal(ln.sr, i); if (Number.isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }
+  for (const r of plot.refs ?? []) { lo = Math.min(lo, r.value); hi = Math.max(hi, r.value); }
+  if (!Number.isFinite(lo)) { lo = 0; hi = 1; }
+  const pad = Math.max((hi - lo) * 0.08, plot.unit === "°" ? 5 : 1e-3); lo -= pad; hi += pad;
+  const Lm = 40, B = 18, x = i => Lm + (i / Math.max(1, n - 1)) * (W - Lm - 4), y = v => 4 + (1 - (v - lo) / (hi - lo)) * (H - B - 4);
+  if (plot.shade && clip.a[plot.shade.array]) {
+    ctx.fillStyle = css("--line");
+    for (let i = 0; i < n; i++) if (seriesVal(plot.shade, i)) ctx.fillRect(x(i), 4, Math.max(1, (W - Lm) / n) + 0.5, H - B - 4);
+  }
   ctx.strokeStyle = css("--line"); ctx.fillStyle = css("--muted"); ctx.font = "10px " + css("--font-mono"); ctx.lineWidth = 1;
-  const step = Math.max(5, Math.round((hi - lo) / 4 / 5) * 5);
-  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) { ctx.beginPath(); ctx.moveTo(L, y(v)); ctx.lineTo(W - 4, y(v)); ctx.stroke(); ctx.fillText(`${v}°`, 2, y(v) + 3); }
-  const secs = (n - 1) / meta.fps;
-  for (let s = 0; s <= secs; s += Math.max(1, Math.round(secs / 5))) ctx.fillText(`${s}s`, x(s * meta.fps) - 6, H - 4);
-  const colors = [css("--accent"), css("--accent-2")];
-  series.forEach((k, j) => {
-    if (G) { ctx.strokeStyle = css("--ghost"); ctx.setLineDash([4, 3]); ctx.lineWidth = 1.2; ctx.beginPath(); for (let i = 0; i < n; i++) i ? ctx.lineTo(x(i), y(G[i * nc + k])) : ctx.moveTo(x(i), y(G[i * nc + k])); ctx.stroke(); ctx.setLineDash([]); }
-    ctx.strokeStyle = colors[j]; ctx.lineWidth = 1.6; ctx.beginPath();
-    for (let i = 0; i < n; i++) i ? ctx.lineTo(x(i), y(C[i * nc + k])) : ctx.moveTo(x(i), y(C[i * nc + k]));
-    ctx.stroke();
-  });
+  const step = niceStep(hi - lo);
+  for (let v = Math.ceil(lo / step) * step; v <= hi; v += step) {
+    ctx.beginPath(); ctx.moveTo(Lm, y(v)); ctx.lineTo(W - 4, y(v)); ctx.stroke();
+    ctx.fillText(fmtTick(v) + (plot.unit === "°" ? "°" : ""), 2, y(v) + 3);
+  }
+  const secs = (n - 1) / clip.meta.fps;
+  for (let s = 0; s <= secs; s += Math.max(1, Math.round(secs / 5))) ctx.fillText(`${s}s`, x(s * clip.meta.fps) - 6, H - 4);
+  for (const r of plot.refs ?? []) {
+    ctx.strokeStyle = css("--bad"); ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.moveTo(Lm, y(r.value)); ctx.lineTo(W - 4, y(r.value)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = css("--bad"); ctx.fillText(r.label, Lm + 4, y(r.value) - 3);
+  }
+  for (const ln of lines) {
+    ctx.strokeStyle = ln.color; ctx.setLineDash(ln.dash); ctx.lineWidth = ln.cmp ? 1.3 : 1.6; ctx.beginPath();
+    let pen = false;
+    for (let i = 0; i < n; i++) {
+      const v = seriesVal(ln.sr, i);
+      if (!Number.isFinite(v)) { pen = false; continue; }
+      pen ? ctx.lineTo(x(i), y(v)) : ctx.moveTo(x(i), y(v)); pen = true;
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+  }
   ctx.strokeStyle = css("--fg"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x(frame), 4); ctx.lineTo(x(frame), H - B); ctx.stroke();
-  const vals = series.map(k => C[frame * nc + k].toFixed(1) + "°").join(" / ");
+  const prec = plot.unit === "°" ? 1 : Math.abs(hi) >= 100 ? 0 : 1;
+  const vals = plot.series.map(sr => { const v = seriesVal(sr, frame); return Number.isFinite(v) ? v.toFixed(prec) : "–"; }).join(" / ") + ` ${plot.unit}`;
   ctx.fillStyle = css("--fg"); ctx.font = "11px " + css("--font-mono"); ctx.fillText(vals, W - 4 - ctx.measureText(vals).width, 14);
 }
-$("curveSel").addEventListener("change", drawChart);
+function buildPlotMenu() {
+  const sel = $("curveSel"), keep = sel.value;
+  sel.innerHTML = "";
+  if (!clip) return;
+  const groups = {};
+  for (const p of plotsOf(clip.meta)) (groups[p.group ?? "Plots"] ??= []).push(p);
+  for (const [g, ps] of Object.entries(groups)) {
+    const og = document.createElement("optgroup"); og.label = g;
+    for (const p of ps) { const o = document.createElement("option"); o.value = p.id; o.textContent = p.title; og.append(o); }
+    sel.append(og);
+  }
+  if ([...sel.options].some(o => o.value === keep)) sel.value = keep;
+  buildChartLegend();
+}
+function buildChartLegend() {
+  const leg = $("chartLegend"), note = $("chartNote");
+  leg.innerHTML = ""; note.textContent = "";
+  if (!clip) return;
+  const plot = currentPlot(); if (!plot) return;
+  const sw = (c, dashed) => `<span class="swatch" style="background:${dashed ? "transparent" : c};${dashed ? `border:2px dashed ${c};height:0;width:14px;border-radius:0` : ""}"></span>`;
+  for (const ln of plotLines(plot)) {
+    if (ln.cmp) continue;
+    leg.insertAdjacentHTML("beforeend", `<div>${sw(ln.color)}${ln.sr.label}</div>`);
+  }
+  if (plot.cmp?.length) leg.insertAdjacentHTML("beforeend", `<div>${sw(css("--osim"), true)}${clip.meta.compare?.name ?? "OpenSim"}${osimOn() ? "" : " (turn on OpenSim)"}</div>`);
+  if (plot.ghost && clip.a.ghost_curves) leg.insertAdjacentHTML("beforeend", `<div>${sw(css("--ghost"), true)}Ghost: ${clip.meta.ghost}</div>`);
+  if (plot.shade) leg.insertAdjacentHTML("beforeend", `<div><span class="swatch" style="background:var(--line)"></span>${plot.shade.label}</div>`);
+  note.textContent = plot.note ?? "";
+}
+$("curveSel").addEventListener("change", () => { buildChartLegend(); drawChart(); });
+
+/* ---------- force arrows (meta.arrows) ----------
+   {name, origin: array of positions (int16, pos_scale; [T, 3] or [T, k, 3] with col),
+    vector: array of forces in N (same layout), m_per_N, color}; hidden below min_N. */
+let arrows = [];
+const arrowGroup = new THREE.Group(); scene.add(arrowGroup);
+function buildArrows(meta) {
+  arrowGroup.clear(); arrows = [];
+  for (const ar of meta.arrows ?? []) {
+    if (!clip.a[ar.origin] || !clip.a[ar.vector]) continue;
+    const h = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(), 0.1, new THREE.Color(css(ar.color ?? "--force")), 0.05, 0.03);
+    h.line.material.linewidth = 2; h.userData.ar = ar;
+    arrows.push(h); arrowGroup.add(h);
+  }
+}
+const at3 = (A, f, col) => { const k = A.shape.length > 2 ? A.shape[1] : 1; const o = 3 * (f * k + (col ?? 0)); return [A.data[o], A.data[o + 1], A.data[o + 2]]; };
+const aDir = new THREE.Vector3(), aOrg = new THREE.Vector3();
+function updateArrows() {
+  const ps = clip.meta.pos_scale;
+  for (const h of arrows) {
+    const ar = h.userData.ar, o = at3(clip.a[ar.origin], frame, ar.col), v = at3(clip.a[ar.vector], frame, ar.col);
+    const mag = Math.hypot(...v);
+    if (o[0] === MISSING || !Number.isFinite(mag) || mag < (ar.min_N ?? 2)) { h.visible = false; continue; }
+    h.visible = true;
+    aOrg.set(o[0] * ps, o[1] * ps, o[2] * ps); aDir.set(v[0] / mag, v[1] / mag, v[2] / mag);
+    const len = mag * ar.m_per_N, head = Math.min(0.07, 0.35 * len);
+    // drawn ending at the point of application (the force pushes on it)
+    h.position.copy(aOrg).addScaledVector(aDir, -len); h.setDirection(aDir); h.setLength(len, head, 0.55 * head);
+  }
+}
+
+/* ---------- comparison skeleton (meta.compare) ----------
+   Another method's result for the same frames, as joint centres joined by links:
+   {name, joints: [...], links: [[i, j], ...], pos: array [T, nj, 3] int16, markers?: array}. */
+let cmpLines = null, cmpDots = null, cmpMk = null;
+const cmpGroup = new THREE.Group(); scene.add(cmpGroup);
+function buildCompare(meta) {
+  cmpGroup.clear(); cmpLines = cmpDots = cmpMk = null;
+  const c = meta.compare;
+  if (!c || !clip.a[c.pos]) return;
+  const g = new LineSegmentsGeometry(); g.setPositions(new Float32Array(c.links.length * 6));
+  cmpLines = new LineSegments2(g, cmpLineMat); cmpLines.frustumCulled = false;
+  cmpDots = new THREE.InstancedMesh(new THREE.SphereGeometry(0.02, 14, 10), cmpDotMat, c.joints.length);
+  cmpGroup.add(cmpLines, cmpDots);
+  if (c.markers && clip.a[c.markers]) {
+    cmpMk = new THREE.InstancedMesh(new THREE.SphereGeometry(0.007, 10, 6), cmpDotMat, clip.a[c.markers].shape[1]);
+    cmpGroup.add(cmpMk);
+  }
+}
+function updateCompare() {
+  if (!cmpLines || !cmpGroup.visible) return;
+  const c = clip.meta.compare, ps = clip.meta.pos_scale, A = clip.a[c.pos], nj = c.joints.length;
+  const J = [];
+  for (let j = 0; j < nj; j++) {
+    const o = 3 * (frame * nj + j), p = [A.data[o] * ps, A.data[o + 1] * ps, A.data[o + 2] * ps];
+    J.push(A.data[o] === MISSING ? null : p);
+    tmpM.compose(tmpP.set(...(J[j] ?? [0, 0, -50])), tmpQ.identity(), J[j] ? one : new THREE.Vector3(0, 0, 0)); cmpDots.setMatrixAt(j, tmpM);
+  }
+  cmpDots.instanceMatrix.needsUpdate = true;
+  const P = new Float32Array(c.links.length * 6);
+  c.links.forEach(([i, j], k) => { if (J[i] && J[j]) P.set([...J[i], ...J[j]], 6 * k); });
+  cmpLines.geometry.setPositions(P);
+  if (cmpMk) {
+    const M = clip.a[c.markers], nm = M.shape[1];
+    for (let i = 0; i < nm; i++) {
+      const o = 3 * (frame * nm + i);
+      if (M.data[o] === MISSING) { cmpMk.setMatrixAt(i, hidden); continue; }
+      tmpM.compose(tmpP.set(M.data[o] * ps, M.data[o + 1] * ps, M.data[o + 2] * ps), tmpQ.identity(), one); cmpMk.setMatrixAt(i, tmpM);
+    }
+    cmpMk.instanceMatrix.needsUpdate = true;
+  }
+}
+function setOsim(on) {
+  $("lyOsim").checked = on; $("osimBtn").setAttribute("aria-pressed", on);
+  applyLayers(); buildChartLegend();
+}
+$("osimBtn").addEventListener("click", () => setOsim(!osimOn()));
 
 /* ---------- panels ---------- */
 function showMeta(meta) {
@@ -640,7 +807,11 @@ function showMeta(meta) {
     <div class="kv">${rows.map(([k, v]) => `<span>${k}</span><span>${v}</span>`).join("")}</div>`;
   const hasGhost = !!clip.a.ghost_pos;
   $("lyGhost").disabled = !hasGhost; $("ghostName").textContent = hasGhost ? `Ghost: ${meta.ghost}` : "Ghost (none in clip)";
-  $("ghostLeg").hidden = !hasGhost; $("ghostLegTxt").textContent = `Ghost: ${meta.ghost} (dashed)`;
+  const hasCmp = !!(meta.compare && clip.a[meta.compare.pos]) || plotsOf(meta).some(p => p.cmp?.length);
+  $("lyOsim").disabled = !hasCmp; $("osimBtn").hidden = !hasCmp;
+  if (!hasCmp) $("lyOsim").checked = false;
+  $("osimBtn").setAttribute("aria-pressed", osimOn());
+  $("lyForce").disabled = !arrows.length;
 }
 function applyLayers() {
   boneGroup.visible = $("lyBones").checked;
@@ -649,9 +820,13 @@ function applyLayers() {
   if (mkMeas) { mkMeas.visible = $("lyMk").checked; mkModel.visible = $("lyMkModel").checked; errLines.visible = $("lyErr").checked; }
   for (const m of objMeshes) m.visible = $("lyScene").checked;
   ghostRoot.visible = !!clip?.a.ghost_pos && $("lyGhost").checked;
+  arrowGroup.visible = $("lyForce").checked;
+  cmpGroup.visible = osimOn();
+  $("osimBtn").setAttribute("aria-pressed", osimOn());
   if (clip) showFrame(frame);
 }
-for (const id of ["lyBones", "lyMus", "lyMk", "lyMkModel", "lyErr", "lyScene", "lyGhost"]) $(id).addEventListener("change", applyLayers);
+for (const id of ["lyBones", "lyMus", "lyMk", "lyMkModel", "lyErr", "lyScene", "lyGhost", "lyForce"]) $(id).addEventListener("change", applyLayers);
+$("lyOsim").addEventListener("change", () => setOsim($("lyOsim").checked));
 
 /* ---------- loading ---------- */
 async function loadClipBuffer(buf, name) {
@@ -667,7 +842,7 @@ async function loadClipBuffer(buf, name) {
 }
 function selectClip(i) {
   clip = clips[i];
-  buildScene(clip.meta); showMeta(clip.meta);
+  buildScene(clip.meta); buildArrows(clip.meta); buildCompare(clip.meta); buildPlotMenu(); showMeta(clip.meta);
   $("dropzone").hidden = true;
   tAcc = 0; frame = 0;
   const pi = pelvisIdx(), P = clip.a.body_pos.data, ps = clip.meta.pos_scale, nb = model.meta.bodies.length;
@@ -682,7 +857,7 @@ async function loadFiles(files) {
   const list = [...files].sort((a, b) => (a.name.includes("model") ? -1 : 0) - (b.name.includes("model") ? -1 : 0));
   for (const f of list) {
     try { await loadClipBuffer(await f.arrayBuffer(), f.name); }
-    catch (err) { $("clipSub").textContent = `${f.name}: ${err.message}. Pick a file written by elev_export_viewer.py.`; }
+    catch (err) { $("clipSub").textContent = `${f.name}: ${err.message}. Pick a file written by pipeline/export_viewer.py.`; }
   }
 }
 for (const id of ["openBtn", "openBtn2"]) $(id).addEventListener("click", () => $("file").click());
@@ -748,13 +923,14 @@ addEventListener("keydown", e => {
   if (e.key === "+" || e.key === "=") zoom(1 / 1.5);
   if (e.key === "-" || e.key === "_") zoom(1.5);
   if (e.code === "KeyR") fit();
+  if (e.code === "KeyO" && !$("osimBtn").hidden) setOsim(!osimOn());
 });
 
 function resize() {
   const r = view.getBoundingClientRect();
   renderer.setSize(r.width, r.height, false);
   camera.aspect = r.width / Math.max(1, r.height); camera.updateProjectionMatrix();
-  musMat.resolution.set(r.width, r.height);
+  musMat.resolution.set(r.width, r.height); cmpLineMat.resolution.set(r.width, r.height);
   drawTimeline(); drawChart();
 }
 new ResizeObserver(resize).observe(view);
