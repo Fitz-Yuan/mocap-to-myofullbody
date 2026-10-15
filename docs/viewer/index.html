@@ -171,6 +171,7 @@ input[type=file] { display: none; }
         <label><input type="checkbox" id="lyBones" checked><span class="swatch" style="background:var(--bone)"></span>Bones</label>
         <label><input type="checkbox" id="lyMus" checked><span class="swatch" style="background:var(--muscle)"></span>Muscles</label>
         <label><input type="checkbox" id="lyMk" checked><span class="swatch" style="background:var(--ok)"></span>Markers</label>
+        <label><input type="checkbox" id="lyMkModel"><span class="swatch" style="background:var(--fg)"></span>Model markers</label>
         <label><input type="checkbox" id="lyErr"><span class="swatch" style="background:var(--bad)"></span>Error vectors</label>
         <label><input type="checkbox" id="lyScene" checked><span class="swatch" style="background:var(--accent-2)"></span>Objects & scene</label>
         <label><input type="checkbox" id="lyGhost" checked disabled><span class="swatch" style="background:var(--ghost)"></span><span id="ghostName">Ghost</span></label>
@@ -197,6 +198,7 @@ input[type=file] { display: none; }
     <section class="sec">
       <h2>Legend</h2>
       <div class="legend">
+        <div>Coloured balls: the measured markers. Model markers (dark dots, off by default): where the model puts each marker; the gap between the two is the fit error.</div>
         <div><span class="swatch" style="background:var(--ok)"></span>Marker within 10 mm of the model</div>
         <div><span class="swatch" style="background:var(--warn)"></span>10–25 mm</div>
         <div><span class="swatch" style="background:var(--bad)"></span>Above 25 mm</div>
@@ -644,12 +646,12 @@ function applyLayers() {
   boneGroup.visible = $("lyBones").checked;
   if (musLines) musLines.visible = $("lyMus").checked;
   volGroup.visible = false;
-  if (mkMeas) { mkMeas.visible = mkModel.visible = $("lyMk").checked; errLines.visible = $("lyErr").checked; }
+  if (mkMeas) { mkMeas.visible = $("lyMk").checked; mkModel.visible = $("lyMkModel").checked; errLines.visible = $("lyErr").checked; }
   for (const m of objMeshes) m.visible = $("lyScene").checked;
   ghostRoot.visible = !!clip?.a.ghost_pos && $("lyGhost").checked;
   if (clip) showFrame(frame);
 }
-for (const id of ["lyBones", "lyMus", "lyMk", "lyErr", "lyScene", "lyGhost"]) $(id).addEventListener("change", applyLayers);
+for (const id of ["lyBones", "lyMus", "lyMk", "lyMkModel", "lyErr", "lyScene", "lyGhost"]) $(id).addEventListener("change", applyLayers);
 
 /* ---------- loading ---------- */
 async function loadClipBuffer(buf, name) {
