@@ -58,7 +58,9 @@ def write_trc(path, P, labels, rate):
     f.write("Frame#\tTime\t" + "\t\t\t".join(labels) + "\t\t\n")
     f.write("\t\t" + "\t".join(f"X{k + 1}\tY{k + 1}\tZ{k + 1}" for k in range(len(labels))) + "\n\n")
     for t in range(T):
-      v = ["" if np.isnan(x) else f"{x:.6f}" for x in P[t].ravel()]
+      # NaN, not an empty field: OpenSim drops trailing empty fields and then
+      # rejects the row when the last markers are missing
+      v = ["NaN" if np.isnan(x) else f"{x:.6f}" for x in P[t].ravel()]
       f.write(f"{t + 1}\t{t / rate:.5f}\t" + "\t".join(v) + "\n")
 
 
