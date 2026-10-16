@@ -317,6 +317,12 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
       <li><a href="#next">Open technical issues</a></li>
       <li><a href="#effort">Run time and effort</a></li>
       <li><a href="#run">Command-line usage</a></li>
+      <li><a href="#own-data">Using your own data</a></li>
+      <li><a href="#settings">Settings reference</a></li>
+      <li class="sub"><a href="#stage-io">Stage inputs and outputs</a></li>
+      <li class="sub"><a href="#validation-scripts">Validation scripts</a></li>
+      <li class="sub"><a href="#opensim-setup">OpenSim setup files</a></li>
+      <li class="sub"><a href="#viewer-files">Viewer files</a></li>
       <li><a href="#code">Source layout</a></li>
       <li><a href="#terms">Glossary</a></li>
       <li><a href="#reading">Code reading order</a></li>
@@ -808,7 +814,140 @@ M2M_DATASET=datasets/ramp_vielemeyer2026.toml python pipeline/validate/pig_compa
 
 # a de-identified demo clip for a public page (no trial name, clip position, subject scale or QA grades)
 python pipeline/export_viewer.py clip S01_Solid_NE OUT_DIR --clip 1 --public "Demo 1"</pre>
-  <p class="note">Data layout under <code>$M2M_ROOT</code>: <code>raw_tak/</code> (trial takes), <code>raw_tak/static/</code> (static trials), <code>meta/anthropometrics.csv</code>, and for <code>--opensim</code> <code>opensim_setup/</code> (see the README), or what a dataset profile says (<code>M2M_DATASET</code>, <code>datasets/*.toml</code>); written by the pipeline: <code>tak_cache/</code> (<code>raw_cache/</code> for C3D / TRC), <code>markers/</code>, <code>ik/</code> (with <code>qa.json</code>, <code>report.json</code> and <code>report.md</code>; <code>lomo.json</code> when <code>validate/lomo.py</code> is run), <code>ref/</code>, <code>kin/</code>, and the motion dataset in <code>data/&lt;M2M_DATA&gt;/</code> of the repository; with <code>--opensim</code> also <code>opensim_ik/</code>, <code>opensim_id/</code> and <code>compare_osim/</code>. Every folder, file-naming rule and <code>M2M_*</code> setting is in <code>pipeline/config.py</code>. The only subject data in this repository is one de-identified demo clip that ships with the viewer.</p>
+  <p class="note">Data layout under <code>$M2M_ROOT</code>: <code>raw_tak/</code> (trial takes), <code>raw_tak/static/</code> (static trials), <code>meta/anthropometrics.csv</code>, and for <code>--opensim</code> <code>opensim_setup/</code> (see <a href="#opensim-setup">OpenSim setup files</a>), or what a dataset profile says (<code>M2M_DATASET</code>, <code>datasets/*.toml</code>); written by the pipeline: <code>tak_cache/</code> (<code>raw_cache/</code> for C3D / TRC), <code>markers/</code>, <code>ik/</code> (with <code>qa.json</code>, <code>report.json</code> and <code>report.md</code>; <code>lomo.json</code> when <code>validate/lomo.py</code> is run), <code>ref/</code>, <code>kin/</code>, and the motion dataset in <code>data/&lt;M2M_DATA&gt;/</code> of the repository; with <code>--opensim</code> also <code>opensim_ik/</code>, <code>opensim_id/</code> and <code>compare_osim/</code>. Every folder, file-naming rule and <code>M2M_*</code> setting is in <code>pipeline/config.py</code>. The only subject data in this repository is one de-identified demo clip that ships with the viewer.</p>
+</section>
+
+<section>
+  <h2 id="own-data">Using your own data: requirements, folder layout and dataset profiles</h2>
+  <p class="lede">A dataset needs labelled markers, a known marker set and one static standing trial per subject. Its settings (file kind and naming, units, subjects, marker set, task) go into a small profile, so nothing in the code changes.</p>
+  <ol class="read">
+    <li><b>Labelled marker trajectories</b>: OptiTrack <code>.tak</code> takes, C3D or TRC files. The labels the recording software assigned are enough; unlabelled point clouds are not. Force plates (C3D) and any frame rate are taken as they are.</li>
+    <li><b>A known marker set</b>: Plug-in-Gait and the 52-marker ISB / Dumas set ship with the code; another set is one TOML file in <code>mocap2myo/markersets/</code> (see <a href="#models">models and marker sets</a>).</li>
+    <li><b>Enough markers per segment</b> to fix its orientation (ideally three).</li>
+    <li><b>A static standing trial per subject</b>, to anchor the joint angles (<a href="#static">static-trial calibration</a>).</li>
+    <li><b>Subject height</b> (for scaling) and mass (for the joint loads): a CSV, or the C3D parameters.</li>
+  </ol>
+  <p><b>Folder layout without a profile</b> (the case study's names), under <code>M2M_ROOT</code> (default <code>~/data/mocap2myo</code>):</p>
+<pre>$M2M_ROOT/
+  raw_tak/S&lt;ss&gt;_&lt;Solid|Spring&gt;_NE.tak     trial takes (M2M_RAW_TRIALS, M2M_TRIAL_GLOB)
+  raw_tak/static/S&lt;ss&gt;_Anatomy.tak        static standing trials (M2M_RAW_STATIC, M2M_STATIC_NAME)
+  meta/anthropometrics.csv                Subject, Height (cm), Weight (kg) (M2M_ANTHRO_CSV, M2M_ANTHRO_COLUMNS)
+  opensim_setup/                          only for --opensim: Model.osim, markers.xml, a scale setup
+  raw_daq/                                case study only: force-plate recordings</pre>
+  <p><b>Dataset profiles.</b> A profile is a TOML file in <code>datasets/</code> (settings only, no data), loaded with <code>M2M_DATASET=datasets/&lt;name&gt;.toml</code>; its keys are the settings below without <code>M2M_</code>, and an environment variable still overrides any of them. Three ship with the code: <code>mmh_elevator</code> (the case study; the same as no profile), <code>ramp_vielemeyer2026</code> (level and ramp walking, Vicon C3D, Plug-in-Gait, 200 Hz, three inclined force plates) and <code>moissenet2019</code> (gait at five speeds, Qualisys C3D, the ISB / Dumas set, height and mass in the C3D). Each says at its top where its data can be downloaded. From the ramp profile:</p>
+<pre>[paths]
+root = &quot;~/data/ramp_vielemeyer2026&quot;     # outputs; relative paths below are under it
+raw_dir = &quot;raw&quot;                         # Ref_&lt;n&gt;/&lt;condition&gt;/*.c3d, static_c3d/Ref_&lt;n&gt;/*.c3d
+[input]
+input = &quot;c3d&quot;
+up = &quot;auto&quot;                             # from head vs foot markers (Vicon: z)
+points_exclude = &#x27;(PEL|HED|TRX|[LR](FE|TI|FO|TO|CL|HU|RA|HN))[OALP]&#x27;   # Nexus segment points
+[naming]
+raw_trials = &quot;Ref_*/*/*.c3d&quot;
+trial_regex = &#x27;Ref_\d+/(?P&lt;cond&gt;(level|ramp_\d+)_(up|down))/(?P&lt;subject&gt;Ref\d+)_\w*?shoes(?P&lt;k&gt;\d+)\.c3d&#x27;
+trial_name = &quot;{subject}_{cond}_{k}&quot;     # Ref_1/level_up/Ref01_sss_le_shoes04.c3d -&gt; Ref01_level_up_04
+trial_glob = &quot;Ref*&quot;
+raw_static = &quot;static_c3d/*/*.c3d&quot;
+static_regex = &#x27;static_c3d/Ref_\d+/(?P&lt;subject&gt;Ref\d+)_(sss_)?le_(sss_)?shoes(_static|01)\.c3d&#x27;
+static_name = &quot;{subject}_static&quot;
+[subjects]
+anthro_csv = &quot;anthropometrics.csv&quot;      # Subject, Height (cm), Weight (kg): the article&#x27;s Table 1
+marker_set = &quot;plug_in_gait&quot;
+[task]
+task = &quot;none&quot;</pre>
+  <p><b>Tasks.</b> Everything about the lifting task (box template and pose, shelf, platform and floor, carry cycles, the reference, the dataset, the box's load on the hands and the viewer scene) is in <code>tasks/box_lift/</code>; another task is another package in <code>tasks/</code> with the same hooks (<code>tasks/box_lift/__init__.py</code>), chosen with <code>M2M_TASK</code>. With <code>M2M_TASK=none</code> the pipeline stops at the body motion: IK, QA, report and joint loads with the ground as the only external load; the viewer then reads the IK output (whole trials).</p>
+  <p><b>Limitations to keep in mind.</b></p>
+  <ul class="plain">
+    <li>Models are scaled uniformly by height, not per segment.</li>
+    <li>Skin markers move on the soft tissue by 1–3 cm in large motions; residuals of about 1 cm are close to that floor.</li>
+    <li>MyoFullBody has no knee axial rotation and no neck joint (the IK can add one, <code>M2M_NECK=1</code>, not validated); deep squats reach its 120° joint limits.</li>
+    <li>The lifting task is written for MyoFullBody's bodies; other models run the case study with <code>M2M_TASK=none</code>.</li>
+  </ul>
+</section>
+
+<section>
+  <h2 id="settings">Settings reference: environment variables, profile keys, stage inputs and outputs</h2>
+  <p class="lede">Every <code>M2M_*</code> setting and <code>IK_WORKERS</code> is read in <code>pipeline/config.py</code>; <code>MYOFULLBODY_MODEL</code> and <code>M2M_MODELS_DIR</code> belong to the library, <code>PY</code> / <code>OSIM_PY</code> to <code>run_all.sh</code>. A setting comes from its environment variable, else from the dataset profile (key = the name without <code>M2M_</code>, lower case), else the default. Settings with a fixed set of values, and unknown profile keys, stop the run. <code>run_all.sh</code> turns the static-trial calibration on (<code>M2M_STATIC=1</code>); a stage run on its own does not.</p>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
+      <tbody>
+        <tr><td><code>M2M_DATASET</code></td><td>(none)</td><td>dataset profile (TOML), e.g. <code>datasets/ramp_vielemeyer2026.toml</code></td></tr>
+        <tr><td><code>M2M_ROOT</code></td><td><code>~/data/mocap2myo</code></td><td>data folder (a relative path in a profile is relative to it)</td></tr>
+        <tr><td><code>M2M_INPUT</code>, <code>M2M_RAW_DIR</code>, <code>M2M_CACHE_DIR</code></td><td><code>tak</code>, <code>raw_tak/</code>, <code>tak_cache/</code></td><td>raw file kind (<code>tak</code>, <code>c3d</code>, <code>trc</code>), their folder, <code>read_raw.py</code>'s output (<code>raw_cache/</code> for C3D / TRC)</td></tr>
+        <tr><td><code>M2M_RAW_TRIALS</code>, <code>M2M_TRIAL_REGEX</code>, <code>M2M_TRIAL_NAME</code></td><td><code>S*_NE.tak</code>, (none), <code>{stem}</code></td><td>trial files (glob under <code>M2M_RAW_DIR</code>, <code>**</code> allowed); a regex on the path relative to it whose named groups, with <code>{stem}</code> (the file name), fill the trial name</td></tr>
+        <tr><td><code>M2M_RAW_STATIC</code>, <code>M2M_STATIC_REGEX</code></td><td><code>static/*_Anatomy.tak</code>, <code>static/(?P&lt;subject&gt;.+)_Anatomy\.tak</code></td><td>static trial files, and the regex whose group <code>subject</code> names the subject</td></tr>
+        <tr><td><code>M2M_UP</code>, <code>M2M_UNITS</code>, <code>M2M_RATE</code></td><td><code>y</code> (<code>.tak</code>) / <code>auto</code>, file's, <code>native</code></td><td>the files' up axis (<code>auto</code>: from head vs foot markers; <code>x</code>/<code>y</code>/<code>z</code>, optionally <code>-</code>), length unit, frame rate (a number: keep every k-th frame)</td></tr>
+        <tr><td><code>M2M_POINTS_EXCLUDE</code>, <code>M2M_ANALOG</code></td><td>(none), <code>.*</code></td><td>C3D: point labels that are not markers (besides the POINT type groups), analog channels to keep (EMG)</td></tr>
+        <tr><td><code>M2M_FP_SIGN</code>, <code>M2M_FP_MIN_FZ</code></td><td><code>auto</code>, <code>20</code></td><td>C3D force plates: sign of ezc3d's force (<code>auto</code>: the vertical force on a loaded plate points up), N below which there is no centre of pressure</td></tr>
+        <tr><td><code>M2M_MODEL</code></td><td><code>myofullbody</code></td><td>the model: a profile in <code>mocap2myo/profiles/</code> (see Models and marker sets)</td></tr>
+        <tr><td><code>M2M_MARKER_SET</code>, <code>M2M_MARKER_ALIASES</code></td><td><code>plug_in_gait</code>, <code>auto</code></td><td>the marker set the data uses (<code>mocap2myo/markersets/&lt;name&gt;.toml</code>); which of its alias label sets a recording may use (<code>auto</code>: the best-matching one, if it beats the set's own labels; <code>none</code>; or names)</td></tr>
+        <tr><td><code>M2M_MODELS_DIR</code></td><td><code>~/data/mocap2myo/models</code></td><td>where <code>models/fetch.py</code> puts the models that are not in the repository</td></tr>
+        <tr><td><code>M2M_ANTHRO</code>, <code>M2M_ANTHRO_C3D_HEIGHT</code>, <code>M2M_ANTHRO_C3D_MASS</code></td><td><code>csv</code>, <code>SUBJECT:height</code>, <code>SUBJECT:weight</code></td><td>where heights / masses come from: the CSV, or C3D parameters (<code>GROUP:NAME</code>), collected into <code>&lt;cache&gt;/anthropometrics.csv</code></td></tr>
+        <tr><td><code>M2M_NPZ_DIR</code>, <code>M2M_IK_DIR</code>, <code>M2M_REF_DIR</code></td><td><code>markers/</code>, <code>ik/</code>, <code>ref/</code></td><td>stage folders under <code>M2M_ROOT</code></td></tr>
+        <tr><td><code>M2M_DATA</code>, <code>M2M_DATA_STEM</code></td><td><code>box_lift</code>, <code>box_lift</code></td><td>dataset folder in <code>data/</code>, file stem <code>motion_&lt;stem&gt;[_ok]_100hz.npz</code></td></tr>
+        <tr><td><code>M2M_TASK</code></td><td><code>box_lift</code></td><td>task package in <code>tasks/</code>; <code>none</code> = body motion only</td></tr>
+        <tr><td><code>M2M_TRIAL_GLOB</code>, <code>M2M_SUBJECT_SEP</code>, <code>M2M_STATIC_NAME</code></td><td><code>S*_NE</code>, <code>_</code>, <code>{subject}_Anatomy</code></td><td>trial names (how every stage finds the trials), subject = trial name up to the first separator, static trial name</td></tr>
+        <tr><td><code>M2M_ANTHRO_CSV</code>, <code>M2M_ANTHRO_COLUMNS</code>, <code>M2M_ANTHRO_SUBJECT</code></td><td><code>meta/anthropometrics.csv</code>, <code>Subject,Height,Weight</code>, <code>S{:02d}</code></td><td>subject heights (cm) and masses (kg); how a numeric subject cell maps to the subject in the file names (a cell like <code>S01</code> is used as it is)</td></tr>
+        <tr><td><code>M2M_STATIC</code>, <code>M2M_STATIC_MARKERS</code>, <code>M2M_STATIC_SHARE</code>, <code>M2M_STATIC_W</code></td><td><code>0</code> (<code>run_all.sh</code>: <code>1</code>), <code>legs</code>, <code>0.5</code>, <code>1.0</code></td><td>static-trial calibration: on/off, which markers it places (<code>legs</code>, <code>legs_only</code>, <code>all</code>), its share of the offset update, posture weight</td></tr>
+        <tr><td><code>M2M_OUTLIER</code>, <code>M2M_ROBUST</code>, <code>M2M_LOWPASS_HZ</code>, <code>M2M_MTP_PRIOR</code>, <code>M2M_ROOT_INIT</code>, <code>M2M_PELVIS_GAP</code>, <code>M2M_ANCHOR_CENTROID</code>, <code>M2M_FOOT_CAP</code>, <code>M2M_FLAT_W</code>, <code>M2M_IK_ANKLE_SMOOTH</code></td><td>see <code>config.py</code></td><td>IK settings (<code>M2M_ROOT_INIT</code>: <code>pelvis</code> or <code>prev</code>; <code>M2M_PELVIS_GAP</code>: <code>solve</code> or <code>carry</code>; <code>M2M_LOWPASS_HZ</code> 6, 0 = unfiltered markers)</td></tr>
+        <tr><td><code>M2M_NECK</code></td><td><code>0</code></td><td><code>1</code>: a 3-hinge neck in the IK model so the head follows its markers (MyoFullBody has none); the IK output keeps the model's qpos layout and adds <code>neck_qpos</code>; not validated</td></tr>
+        <tr><td><code>M2M_IK_FRAMES</code></td><td>(all)</td><td><code>a:b</code>: IK on a frame range only</td></tr>
+        <tr><td><code>M2M_IK_DEVICE</code></td><td><code>cpu</code></td><td><code>gpu</code>: the IK on the GPU (<code>mocap2myo/ik_gpu.py</code>, <code>pip install -e &quot;.[gpu]&quot;</code>; MyoFullBody with Plug-in-Gait at 100 Hz)</td></tr>
+        <tr><td><code>M2M_LOMO_EVERY_S</code></td><td><code>1.0</code></td><td><code>validate/lomo.py</code>: one frame per this many seconds</td></tr>
+        <tr><td><code>M2M_KIN_DIR</code>, <code>M2M_KIN_LOWPASS_HZ</code></td><td><code>kin/</code>, <code>6</code></td><td>inverse-dynamics output; low-pass (Hz) before differentiating positions (also the OpenSim ID's)</td></tr>
+        <tr><td><code>M2M_CARRIED_COLUMN</code>, <code>M2M_CARRIED_BODY</code></td><td><code>Wgt+K5</code>, <code>torso</code></td><td>a CSV column with the mass while recorded (equipment worn, here a metabolic system); the extra mass is lumped at that body (a body of the model, else that canonical segment's body); ignored when the CSV has no such column</td></tr>
+        <tr><td><code>M2M_XSENS_TRIAL</code>, <code>M2M_XSENS_C3D</code></td><td><code>S11_Spring_NE</code>, <code>xsens_s11/&lt;trial&gt;.c3d</code></td><td>the Xsens check (<code>validate/xsens.py</code>, <code>opensim_compare.py</code>)</td></tr>
+        <tr><td><code>M2M_OSIM_SETUP_DIR</code>, <code>M2M_OSIM_SCALE_SETUP</code></td><td><code>opensim_setup/</code>, <code>Sub_09__Scalingsetup_09.xml</code></td><td>the OpenSim inputs (below)</td></tr>
+        <tr><td><code>IK_WORKERS</code></td><td>12</td><td>parallel processes of every parallel stage (~1-2 GB each for the IK)</td></tr>
+        <tr><td><code>MYOFULLBODY_MODEL</code></td><td><code>kneefix</code></td><td><code>original</code>: MyoFullBody with the left knee coupling as released (see License and credits)</td></tr>
+        <tr><td><code>PY</code>, <code>OSIM_PY</code></td><td><code>python</code>, <code>$PY</code></td><td><code>run_all.sh</code>: the Python for the stages, and the one with <code>opensim</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3 id="stage-io">Stage inputs and outputs</h3>
+  <p>Run the scripts from the repository root; <code>run_all.sh</code> runs them in order, and each runs on its own (<code>python pipeline/&lt;stage&gt;.py --help</code>). The motion dataset of a task goes to <code>data/&lt;M2M_DATA&gt;/</code> of the repository.</p>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Script</th><th>Input</th><th>Output</th></tr></thead>
+      <tbody>
+        <tr><td><code>pipeline/read_raw.py</code></td><td><code>raw_tak/*.tak</code> (<code>M2M_RAW_DIR</code>; C3D, TRC)</td><td><code>tak_cache/</code> (<code>M2M_CACHE_DIR</code>)</td></tr>
+        <tr><td><code>pipeline/prepare_markers.py</code></td><td><code>tak_cache/</code>, anthropometrics</td><td><code>markers/</code> (<code>M2M_NPZ_DIR</code>; with force plates and analog channels from a C3D)</td></tr>
+        <tr><td><code>pipeline/solve_ik.py</code></td><td><code>markers/</code></td><td><code>ik/</code> (<code>M2M_IK_DIR</code>: offsets, qpos, residuals, unsolved frames)</td></tr>
+        <tr><td><code>tasks/box_lift/build_reference.py</code></td><td>IK, <code>markers/</code></td><td><code>ref/</code> (<code>M2M_REF_DIR</code>)</td></tr>
+        <tr><td><code>pipeline/qa.py</code></td><td>IK, <code>markers/</code></td><td><code>ik/qa.json</code></td></tr>
+        <tr><td><code>tasks/box_lift/build_dataset.py</code></td><td>IK, refs</td><td><code>data/&lt;M2M_DATA&gt;/</code></td></tr>
+        <tr><td><code>pipeline/report.py</code></td><td>all of the above</td><td><code>ik/report.json</code>, <code>report.md</code></td></tr>
+        <tr><td><code>pipeline/kinetics.py</code></td><td>IK, refs (the task's loads), anthropometrics</td><td><code>kin/</code> (<code>M2M_KIN_DIR</code>: joint loads per trial, <code>summary.json</code>)</td></tr>
+        <tr><td><code>pipeline/validate/opensim_ik.py</code>, <code>pipeline/opensim_id.py</code> (<code>--opensim</code>)</td><td><code>markers/</code>, <code>kin/</code>, <code>opensim_setup/</code></td><td><code>opensim_ik/</code>, <code>opensim_id/</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3 id="validation-scripts">Validation scripts</h3>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Script</th><th>What it checks</th></tr></thead>
+      <tbody>
+        <tr><td><code>pipeline/validate/tak_reader.py DIR</code></td><td>the take reader against Motive's TRC exports</td></tr>
+        <tr><td><code>pipeline/validate/lomo.py</code></td><td>leave-one-marker-out: solve without a marker, predict it (writes <code>ik/lomo.json</code>, which <code>report.py</code> then grades)</td></tr>
+        <tr><td><code>pipeline/validate/xsens.py IK_DIR</code></td><td>knee angles against a simultaneous Xsens recording (<code>M2M_XSENS_TRIAL</code>, <code>M2M_XSENS_C3D</code>)</td></tr>
+        <tr><td><code>pipeline/validate/static_pose.py</code></td><td>IK pose of the static trials and bone-length ratios against the model</td></tr>
+        <tr><td><code>pipeline/validate/opensim_ik.py</code></td><td>OpenSim Scale + Marker Placer + IK on the same markers</td></tr>
+        <tr><td><code>pipeline/validate/opensim_compare.py [&quot;LABEL=IK_DIR&quot; ...]</code></td><td>our IK runs and the OpenSim run scored with the same checks (the Xsens row only with <code>ezc3d</code> and the c3d)</td></tr>
+        <tr><td><code>pipeline/validate/kinetics_compare.py</code></td><td>our joint moments against OpenSim Inverse Dynamics with the same loads</td></tr>
+        <tr><td><code>tasks/box_lift/force_plates.py</code></td><td>the ground reaction against the lab's force plates (case study; plate delay, gain, total force, foot split, box mass)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3 id="opensim-setup">OpenSim comparison: the files it needs</h3>
+  <p><code>pipeline/validate/opensim_ik.py</code> needs three files in <code>opensim_setup/</code> (<code>M2M_OSIM_SETUP_DIR</code>), not part of the repository, and <code>opensim</code> from conda (<code>conda install -c opensim-org opensim</code>; <code>OSIM_PY</code> if it is another Python):</p>
+  <ul class="plain">
+    <li><code>Model.osim</code>: the Rajagopal et al. (2016) full-body model (<a href="https://simtk.org/projects/full_body" target="_blank" rel="noopener">SimTK</a>).</li>
+    <li><code>markers.xml</code>: an OpenSim MarkerSet for that model with the labels of the marker set (Plug-in-Gait: <code>LASI</code>, <code>RKNE</code>, <code>C7</code>, ...).</li>
+    <li>A ScaleTool setup (<code>M2M_OSIM_SCALE_SETUP</code>): its measurement set defines the scaling and its Marker Placer task set the marker weights; markers it switches off are switched on at a low weight. The script sets the model and marker files, the subject's mass and height, and the static trial.</li>
+  </ul>
+  <h3 id="viewer-files">Viewer files</h3>
+  <p><code>python pipeline/export_viewer.py model OUT_DIR</code> once per model, then <code>clip TRIAL OUT_DIR</code> per trial (<code>--clip N</code>: one carry cycle of the task; <code>--public NAME</code>: a de-identified clip; <code>--ghost-ref-dir</code>: a second run overlaid; <code>--help</code> lists the rest). Joint loads and the OpenSim overlay are included when <code>kin/</code> and <code>opensim_id/</code> exist. A clip carries body poses per frame, measured and model markers, joint-angle and joint-load curves, force arrows, the QA grades, and two task-neutral lists the viewer draws as given: objects (shape, size, pose) and state tracks (e.g. hand contact). The viewer reads the files in the browser; nothing is uploaded.</p>
 </section>
 
 <section>
