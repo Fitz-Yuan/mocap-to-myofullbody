@@ -12,6 +12,7 @@ dependencies = ["numpy>=1.24", "scipy>=1.10", "mujoco==3.11.0",
 tak = ["olefile>=0.46"]      # reading OptiTrack .tak files
 c3d = ["ezc3d>=1.5"]         # reading C3D files (markers, force plates, analog channels)
 xsens = ["ezc3d>=1.5"]       # Xsens c3d comparison
+gpu = ["torch>=2.1", "warp-lang>=1.0"]   # the GPU IK (M2M_IK_DEVICE=gpu): CUDA torch and NVIDIA Warp
 # The OpenSim baseline (pipeline/validate/opensim_ik.py) needs the opensim package from conda:
 #   conda install -c opensim-org opensim
 

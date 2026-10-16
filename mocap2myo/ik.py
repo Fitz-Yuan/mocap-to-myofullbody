@@ -44,7 +44,7 @@ FREE = [f"{j}_{s}" for s in ("r", "l") for j in
         ("elv_angle", "shoulder_elv", "shoulder_rot", "elbow_flex", "pro_sup",
          "deviation", "flexion")]  # MyoFullBody's IK joints (its profile lists them)
 # temporal regularisation (ik_trial smooth, ankle_smooth, the gated joints) is given for
-# this rate and scaled to the data's (the same penalty on a joint velocity at any rate)
+# this rate and scaled to the data's (the same smoothing time constant at any rate)
 SMOOTH_RATE = 100.0
 
 
@@ -707,8 +707,10 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
   locked where they touched down (no skating), joint speed <= v_joint rad/s.
 
   smooth / ankle_smooth (and the gated joints' 0.05-1.05) are per-frame weights at
-  SMOOTH_RATE (100 Hz), scaled by rate / SMOOTH_RATE: the same penalty on a joint's
-  velocity at any frame rate.
+  SMOOTH_RATE (100 Hz), scaled by sqrt(rate / SMOOTH_RATE): each frame is pulled toward
+  the previous frame's solution, so the smoothing lags by a number of frames that grows
+  with the square of the weight; the square root keeps that lag the same in seconds at
+  any frame rate (scaling the weight with the rate itself doubled the lag at 200 Hz).
   """
   rng = np.random.default_rng(seed)
   m = mm.m
@@ -718,9 +720,9 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
   E = np.full((T, len(LABELS)), np.nan)
   x_prev, q_ref = None, None
   stance = sole_stance(P, rate, ms=mm.ms) if contact else None
-  # smoothing weights are per frame at SMOOTH_RATE: scaled with the rate, they put the same
-  # penalty on a joint velocity at any rate (x 1.0 at 100 Hz)
-  fs = rate / SMOOTH_RATE if rate else 1.0
+  # smoothing weights are per frame at SMOOTH_RATE; the lag of the frame-to-frame pull grows
+  # with the weight squared, so sqrt(rate) keeps it the same in seconds (x 1.0 at 100 Hz)
+  fs = np.sqrt(rate / SMOOTH_RATE) if rate else 1.0
   if not contact:
     smooth = smooth * fs
   if contact:

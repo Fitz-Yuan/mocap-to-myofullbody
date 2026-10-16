@@ -171,7 +171,7 @@ def ik(name):
   Q, E = solver(mm, P, rate=rate, contact=True, outlier=TRACK_OUTLIER or None,
                 mtp_prior=MTP_PRIOR,
                 anchor_centroid=ANCHOR_CENTROID, pelvis_gap=PELVIS_GAP,
-                robust=ROBUST or None, root_init=ROOT_INIT)
+                robust=ROBUST or None, root_init=ROOT_INIT, ankle_smooth=config.IK_ANKLE_SMOOTH)
   tmp = f[:-4] + ".part.npz"
   Q, neck = mm.split_qpos(Q)  # the plain model's layout; the neck angles apart
   extra = dict(neck_qpos=neck.astype(np.float32), neck_joints=np.array(mk.NECK)) if mm.neck else {}

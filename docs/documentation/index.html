@@ -299,6 +299,7 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
       <li class="sub"><a href="#stage-ik">3 · Calibration and IK</a></li>
       <li class="sub"><a href="#stage-ref">4 · Reference construction</a></li>
       <li class="sub"><a href="#stage-qa">5 · QA and segmentation</a></li>
+      <li><a href="#models">Models and marker sets</a></li>
       <li><a href="#routes">Input sensitivity of the IK</a></li>
       <li><a href="#validation">Joint-angle validation</a></li>
       <li class="sub"><a href="#lomo">Leave-one-marker-out error</a></li>
@@ -308,6 +309,9 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
       <li><a href="#opensim">IK vs OpenSim</a></li>
       <li><a href="#kinetics">Inverse dynamics method</a></li>
       <li class="sub"><a href="#kin-validation">ID vs OpenSim and plates</a></li>
+      <li><a href="#public">Public-data validation</a></li>
+      <li class="sub"><a href="#pig">Vs Vicon Plug-in-Gait</a></li>
+      <li class="sub"><a href="#allmodels">Every model, same trials</a></li>
       <li><a href="#report">Per-trial QA grades</a></li>
       <li><a href="#problems">Raw-take defects</a></li>
       <li><a href="#next">Open technical issues</a></li>
@@ -324,7 +328,7 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
   <div class="eyebrow">Mocap to MSK · MMH Elevator case study · updated 15 Oct 2026</div>
   <h1>Mocap to MSK Documentation</h1>
   <p class="lede"><a href="../">Website home</a> · <a href="../viewer/">Motion viewer</a> · <a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody">Source on GitHub</a></p>
-  <p class="lede">How the motion-capture marker trajectories of the elevator lifting study become reference motions the MyoFullBody musculoskeletal model can track: joint angles plus the box and the scene. This page covers each step, the scripts, how every step was checked, what the checks found, and what is still open. Muscle activations and forces are not produced here: they need a muscle-level method on top of these motions, such as static optimisation or a controller trained to track them.</p>
+  <p class="lede">How motion-capture marker trajectories become motions and joint loads of a MuJoCo musculoskeletal model (MyoFullBody by default, or one of seven others), worked through on the elevator lifting study and checked on two public datasets: joint angles, joint loads, and for the case study the box and the scene. This page covers each step, the scripts, how every step was checked, what the checks found, and what is still open. Muscle activations and forces are not produced here: they need a muscle-level method on top of these motions, such as static optimisation or a controller trained to track them.</p>
 </header>
 
 <div class="bottom">
@@ -334,6 +338,7 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
     <li>Before the calibration fix, against an earlier version built from a collaborator's export of the same takes, it fitted the markers equally well (median residual 9.2 vs 9.5 mm) and kept 73 vs 76 carry cycles. The final run (static-trial calibration) keeps 63 of 110 carry cycles (25.9 min) after the per-cycle checks and a manual review.</li>
     <li><b>Main accuracy problem found and traced:</b> joint angles carried per-subject offsets (quiet-standing knee flexion 10–24° in 16 of 22 trials) that the marker residual cannot show. The cause is the subject calibration: a marker's position on its bone and the joint angle are not separable from the motion trials alone. Calibrating on each subject's static standing trial removes it: quiet-standing knee flexion median 18° → 0.1°, knee offset against Xsens from −8 / −10° to +1.3 / −2.4°. It is the default of <code>run_all.sh</code> (<code>M2M_STATIC=1</code>).</li>
     <li><b>Against OpenSim</b> (Scale + Marker Placer + IK, Rajagopal 2016, same markers): marker residual median 9.2 vs 19.8 mm, quiet-standing knee 0.1° vs 10.6°.</li>
+    <li><b>Any model, any marker set:</b> eight musculoskeletal models (MyoFullBody, MS-Human-700 and its legs, MASS, Rajagopal 2016, Lai–Uhlrich 2022, Gait2354, MyoLeg), Plug-in-Gait or the ISB set, C3D and TRC input with force plates. On public Vicon data the knee flexion follows Vicon's own Plug-in-Gait output with r = 0.996 (36 walking trials).</li>
     <li><b>Inverse dynamics</b> (joint loads): low-back L5/S1 extension moment agrees with OpenSim Inverse Dynamics given the same loads (r = 0.984, RMS 13 N m); the predicted total ground force matches the lab's force plates to 1.8 % of body weight, and the plates give back the box mass (13.2 vs 13.6 kg).</li>
   </ul>
 </div>
@@ -355,7 +360,13 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
         <tr><td>OpenSim head-to-head</td><td><span class="pill ok">Done</span></td><td>IK and inverse dynamics on the same data; optional in the pipeline (<code>run_all.sh --opensim</code>)</td></tr>
         <tr><td>Inverse dynamics</td><td><span class="pill ok">Done</span></td><td>L5/S1, shoulders and elbows top-down; ground reaction; legs with an estimated foot split</td></tr>
         <tr><td>Force-plate check</td><td><span class="pill ok">Done</span></td><td>AMTI plates in front of the shelf, 22 trials</td></tr>
-        <tr><td>Browser viewer</td><td><span class="pill ok">Done</span></td><td>Joint angles, joint loads, force arrows, OpenSim overlay; one public demo clip</td></tr>
+        <tr><td>C3D and TRC input, force plates</td><td><span class="pill ok">Done</span></td><td>Vicon and Qualisys C3D (ezc3d), TRC; plates as ground reaction per marker frame</td></tr>
+        <tr><td>Marker sets as data</td><td><span class="pill ok">Done</span></td><td>Plug-in-Gait and the 52-marker ISB / Dumas set (<a href="#models">models and marker sets</a>)</td></tr>
+        <tr><td>Eight musculoskeletal models</td><td><span class="pill ok">Done</span></td><td>MyoFullBody, MS-Human-700 (and its legs), MASS, Rajagopal 2016, Lai–Uhlrich 2022, Gait2354, MyoLeg</td></tr>
+        <tr><td>Force plates in the inverse dynamics</td><td><span class="pill ok">Done</span></td><td>Measured foot loads where a foot is on a plate; floor height from the standing foot</td></tr>
+        <tr><td>Validation on public data</td><td><span class="pill ok">Done</span></td><td>Against Vicon Plug-in-Gait outputs (36 trials); every model on one trial of each dataset (<a href="#public">public-data validation</a>)</td></tr>
+        <tr><td>IK on the GPU</td><td><span class="pill ok">Done (opt-in)</span></td><td><code>M2M_IK_DEVICE=gpu</code>: 37–108 s per case-study trial instead of 20–30 min on one core, same result; MyoFullBody + Plug-in-Gait at 100 Hz</td></tr>
+        <tr><td>Browser viewer</td><td><span class="pill ok">Done</span></td><td>Joint angles, joint loads, force arrows, OpenSim overlay, model menu; one de-identified lab clip and one public walking trial on eight models</td></tr>
         <tr><td>Muscle level: static optimisation vs EMG</td><td><span class="pill todo">Next</span></td><td>16 EMG channels (trunk and arm), MVC trials for 7 of 8 muscles</td></tr>
         <tr><td>Code</td><td><span class="pill ok">Public</span></td><td>This repository</td></tr>
       </tbody>
@@ -453,6 +464,7 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
         <div class="io"><span><b>In</b> stage 2 markers</span><span><b>Out</b> <code>ik/</code>: joint angles (qpos) per frame, each marker's residual, and the frames the IK could not solve</span></div>
         <div class="callout check"><b>Fit (final run).</b> Body-marker residual per trial: median 7.7–14.3 mm, 95th percentile 25–48 mm (the IK's own measure, on the height-scaled, filtered markers). Against the raw markers in the subject's own size, as used for the OpenSim comparison: median 7.9–14.3 mm per trial (9.2 mm, median over trials); OpenSim IK on the same markers 14.6–27.5 mm (19.8 mm; S09: 16.0 and 14.9 mm).</div>
         <div class="callout bad"><b>Why the static trial.</b> From the motion trials alone, the calibration can trade where markers sit on a segment against the pose itself: a knee marker a few centimetres further back fits as well as a knee bent 20°, which shifts the joint angles of every frame of that subject. The static trial removes that freedom; see <a href="#validation">joint-angle validation</a> and <a href="#static">static-trial calibration</a>.</div>
+        <div class="callout check"><b>On the GPU</b> (<code>M2M_IK_DEVICE=gpu</code>, <code>pip install -e ".[gpu]"</code>; <code>mocap2myo/ik_gpu.py</code>). The same per-frame problem (markers, robust loss, toe prior, floor, stance anchors, smoothing, speed and joint limits), with the kinematics and marker Jacobians in Warp kernels (float64) and a projected Levenberg–Marquardt step per frame. The frame-to-frame recursion runs in parallel over time: the trial is cut into 64-frame chunks that each step through their own frames, and chunks whose start differs from where the previous chunk ended are run again until every chunk starts where the one before it ended (two passes on every trial tried). Subject calibration stays on the CPU. On S03, S08 and S10 (11,124–13,049 frames): 37–108 s per trial on a shared GPU against 20–30 min per trial on one CPU core; residual median and 95th percentile equal to the CPU's to 0.01 mm; joint angles within 0.003–0.14° RMS (a few frames of S10, where the CPU's own arm fit is poor, differ by up to 7.8°). For a whole dataset the trials still run one after another (about 20–25 min for the 22 trials, against about 45 min on 22 cores); batching all trials into one call is the next step. Only MyoFullBody with Plug-in-Gait at 100 Hz for now; other profiles, marker sets and rates stop with a message.</div>
         <div class="callout pit"><b>Model limits.</b> The knee has no axial rotation, so all twisting during turns goes to the hip. Deep squats go past the model's 120° joint limits. There is no neck joint, so head markers carry a low weight (an optional neck for the IK, <code>M2M_NECK=1</code>, lets the head follow its markers; it is not validated).</div>
       </div>
     </article>
@@ -488,6 +500,37 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
       </div>
     </article>
   </div>
+</section>
+
+<section>
+  <h2 id="models">Models and marker sets: model profiles, anatomical landmarks, marker placement</h2>
+  <p class="lede">The model and the marker set are both data, so the stages run with any pair of them. A <b>model profile</b> (<code>mocap2myo/profiles/&lt;name&gt;.toml</code>, chosen with <code>M2M_MODEL</code>) names the model file and how to fetch it, its root and neutral pose, the joints the IK solves, which bodies are the canonical segments (pelvis, torso, head, femur, tibia, foot, humerus, ...), the inverse-dynamics joints with the axes their moments are reported about, and the feet and hands. <code>mocap2myo/landmarks.py</code> computes some 70 anatomical landmarks from the model's own bones: joint centres and bony points such as the ASIS, the femoral epicondyles, C7 and the styloids.</p>
+  <div class="tbl">
+    <table class="tabnum">
+      <thead><tr><th>Profile</th><th>Model</th><th>IK joints</th><th>Muscles</th><th>Markers used, Plug-in-Gait / ISB</th></tr></thead>
+      <tbody>
+        <tr><td><code>myofullbody</code></td><td>MyoFullBody (MuscleMimic 1.0.5), in this repository; the default</td><td>31 + root</td><td>416</td><td>39 / 52</td></tr>
+        <tr><td><code>ms_human_700</code></td><td>MS-Human-700, whole body</td><td>37 + root</td><td>700</td><td>39 / 52</td></tr>
+        <tr><td><code>ms_human_700_locomotion</code></td><td>MS-Human-700 legs on a rigid upper body</td><td>14 + root</td><td>100</td><td>16 / 26</td></tr>
+        <tr><td><code>mass</code></td><td>MASS (Lee et al. 2019), converted from its DART files (<code>models/mass_to_mjcf.py</code>)</td><td>46 + root</td><td>284</td><td>39 / 52</td></tr>
+        <tr><td><code>rajagopal2016</code></td><td>Rajagopal et al. 2016 full body, converted with MyoConverter</td><td>23 + root</td><td>80</td><td>39 / 52</td></tr>
+        <tr><td><code>lai_uhlrich2022</code></td><td>Lai–Uhlrich 2022 (OpenCap), converted with MyoConverter</td><td>27 + root</td><td>80</td><td>39 / 52</td></tr>
+        <tr><td><code>gait2354</code></td><td>OpenSim Gait2354 (no arms), converted with MyoConverter</td><td>17 + root</td><td>54</td><td>27 / 38</td></tr>
+        <tr><td><code>myoleg</code></td><td>MyoLeg (MyoSim 0.2.3): legs on a passive torso</td><td>14 + root</td><td>80</td><td>16 / 26</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>A <b>marker set</b> (<code>mocap2myo/markersets/&lt;name&gt;.toml</code>, chosen with <code>M2M_MARKER_SET</code> or the dataset profile's <code>marker_set</code>) describes each marker against the anatomy, not a model, so one file serves every model: the segment it moves with, the landmark under it, its offset from that landmark in the segment's anatomical axes (anterior, superior, lateral, mm), its weight and its calibration group (<code>loose</code>: may move up to 15 cm, <code>foot</code>, or the default 6 cm). Roles name the head, pelvis, heel, toe and ankle markers; alias sets map other labellings onto it and belong to their set.</p>
+  <ul class="plain">
+    <li>A marker on a segment or landmark the model lacks, or on a body no IK joint moves relative to the pelvis (MyoLeg's trunk, the arms of MS-Human-700 legs), is left out.</li>
+    <li>A joint with no active marker beyond it (the neck of MASS and MS-Human-700 with the ISB set, which has no head markers) is held at the neutral pose instead of solved; the toes keep their prior.</li>
+    <li>On MyoFullBody, Plug-in-Gait keeps the hand-tuned starting placements the case study was calibrated with (the set's <code>[override]</code>), so the case-study results are unchanged; on any other model, and for any other set, the placements come from the landmarks.</li>
+    <li>The frame-to-frame smoothing of the IK is scaled with the square root of the frame rate (its lag in frames grows with the weight squared), so a 200 Hz recording is smoothed over the same time as a 100 Hz one.</li>
+  </ul>
+  <div class="callout check"><b>Checked.</b> MyoFullBody with Plug-in-Gait is bit-identical to the version before marker sets became data: conditioned markers of S01, IK on a slice of S01 with and without the static trial, the inverse dynamics, and the full trials S08 Solid (11,738 frames) and S11 Spring (9,771 frames), largest joint-angle difference 0.0. All profiles run end to end on one ramp trial (200 Hz) and one Moissenet trial (100 Hz); see <a href="#public">public-data validation</a>.</div>
+  <div class="callout pit"><b>Knee joint frame.</b> MyoFullBody's and MyoLeg's knee rotates about the tibia's origin, 8.9 mm from the joint frame of the OpenSim knee it was converted from (up to 15 mm at the ankle in deep flexion). The opt-in profiles <code>myofullbody_kneeframe</code> and <code>myoleg_kneeframe</code> move it there. Against Xsens (S11 Spring) the knee offset moves by about 1° (right +1.3 → +0.4°, left −2.4 → −3.2°) and the RMS after the offset is unchanged (3.8 → 3.9°, 3.0 → 3.0°), so the default stays.</div>
+  <p><b>Adding a model.</b> Write a profile (the comments in <code>mocap2myo/profile.py</code> list every table), give <code>models/fetch.py</code> a source in <code>mocap2myo/profiles/sources.toml</code> or point the profile at a file, then run <code>python models/check.py &lt;name&gt;</code>: it compiles the model, renders its landmarks, and checks the kinetics axes and the left / right symmetry. A trunk frame that is not y-up, x-anterior needs the L5/S1 <code>superior</code> / <code>anterior</code> keys. <b>Adding a marker set:</b> one TOML file as above; a landmark that is missing goes into <code>LANDMARKS_EXTRA</code> in <code>mocap2myo/landmarks.py</code>; check the static trial's per-marker residual.</p>
+  <p class="note">The lifting task (<code>tasks/box_lift/</code>: box loads, hand contact, the reference) is written for MyoFullBody's bodies; other models run with <code>M2M_TASK=none</code>. Model files other than MyoFullBody are fetched at pinned commits into <code>M2M_MODELS_DIR</code> and keep their own licences (<code>mocap2myo/profiles/sources.toml</code>).</p>
 </section>
 
 <section>
@@ -581,14 +624,14 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
 </section>
 <section>
   <h2 id="kinetics">Inverse dynamics: subtree Newton–Euler joint moments, ground reaction and L5/S1 compression</h2>
-  <p class="lede">Net joint forces and moments come from Newton–Euler sums over subtrees of MyoFullBody, scaled to the subject's size and body mass (plus the 1–3 kg COSMED K5 system the subjects wore in these trials, lumped at the torso). For a joint, the parent segment's force and moment on everything distal to it equal the rate of change of that subtree's momentum minus gravity and the external loads on it (<code>mocap2myo/kinetics.py</code>, <code>pipeline/kinetics.py</code>). Body positions are low-passed at 6 Hz before the double differentiation (<code>M2M_KIN_LOWPASS_HZ</code>), as the markers are for the IK. Frames the IK did not solve (listed in its output) are interpolated and shaded like the undetermined ones.</p>
+  <p class="lede">Net joint forces and moments come from Newton–Euler sums over subtrees of MyoFullBody, scaled to the subject's size and body mass (plus the 1–3 kg COSMED K5 system the subjects wore in these trials, lumped at the torso). For a joint, the parent segment's force and moment on everything distal to it equal the rate of change of that subtree's momentum minus gravity and the external loads on it (<code>mocap2myo/kinetics.py</code>, <code>pipeline/kinetics.py</code>). Body positions are low-passed at 6 Hz before the double differentiation (<code>M2M_KIN_LOWPASS_HZ</code>), as the markers are for the IK. The floor height comes from the standing foot (a running low percentile of the sole points that are still), so a foot flat on the ground counts as in contact. Body mass comes from the static trial's force plates when they weigh within 80–125 % of the listed mass. Frames the IK did not solve (listed in its output) are interpolated and shaded like the undetermined ones.</p>
   <div class="tbl">
     <table>
       <thead><tr><th>Output</th><th>How it is determined</th><th>Reliability</th></tr></thead>
       <tbody>
         <tr><td>L5/S1 moment and force; shoulder and elbow moments</td><td>Top-down: the motion of the trunk, head and arms and the box's load on the hands. No ground reaction needed.</td><td><span class="pill ok">Determined</span> except while the box is half on a surface (shaded in the viewer)</td></tr>
         <tr><td>Total ground reaction and its centre of pressure</td><td>The same sum over the whole body</td><td><span class="pill ok">Determined</span> (checked against the force plates below)</td></tr>
-        <tr><td>Hip, knee and ankle moments</td><td>Bottom-up from the ground reaction under each foot. In single support the foot carrying it is known; in double support it is shared by the lever rule along the line between the two feet's contact centres</td><td><span class="pill run">Estimated</span> in double support (shaded in the viewer)</td></tr>
+        <tr><td>Hip, knee and ankle moments</td><td>Bottom-up from the ground reaction under each foot. In single support the foot carrying it is known; in double support it is shared by the lever rule along the line between the two feet's contact centres. Where the recording has force plates (C3D), a foot on a plate gets the plate's force and centre of pressure, and the other foot the rest of the total</td><td><span class="pill run">Estimated</span> in double support off the plates (shaded in the viewer); <span class="pill ok">Measured</span> on a plate</td></tr>
         <tr><td>L5/S1 compression</td><td>Axial force plus the extension moment over a 5 cm erector-spinae moment arm (8 cm abdominals for flexion), the classic single-equivalent-muscle estimate</td><td><span class="pill run">Approximation</span>; a muscle-level estimate needs static optimisation</td></tr>
       </tbody>
     </table>
@@ -607,6 +650,51 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
   <div class="tbl"><table><thead><tr><th>Check (22 trials)</th><th>Result</th></tr></thead><tbody><tr><td>Plate delay behind the motion capture</td><td>100 ms (median; 60–130 ms by trial)</td></tr><tr><td>Vertical gain from quiet standing (body + K5 weight)</td><td>292.6 N/V (median; mean 292.9), standard deviation 0.4 % across 22 trials of 11 subjects</td></tr><tr><td>Total vertical force, ours vs plates (both feet on the AMTI plates)</td><td>RMS 15.2 N = 1.8 % of body weight (median; worst trial 5.8 %)</td></tr><tr><td>Dynamic part (force minus static weight), correlation</td><td>r = 0.88 (median)</td></tr><tr><td>Box mass from the plates (with box minus without, quiet standing)</td><td>13.2 kg (median; 11.3–14.3 kg by trial) vs 13.6 kg nominal</td></tr><tr><td>Right-foot share of the vertical force, ours vs plates</td><td>RMS error 0.08, r = 0.88 (median)</td></tr></tbody></table></div>
   <div class="callout check"><b>What the plates confirm.</b> The same gain for every subject (calibration consistent), the box mass recovered from standing with and without it, and the predicted total force within a few percent of body weight including its dynamic part: the whole-body accelerations from the IK are right. The left / right split in double support is the weak point (an estimate, see above); there are no plates under the elevator platform, where the box is lifted from the floor.</div>
   <div class="callout pit"><b>Clock offset.</b> The plate channels run about 100 ms behind the motion capture (60–130 ms by trial), seen both in the force traces and as plate onsets after the foot lands in the marker data. Any analog channel recorded through the same path (EMG) needs the same check before it is compared with the motion.</div>
+</section>
+
+<section>
+  <h2 id="public">Validation on public data: Vicon Plug-in-Gait outputs, and eight models on the same trials</h2>
+  <p class="lede">Two public gait datasets (both CC BY 4.0) go through the same stages as the case study, read from their C3D files with their force plates. <b>Vielemeyer et al. 2026</b>: level and ramp walking, Vicon, Plug-in-Gait markers, 200 Hz, three inclined AMTI plates; its C3D files also carry Vicon's own Plug-in-Gait joint angles and moments, an independent reference. <b>Moissenet and Schreiber 2019</b>: gait at five speeds, Qualisys, the 52-marker ISB / Dumas set, 100 Hz, plates and EMG.</p>
+  <div class="sub">
+    <h3 id="pig">Joint angles and moments against Vicon Plug-in-Gait (36 level-walking trials, 3 subjects)</h3>
+    <p>MyoFullBody, static-trial calibration, per-trial comparison with the Plug-in-Gait outputs in each C3D (<code>pipeline/validate/pig_compare.py</code>): correlation, mean difference (offset) and RMS difference after removing it, median over trials. Moments are compared only while that side's foot is on a plate, where Vicon includes the ground reaction.</p>
+    <div class="tbl">
+      <table class="tabnum tight">
+        <thead><tr><th>Quantity (left / right)</th><th>r</th><th>Offset, ours − Vicon</th><th>RMS after the offset</th></tr></thead>
+        <tbody>
+          <tr><td>Knee flexion</td><td>0.994 / 0.996</td><td>+1.3 / +0.7 deg</td><td>2.3 / 2.0 deg</td></tr>
+          <tr><td>Hip flexion</td><td>0.991 / 0.993</td><td>-9.2 / -10.8 deg</td><td>2.7 / 2.7 deg</td></tr>
+          <tr><td>Hip adduction</td><td>0.726 / 0.731</td><td>+1.7 / +2.6 deg</td><td>3.9 / 3.5 deg</td></tr>
+          <tr><td>Ankle dorsiflexion</td><td>0.513 / 0.375</td><td>+4.4 / +4.5 deg</td><td>7.3 / 9.2 deg</td></tr>
+          <tr><td>Elbow flexion</td><td>0.956 / 0.974</td><td>-6.2 / -11.6 deg</td><td>9.7 / 7.4 deg</td></tr>
+          <tr><td>Hip extension moment</td><td>0.942 / 0.966</td><td>+11.9 / +13.5 N m</td><td>11.5 / 9.2 N m</td></tr>
+          <tr><td>Knee extension moment</td><td>0.809 / 0.928</td><td>+14.2 / +8.3 N m</td><td>16.0 / 11.3 N m</td></tr>
+          <tr><td>Ankle plantarflexion moment</td><td>0.970 / 0.976</td><td>-16.5 / -17.5 N m</td><td>9.2 / 8.6 N m</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">Knee and hip flexion follow Plug-in-Gait closely in shape. The hip flexion offset of about −10° is a difference of definition: Plug-in-Gait measures the thigh against its own pelvis frame from the ASIS and PSIS markers, the model against its pelvis bone. The ankle agrees least (r 0.38–0.51): the two define the foot differently (Plug-in-Gait from the heel and toe markers), and the ankle's frame-to-frame smoothing (<code>M2M_IK_ANKLE_SMOOTH</code>, 0.3), set to steady the ankle in the case study's deep squats, lags the faster ankle of walking; half the smoothing time gave r 0.59–0.70. Moments agree in shape (hip and ankle r 0.94–0.98, knee 0.81–0.93) with offsets of 8–18 N m, which come from where each model puts the joint centres relative to the plates' centre of pressure.</p>
+  </div>
+  <div class="sub">
+    <h3 id="allmodels">Every model on one trial of each dataset</h3>
+    <p>Ramp: trial Ref01 level up 04 (200 Hz). Moissenet: trial 2014001 C3 03 (100 Hz). Static-trial calibration (pelvis and legs) for every model. Residual: median / 95th percentile distance between measured and model markers. Plates: RMS of the predicted total vertical force against the plates, in % of body weight. No unsolved frames and no joint flips on either trial.</p>
+    <div class="tbl">
+      <table class="tabnum tight">
+        <thead><tr><th>Model</th><th>Ramp: markers used</th><th>Ramp: residual (mm)</th><th>Ramp: plates (% BW)</th><th>Moissenet: markers used</th><th>Moissenet: residual (mm)</th><th>Moissenet: plates (% BW)</th></tr></thead>
+        <tbody>
+        <tr><td>MyoFullBody</td><td>35/39</td><td>7.3 / 25.2</td><td>7.9</td><td>52/52</td><td>6.5 / 22.3</td><td>3.6</td></tr>
+        <tr><td>MS-Human-700</td><td>35/39</td><td>7.6 / 30.3</td><td>8.2</td><td>52/52</td><td>8.0 / 23.8</td><td>3.0</td></tr>
+        <tr><td>MASS</td><td>35/39</td><td>3.8 / 12.7</td><td>8.5</td><td>52/52</td><td>4.0 / 13.0</td><td>4.7</td></tr>
+        <tr><td>Rajagopal 2016</td><td>35/39</td><td>5.2 / 13.4</td><td>8.0</td><td>52/52</td><td>5.4 / 15.5</td><td>6.7</td></tr>
+        <tr><td>Lai–Uhlrich 2022</td><td>35/39</td><td>5.3 / 12.5</td><td>6.9</td><td>52/52</td><td>5.4 / 13.7</td><td>3.7</td></tr>
+        <tr><td>Gait2354</td><td>20/39</td><td>5.1 / 13.3</td><td>7.7</td><td>30/52</td><td>4.9 / 13.2</td><td>4.1</td></tr>
+        <tr><td>MyoLeg</td><td>16/39</td><td>5.7 / 15.0</td><td>7.8</td><td>26/52</td><td>5.8 / 14.6</td><td>4.2</td></tr>
+        <tr><td>MS-Human-700 legs</td><td>16/39</td><td>7.4 / 18.5</td><td>9.0</td><td>26/52</td><td>7.9 / 19.1</td><td>4.6</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">The quiet-standing knee is 0° for every model on both datasets (Gait2354 −2° on one side): the static trial pins it. Models with fewer markers (legs only) fit the markers they have more tightly, which is not higher accuracy. The plate RMS is the same for all models on each dataset (7–9 % on the ramp data, 3–5 % on Moissenet), so the ramp figure comes from the data side, not from a model. IK takes 8–74 s per trial on one core, depending on the model.</p>
+  </div>
 </section>
 
 <section>
@@ -667,8 +755,9 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
         <tr><td>Leg loads in double support</td><td>The left / right split of the ground reaction is estimated; the elevator platform has no plates</td><td>Calibration matrices for the AMTI and Bertec plates would add measured centres of pressure where the feet are on them; elsewhere only a better split model helps.</td></tr>
         <tr><td>Xsens exports for all trials</td><td>Independent joint-angle check for every subject, not one trial</td><td>Export the other NE trials from MVN Analyze as c3d, as for S11 Spring; the comparison script then runs on all of them.</td></tr>
         <tr><td>Per-subject segment scaling</td><td>Pelvis depth and hand length differ from the model by 10–40 %</td><td>Optional: scale factors per segment from the static trial, where the upper-body residual matters.</td></tr>
-        <tr><td>Make it general</td><td>Reuse on other datasets</td><td>Done in part: settings and file naming in <code>pipeline/config.py</code> and a profile per dataset (<code>datasets/*.toml</code>), trial input from C3D and TRC with force plates and analog channels (<code>mocap2myo/readers.py</code>), the marker set in <code>mocap2myo/markerset.py</code>, the task in <code>tasks/</code>. Still to do: marker sets other than Plug-in-Gait (e.g. the 52 ISB markers of the Moissenet 2019 data), and the Plug-in-Gait label endings left in the calibration caps (<code>pipeline/solve_ik.py</code>).</td></tr>
-        <tr><td>IK on the GPU</td><td>The IK is ~95 % of the run time (about an hour on 22 cores)</td><td>All frames of a trial solved together with MuJoCo Warp; needs a whole-trial initialisation instead of frame-to-frame warm starts, and the same validation rerun.</td></tr>
+        <tr><td>The lifting task on other models</td><td>Box loads, hand contact and the reference use MyoFullBody's bodies</td><td>Map the task's bodies through the profile's canonical segments (hands, palms); until then other models run the case study with <code>M2M_TASK=none</code>.</td></tr>
+        <tr><td>GPU IK for every model and the whole dataset</td><td>The GPU path covers MyoFullBody + Plug-in-Gait at 100 Hz, one trial at a time</td><td>Port the per-profile parts (reference pose, marker masks, smoothing groups, other rates) and run all trials in one batch from <code>solve_ik.py</code>, shrinking the batch as trials finish.</td></tr>
+        <tr><td>Plate agreement on the ramp data</td><td>Vertical force against the plates: 7–9 % of body weight on the ramp data for every model, 3–5 % on the Moissenet data</td><td>The same for all models, so on the data side: check the plates' calibration, synchronisation and assignment in that dataset.</td></tr>
       </tbody>
     </table>
   </div>
@@ -687,6 +776,7 @@ pip install -e ".[tak,xsens]"
 
 # whole pipeline from the raw takes (CPU, ~1 h for 22 trials on 22 cores)
 M2M_ROOT=~/data/mocap2myo IK_WORKERS=22 bash pipeline/run_all.sh
+M2M_IK_DEVICE=gpu bash pipeline/run_all.sh        # the IK on the GPU (MyoFullBody + Plug-in-Gait, 100 Hz)
 
 # check the take reader against Motive's TRC exports (folder of .tak / .trc pairs)
 python pipeline/validate/tak_reader.py DIR
@@ -707,6 +797,14 @@ M2M_ROOT=~/data/mocap2myo bash pipeline/run_all.sh --opensim    # opensim from c
 python pipeline/kinetics.py
 python tasks/box_lift/force_plates.py           # case study: the lab's force plates
 python pipeline/validate/kinetics_compare.py    # vs OpenSim ID (after --opensim)
+
+# another model, another dataset: fetch the models once, then any stage with M2M_MODEL
+M2M_MODELS_DIR=~/data/mocap2myo/models python models/fetch.py
+python models/check.py mass                      # landmarks, kinetics axes, symmetry
+M2M_DATASET=datasets/moissenet2019.toml M2M_MODEL=ms_human_700 bash pipeline/run_all.sh
+
+# public C3D with the lab software's model outputs: compare with Vicon Plug-in-Gait
+M2M_DATASET=datasets/ramp_vielemeyer2026.toml python pipeline/validate/pig_compare.py
 
 # a de-identified demo clip for a public page (no trial name, clip position, subject scale or QA grades)
 python pipeline/export_viewer.py clip S01_Solid_NE OUT_DIR --clip 1 --public "Demo 1"</pre>
@@ -753,6 +851,8 @@ python pipeline/export_viewer.py clip S01_Solid_NE OUT_DIR --clip 1 --public "De
     <div><dt>Least-squares IK</dt><dd>The reverse: the joint angles that minimise the weighted sum of squared distances between virtual and measured markers.</dd></div>
     <div><dt>Calibration</dt><dd>Finding where each marker sits on its segment, since placement differs from person to person.</dd></div>
     <div><dt>Residual</dt><dd>How far a virtual marker still is from the measured one after the fit: a measure of how tight the fit is, not of whether the joint angles are right.</dd></div>
+    <div><dt>Model profile</dt><dd>A small TOML file that tells the pipeline how a model is built: its file, root, neutral pose, IK joints, canonical segments, kinetics joints, feet and hands.</dd></div>
+    <div><dt>Marker set</dt><dd>A TOML file that places each marker on the anatomy: segment, landmark, offset in the segment's anatomical axes, weight. The same file works on every model.</dd></div>
     <div><dt>Leave one marker out</dt><dd>Solve without one marker and predict where it should be. Tests whether the other markers pin that segment down.</dd></div>
   </dl>
 </section>
