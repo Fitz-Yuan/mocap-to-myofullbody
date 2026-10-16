@@ -119,6 +119,21 @@ def q16(x, scale):
   return out
 
 
+def rest_frame(profile, m, d):
+  """Rotation (rows: the model's left, back, up) taking the rest pose to the canonical frame
+  (z up, facing -y, left +x), from the bones: the hips give left, the feet to the pelvis up,
+  each snapped to the nearest axis."""
+  at = lambda seg: d.xpos[m.body(profile.segment_body(seg)).id]
+  up = at("pelvis") - (at("foot_l") + at("foot_r")) / 2
+  up /= np.linalg.norm(up)
+  left = at("femur_l") - at("femur_r")
+  left -= (left @ up) * up
+  left /= np.linalg.norm(left)
+  R = np.stack([left, -np.cross(left, up), up])
+  # rest poses are axis-aligned; the feet's body origins (heels) lean "up" by a few degrees
+  return np.eye(3)[np.abs(R).argmax(1)] * np.sign(R[np.arange(3), np.abs(R).argmax(1)])[:, None]
+
+
 def export_model(out_dir, profile=None):
   profile = profile or config.model_profile()
   m = profile.compile()
@@ -194,6 +209,7 @@ def export_model(out_dir, profile=None):
   d.qpos[:] = profile.reference_qpos(m)
   mujoco.mj_kinematics(m, d)
   meta = dict(format="elvw-model-1", source=os.path.basename(str(profile.xml)),
+              canonical=np.round(rest_frame(profile, m, d), 6).tolist(),
               bodies=bodies, parents=parents, meshes=meshes, muscles=muscles,
               volumes=volumes, up="z")
   meta.update(model=profile.name, title=profile.title)  # a clip names the model it needs
