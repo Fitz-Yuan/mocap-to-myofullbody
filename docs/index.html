@@ -1135,7 +1135,7 @@ async function main() {
   function ringFigure(Mx) {
     const meta = Mx.meta, NB2 = meta.bodies.length, P = Mx.a.rest_pos.data, Q = Mx.a.rest_quat.data;
     const canon = new THREE.Group(), bones = new THREE.Group(); canon.add(bones);
-    const mat = new THREE.MeshStandardMaterial({ color: 0xe9e1cf, roughness: 0.5, metalness: 0, envMapIntensity: 0.55, transparent: true });
+    const mat = new THREE.MeshStandardMaterial({ color: 0xe9e1cf, roughness: 0.5, metalness: 0, envMapIntensity: 0.55, transparent: true, depthWrite: false });
     const V = Mx.a.verts.data, Fc = Mx.a.faces.data, groups = [];
     for (let b = 0; b < NB2; b++) {
       const g = new THREE.Group(); g.position.set(P[3 * b], P[3 * b + 1], P[3 * b + 2]); g.quaternion.set(Q[4 * b + 1], Q[4 * b + 2], Q[4 * b + 3], Q[4 * b]);
@@ -1160,7 +1160,7 @@ async function main() {
     const seg = [];
     for (const mu of meta.muscles) for (let i = 0; i + 1 < mu.sites.length; i++) { const a = 3 * mu.sites[i], c = 3 * mu.sites[i + 1]; seg.push(W[a], W[a + 1], W[a + 2], W[c], W[c + 1], W[c + 2]); }
     const lg = new LineSegmentsGeometry(); lg.setPositions(seg);
-    const lm = new LineMaterial({ color: 0xe8432b, linewidth: 1.3, transparent: true, opacity: 0.85, depthWrite: false });
+    const lm = new LineMaterial({ color: 0xd9472f, linewidth: 1.2, transparent: true, opacity: 0.4, depthWrite: false });
     lm.resolution.set(VW, VH); ringLines.push(lm);
     const lines = new LineSegments2(lg, lm); lines.renderOrder = 3; canon.add(lines);
     const C = meta.canonical ?? [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
@@ -1180,7 +1180,7 @@ async function main() {
     const face = new THREE.MeshStandardMaterial({ color: 0xf3ede2, roughness: 0.32, metalness: 0.15, envMapIntensity: 0.9, transparent: true });
     const side = new THREE.MeshStandardMaterial({ color: 0x9a9286, roughness: 0.5, metalness: 0.1, transparent: true });
     const small = new THREE.MeshStandardMaterial({ color: 0xa9a297, roughness: 0.5, metalness: 0, transparent: true });
-    face.userData.k = 0.55; side.userData.k = 0.2; small.userData.k = 0.5;
+    face.userData.k = 0.34; side.userData.k = 0.12; small.userData.k = 0.3;
     const text = (str, size, depth, bevel) => {
       const g = new TextGeometry(str, { font: rfont, size, height: depth, curveSegments: 6, bevelEnabled: bevel, bevelThickness: 0.004, bevelSize: 0.0026, bevelSegments: 2 });
       g.computeBoundingBox(); const b = g.boundingBox;
@@ -1297,19 +1297,20 @@ async function main() {
     for (const sl of rslots) {
       const u = sl.userData.fig?.userData; if (!u) continue;
       const facing = Math.cos(sl.userData.i * RSTEP + rTheta);   // 1: towards the camera
-      u.mat.opacity = fig; u.lm.opacity = 0.85 * fig;
+      const near = THREE.MathUtils.smoothstep(facing, 0.9, 0.995);   // the model in front a little more solid
+      u.mat.opacity = fig * (0.4 + 0.18 * near); u.lm.opacity = fig * (0.26 + 0.16 * near);
       if (facing > bestC) { bestC = facing; best = u; }
       const L = sl.userData.label;
       if (L) {
         const a = THREE.MathUtils.smoothstep(facing, 0.45, 0.8) * fig, on = THREE.MathUtils.smoothstep(facing, 0.93, 0.995);
-        for (const m of L.mats) m.opacity = a * Math.min(1, m.userData.k + 0.25 * on);
+        for (const m of L.mats) m.opacity = a * Math.min(1, m.userData.k + 0.18 * on);
         L.grp.visible = a > 0.01;
         L.grp.position.z = L.z + 0.016 * on * Math.sin(now / 900);
       }
     }
     // the white outline follows the model nearest the front, strongest when it faces the camera
     outline.selectedObjects = best ? [best.bones] : [];
-    outline.edgeStrength = 1.4 * THREE.MathUtils.smoothstep(bestC, 0.9, 0.995) * fig;
+    outline.edgeStrength = 1.1 * THREE.MathUtils.smoothstep(bestC, 0.9, 0.995) * fig;
     // the points: from their place on a model to a marker, each on its own curve
     prtPts.visible = pa > 0.003 && prt.length > 0;
     if (prtPts.visible) {
