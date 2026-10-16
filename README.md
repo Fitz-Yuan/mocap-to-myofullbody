@@ -1,12 +1,12 @@
 # mocap-to-myofullbody
 
-Turn optical motion-capture recordings (OptiTrack Motive, Plug-in-Gait markers) into motions of **MyoFullBody**, a 416-muscle MuJoCo musculoskeletal model, with checks that show how accurate the result is.
+Turn optical motion-capture recordings (OptiTrack Motive takes, or C3D / TRC files from other labs; Plug-in-Gait markers) into motions of **MyoFullBody**, a 416-muscle MuJoCo musculoskeletal model, with checks that show how accurate the result is.
 
 - **Website:** https://fitz-yuan.github.io/mocap-to-myofullbody/
 - **Handbook:** https://fitz-yuan.github.io/mocap-to-myofullbody/handbook/ (every stage, the validation, and what it found)
 - **Motion viewer:** https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/ (plays one demo clip; open your own exported clip in the browser)
 
-The pipeline was built for a box-lifting study (the MMH Elevator data: subjects pick a 13.6 kg box up from a platform, carry it, and put it on a shelf). The stages in `pipeline/` and the library in `mocap2myo/` are general; the lifting task (box, shelf, carry cycles) lives in `tasks/box_lift/`, and the dataset's file naming in `pipeline/config.py`. See [Adapting to other data](#adapting-to-other-data).
+The pipeline was built for a box-lifting study (the MMH Elevator data: subjects pick a 13.6 kg box up from a platform, carry it, and put it on a shelf). The stages in `pipeline/` and the library in `mocap2myo/` are general; the lifting task (box, shelf, carry cycles) lives in `tasks/box_lift/`, and each dataset's settings (file kind and naming, up axis, subjects' sizes, task) in a profile in `datasets/`. See [Adapting to other data](#adapting-to-other-data).
 
 ## What it does
 
@@ -15,7 +15,7 @@ The pipeline was built for a box-lifting study (the MMH Elevator data: subjects 
   <img alt="Pipeline: raw .tak → take reader → markers → calibration on a static trial → IK on MyoFullBody, then reference and QA, inverse dynamics, and optionally OpenSim" src="docs/assets/pipeline-light.svg">
 </picture>
 
-1. **Read** OptiTrack `.tak` files directly (`mocap2myo/tak.py`, `pipeline/cache_takes.py`). A `.tak` is an OLE compound file; the marker trajectories, labels and rigid bodies are parsed from its `Channels.dat` and `Nodes.dat` streams. Checked against Motive's own TRC exports: all 11 processed takes identical, largest difference 0.005 mm (float32 rounding).
+1. **Read** the raw recordings (`pipeline/read_raw.py`): OptiTrack `.tak` files directly (`mocap2myo/tak.py`; a `.tak` is an OLE compound file, the marker trajectories, labels and rigid bodies are parsed from its `Channels.dat` and `Nodes.dat` streams; checked against Motive's own TRC exports: all 11 processed takes identical, largest difference 0.005 mm, float32 rounding), or C3D and TRC files (`mocap2myo/readers.py`, C3D through ezc3d): markers in metres in a Z-up world, the lab software's model outputs kept apart, force plates as the ground reaction on the body per marker frame (force, centre of pressure, free moment, plate corners), other analog channels (EMG) by name, at the recording's own frame rate.
 2. **Condition the markers** (`pipeline/prepare_markers.py`): map labels onto the marker set (`mocap2myo/markerset.py`: Plug-in-Gait, including a subject labelled with a Motive skeleton template with ISB landmark names), assign the head markers by position, drop mislabelled samples, refill pelvis markers as a rigid body. The task adds its objects (`tasks/box_lift/box_fit.py`: box pose by a Kabsch fit, shelf, platform and floor).
 3. **Calibrate each subject** (`mocap2myo.ik.calibrate`): where each marker sits on its bone. With `M2M_STATIC=1` (what `run_all.sh` sets; the default in `config.py` is `0`) the subject's static standing trial anchors the joint angles (hips, knees, ankles near 0°); without it the marker placement and the joint angles are not separable and some subjects come out with 20° of knee flexion while standing.
 4. **Solve IK per frame** (`mocap2myo/ik.py`, `pipeline/solve_ik.py`): bounded least squares over 37 degrees of freedom on MyoFullBody, with a robust loss, floor contact, stance-foot locking and joint speed limits.
@@ -42,14 +42,14 @@ Details, caveats and open items are in the [handbook](https://fitz-yuan.github.i
 ```bash
 git clone https://github.com/Fitz-Yuan/mocap-to-myofullbody
 cd mocap-to-myofullbody
-pip install -e ".[tak,xsens]"     # numpy, scipy, mujoco 3.11, olefile, ezc3d
+pip install -e ".[tak,c3d]"       # numpy, scipy, mujoco 3.11, olefile, ezc3d
 ```
 
-`olefile` is needed to read `.tak` files, `ezc3d` only for the Xsens check. The OpenSim baseline (`pipeline/validate/opensim_ik.py`, `pipeline/opensim_id.py`) also needs `opensim` from conda (`conda install -c opensim-org opensim`).
+`olefile` is needed to read `.tak` files, `ezc3d` for C3D files (and the Xsens check). Dataset profiles are TOML, read with the standard library from Python 3.11 (`tomli` on 3.10). The OpenSim baseline (`pipeline/validate/opensim_ik.py`, `pipeline/opensim_id.py`) also needs `opensim` from conda (`conda install -c opensim-org opensim`).
 
 ## Run
 
-Run the scripts from the repository root. Put the data under one folder (`M2M_ROOT`, default `~/data/mocap2myo`):
+Run the scripts from the repository root. A dataset is described by a profile (`M2M_DATASET=datasets/<name>.toml`, see [Adapting to other data](#adapting-to-other-data)); without one the settings are the case study's. Put the data under one folder (`M2M_ROOT`, default `~/data/mocap2myo`):
 
 ```
 $M2M_ROOT/
@@ -67,14 +67,16 @@ M2M_ROOT=~/data/mocap2myo IK_WORKERS=22 bash pipeline/run_all.sh
 # also run the OpenSim workflow on the same data for the comparison (needs opensim from conda;
 # OSIM_PY=path/to/that/python if it is another environment)
 M2M_ROOT=~/data/mocap2myo IK_WORKERS=22 bash pipeline/run_all.sh --opensim
+# another dataset: its profile (here C3D files, see Adapting to other data)
+M2M_DATASET=datasets/ramp_vielemeyer2026.toml IK_WORKERS=22 bash pipeline/run_all.sh
 ```
 
-This writes `tak_cache/`, `markers/`, `ik/` (IK, `qa.json`, `report.json`, `report.md`), `ref/` and `kin/` (joint loads, `summary.json`) under `M2M_ROOT`, and the motion dataset under `data/<M2M_DATA>/` of the repository (default `data/box_lift/`). With `--opensim` also `opensim_ik/`, `opensim_id/`, `compare_osim/` and `kin/compare_opensim.md`. Every stage also runs on its own (`python pipeline/<stage>.py --help`); note that `run_all.sh` turns on the static-trial calibration (`M2M_STATIC=1`), which a stage run on its own does not.
+This writes `tak_cache/` (`raw_cache/` for C3D / TRC), `markers/`, `ik/` (IK, `qa.json`, `report.json`, `report.md`), `ref/` and `kin/` (joint loads, `summary.json`) under `M2M_ROOT`, and the motion dataset under `data/<M2M_DATA>/` of the repository (default `data/box_lift/`). With `--opensim` also `opensim_ik/`, `opensim_id/`, `compare_osim/` and `kin/compare_opensim.md`. Every stage also runs on its own (`python pipeline/<stage>.py --help`); note that `run_all.sh` turns on the static-trial calibration (`M2M_STATIC=1`), which a stage run on its own does not.
 
 | Script | Input | Output |
 |---|---|---|
-| `pipeline/cache_takes.py` | `raw_tak/*.tak` | `tak_cache/` |
-| `pipeline/prepare_markers.py` | `tak_cache/`, anthropometrics | `markers/` (`M2M_NPZ_DIR`) |
+| `pipeline/read_raw.py` | `raw_tak/*.tak` (`M2M_RAW_DIR`; C3D, TRC) | `tak_cache/` (`M2M_CACHE_DIR`) |
+| `pipeline/prepare_markers.py` | `tak_cache/`, anthropometrics | `markers/` (`M2M_NPZ_DIR`; with force plates and analog channels from a C3D) |
 | `pipeline/solve_ik.py` | `markers/` | `ik/` (`M2M_IK_DIR`: offsets, qpos, residuals, unsolved frames) |
 | `tasks/box_lift/build_reference.py` | IK, `markers/` | `ref/` (`M2M_REF_DIR`) |
 | `pipeline/qa.py` | IK, `markers/` | `ik/qa.json` |
@@ -83,15 +85,24 @@ This writes `tak_cache/`, `markers/`, `ik/` (IK, `qa.json`, `report.json`, `repo
 | `pipeline/kinetics.py` | IK, refs (the task's loads), anthropometrics | `kin/` (`M2M_KIN_DIR`: joint loads per trial, `summary.json`) |
 | `pipeline/validate/opensim_ik.py`, `pipeline/opensim_id.py` (`--opensim`) | `markers/`, `kin/`, `opensim_setup/` | `opensim_ik/`, `opensim_id/` |
 
-Every `M2M_*` setting and `IK_WORKERS` is read in `pipeline/config.py`; `MYOFULLBODY_MODEL` belongs to the library (`mocap2myo/model.py`), and `PY` / `OSIM_PY` to `run_all.sh`. Settings with a fixed set of values stop the run on anything else.
+Every `M2M_*` setting and `IK_WORKERS` is read in `pipeline/config.py`; `MYOFULLBODY_MODEL` belongs to the library (`mocap2myo/model.py`), and `PY` / `OSIM_PY` to `run_all.sh`. A setting comes from its environment variable, else from the dataset profile (key = the name without `M2M_`, lower case), else the default. Settings with a fixed set of values, and unknown profile keys, stop the run.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `M2M_ROOT` | `~/data/mocap2myo` | data folder |
+| `M2M_DATASET` | (none) | dataset profile (TOML), e.g. `datasets/ramp_vielemeyer2026.toml` |
+| `M2M_ROOT` | `~/data/mocap2myo` | data folder (a relative path in a profile is relative to it) |
+| `M2M_INPUT`, `M2M_RAW_DIR`, `M2M_CACHE_DIR` | `tak`, `raw_tak/`, `tak_cache/` | raw file kind (`tak`, `c3d`, `trc`), their folder, `read_raw.py`'s output (`raw_cache/` for C3D / TRC) |
+| `M2M_RAW_TRIALS`, `M2M_TRIAL_REGEX`, `M2M_TRIAL_NAME` | `S*_NE.tak`, (none), `{stem}` | trial files (glob under `M2M_RAW_DIR`, `**` allowed); a regex on the path relative to it whose named groups, with `{stem}` (the file name), fill the trial name |
+| `M2M_RAW_STATIC`, `M2M_STATIC_REGEX` | `static/*_Anatomy.tak`, `static/(?P<subject>.+)_Anatomy\.tak` | static trial files, and the regex whose group `subject` names the subject |
+| `M2M_UP`, `M2M_UNITS`, `M2M_RATE` | `y` (`.tak`) / `auto`, file's, `native` | the files' up axis (`auto`: from head vs foot markers; `x`/`y`/`z`, optionally `-`), length unit, frame rate (a number: keep every k-th frame) |
+| `M2M_POINTS_EXCLUDE`, `M2M_ANALOG` | (none), `.*` | C3D: point labels that are not markers (besides the POINT type groups), analog channels to keep (EMG) |
+| `M2M_FP_SIGN`, `M2M_FP_MIN_FZ` | `auto`, `20` | C3D force plates: sign of ezc3d's force (`auto`: the vertical force on a loaded plate points up), N below which there is no centre of pressure |
+| `M2M_MARKER_SET` | `plug_in_gait` | the marker set the data uses; `prepare_markers.py` stops if `mocap2myo/markerset.py` selects another |
+| `M2M_ANTHRO`, `M2M_ANTHRO_C3D_HEIGHT`, `M2M_ANTHRO_C3D_MASS` | `csv`, `SUBJECT:height`, `SUBJECT:weight` | where heights / masses come from: the CSV, or C3D parameters (`GROUP:NAME`), collected into `<cache>/anthropometrics.csv` |
 | `M2M_NPZ_DIR`, `M2M_IK_DIR`, `M2M_REF_DIR` | `markers/`, `ik/`, `ref/` | stage folders under `M2M_ROOT` |
 | `M2M_DATA`, `M2M_DATA_STEM` | `box_lift`, `box_lift` | dataset folder in `data/`, file stem `motion_<stem>[_ok]_100hz.npz` |
 | `M2M_TASK` | `box_lift` | task package in `tasks/`; `none` = body motion only |
-| `M2M_TRIAL_GLOB`, `M2M_SUBJECT_SEP`, `M2M_STATIC_NAME` | `S*_NE`, `_`, `{subject}_Anatomy` | trial names, subject = trial name up to the first separator, static trial name |
+| `M2M_TRIAL_GLOB`, `M2M_SUBJECT_SEP`, `M2M_STATIC_NAME` | `S*_NE`, `_`, `{subject}_Anatomy` | trial names (how every stage finds the trials), subject = trial name up to the first separator, static trial name |
 | `M2M_ANTHRO_CSV`, `M2M_ANTHRO_COLUMNS`, `M2M_ANTHRO_SUBJECT` | `meta/anthropometrics.csv`, `Subject,Height,Weight`, `S{:02d}` | subject heights (cm) and masses (kg); how a numeric subject cell maps to the subject in the file names (a cell like `S01` is used as it is) |
 | `M2M_STATIC`, `M2M_STATIC_MARKERS`, `M2M_STATIC_SHARE`, `M2M_STATIC_W` | `0` (`run_all.sh`: `1`), `legs`, `0.5`, `1.0` | static-trial calibration: on/off, which markers it places (`legs`, `legs_only`, `all`), its share of the offset update, posture weight |
 | `M2M_OUTLIER`, `M2M_ROBUST`, `M2M_LOWPASS_HZ`, `M2M_MTP_PRIOR`, `M2M_ROOT_INIT`, `M2M_PELVIS_GAP`, `M2M_ANCHOR_CENTROID`, `M2M_FOOT_CAP`, `M2M_FLAT_W` | see `config.py` | IK settings (`M2M_ROOT_INIT`: `pelvis` or `prev`; `M2M_PELVIS_GAP`: `solve` or `carry`; `M2M_LOWPASS_HZ` 6, 0 = unfiltered markers) |
@@ -145,13 +156,36 @@ Open the [viewer](https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/) (it 
 
 A dataset needs:
 
-1. **Labelled marker trajectories.** The stages read OptiTrack `.tak` takes (`mocap2myo/tak.py` through `pipeline/cache_takes.py`); the take reader can also write a take as TRC and compare it with Motive's TRC export, but there is no TRC or C3D trial input: another format needs a converter to the `tak_cache/` layout (see `pipeline/cache_takes.py`). Motive's live labels are enough; unlabelled point clouds are not.
-2. **A known marker set**: which bone each marker is on, its weight and a rough anatomical position. `mocap2myo/markerset.py` defines Plug-in-Gait (`PLUG_IN_GAIT`: markers, anatomical guesses, head / pelvis / foot markers, label aliases); another set is another dict with the same keys, selected by pointing `MARKER_SET` (a constant in that file, not an environment variable) at it.
+1. **Labelled marker trajectories**: OptiTrack `.tak` takes, C3D or TRC files (`pipeline/read_raw.py`). Labels as the recording software assigned them are enough; unlabelled point clouds are not. Force plates (C3D) and any frame rate are taken as they are.
+2. **A known marker set**: which bone each marker is on, its weight and a rough anatomical position. `mocap2myo/markerset.py` defines Plug-in-Gait (`PLUG_IN_GAIT`: markers, anatomical guesses, head / pelvis / foot markers, label aliases); another set is another dict with the same keys, selected by pointing `MARKER_SET` (a constant in that file, not an environment variable) at it. A profile names the set its data uses (`marker_set`), and `prepare_markers.py` stops when that is not the selected one.
 3. **Enough markers per segment** to fix its orientation (ideally three).
 4. **A static standing trial per subject**, to anchor the joint angles.
 5. **Subject height** (for scaling).
 
-File names and folders are set in `pipeline/config.py` (trial glob, how the subject is read from a trial name, the static trial's name, the anthropometrics columns); every setting there can be overridden with its environment variable.
+A dataset's settings go into a profile, a small TOML file in `datasets/` (settings only, no data), loaded with `M2M_DATASET=datasets/<name>.toml`; its keys are the settings of `pipeline/config.py` without `M2M_` (an environment variable still overrides any of them). Three ship with the repository: `mmh_elevator.toml` (the case study; the same as no profile), `ramp_vielemeyer2026.toml` (Vielemeyer et al. 2026, level and ramp walking, Vicon C3D, Plug-in-Gait, 200 Hz, three inclined force plates) and `moissenet2019.toml` (Moissenet and Schreiber 2019, gait at five speeds, Qualisys C3D, 52 ISB markers, height and mass in the C3D; its marker set is not defined yet, so it stops after reading). From the ramp profile:
+
+```toml
+[paths]
+root = "~/data/ramp_vielemeyer2026"     # outputs; relative paths below are under it
+raw_dir = "raw"                         # Ref_<n>/<condition>/*.c3d, static_c3d/Ref_<n>/*.c3d
+[input]
+input = "c3d"
+up = "auto"                             # from head vs foot markers (Vicon: z)
+points_exclude = '(PEL|HED|TRX|[LR](FE|TI|FO|TO|CL|HU|RA|HN))[OALP]'   # Nexus segment points
+[naming]
+raw_trials = "Ref_*/*/*.c3d"
+trial_regex = 'Ref_\d+/(?P<cond>(level|ramp_\d+)_(up|down))/(?P<subject>Ref\d+)_\w*?shoes(?P<k>\d+)\.c3d'
+trial_name = "{subject}_{cond}_{k}"     # Ref_1/level_up/Ref01_sss_le_shoes04.c3d -> Ref01_level_up_04
+trial_glob = "Ref*"
+raw_static = "static_c3d/*/*.c3d"
+static_regex = 'static_c3d/Ref_\d+/(?P<subject>Ref\d+)_(sss_)?le_(sss_)?shoes(_static|01)\.c3d'
+static_name = "{subject}_static"
+[subjects]
+anthro_csv = "anthropometrics.csv"      # Subject, Height (cm), Weight (kg): the article's Table 1
+marker_set = "plug_in_gait"
+[task]
+task = "none"
+```
 
 Everything about the lifting task (box template and pose, shelf, platform and floor, carry cycles, the reference, the dataset, the box's load on the hands and the viewer scene) is in `tasks/box_lift/`; another task is another package in `tasks/` with the same hooks (see `tasks/box_lift/__init__.py`), selected with `M2M_TASK`. With `M2M_TASK=none` the pipeline stops at the body motion: IK, QA, report and joint loads with the ground as the only external load; the viewer then reads the IK output (whole trials, no `--clip`).
 
@@ -170,10 +204,11 @@ mocap2myo/           the library
   ik.py                marker model, per-frame IK, subject calibration
   kinetics.py          inverse dynamics: subtree Newton-Euler, ground reaction, foot split
   tak.py               OptiTrack .tak reader, TRC reader / writer
+  readers.py           one trial file (C3D, TRC, .tak) -> markers, force plates, analog channels
   kinematics.py, objects.py   joint couplings, sole height, rigid fits; palm spheres
 pipeline/            the generic stages (run from the repository root)
-  config.py            paths, file naming, settings (the M2M_* environment variables)
-  cache_takes.py, prepare_markers.py, solve_ik.py, qa.py, report.py
+  config.py            paths, file naming, settings (the M2M_* environment variables, the profile)
+  read_raw.py, prepare_markers.py, solve_ik.py, qa.py, report.py
   kinetics.py          joint loads per trial
   opensim_id.py        OpenSim joint centres and Inverse Dynamics with the same loads (--opensim)
   export_viewer.py, viewer_layers.py   viewer files; plots, force arrows, OpenSim overlay
@@ -183,6 +218,7 @@ pipeline/            the generic stages (run from the repository root)
 tasks/box_lift/      the lifting task: __init__.py (the hooks), box_fit.py, checks.py,
                      loads.py, viewer_scene.py, build_reference.py, build_dataset.py,
                      motion_io.py, force_plates.py
+datasets/            dataset profiles (TOML): mmh_elevator, ramp_vielemeyer2026, moissenet2019
 docs/                GitHub Pages: landing page, handbook, viewer; assets/ (README images)
 ```
 

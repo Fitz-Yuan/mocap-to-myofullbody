@@ -1,0 +1,51 @@
+# Dataset profile: the case study (M2M_DATASET=datasets/mmh_elevator.toml).
+# Every value here is the default of pipeline/config.py, except static / static_markers,
+# which run_all.sh sets when it runs without a profile: with this profile or without one
+# the pipeline does the same. Keys: the M2M_* settings without "M2M_", in lower case
+# (pipeline/config.py); the tables only group them. Environment variables override them.
+name = "mmh_elevator"
+description = """MMH Elevator box lifting (the case study): OptiTrack Motive takes, \
+Plug-in-Gait markers labelled live (S01: a Motive template with ISB names), 100 Hz; the \
+box, shelf, platform and floor tracked as rigid bodies."""
+
+[paths]
+root = "~/data/mocap2myo"        # every stage folder below is under it
+raw_dir = "raw_tak"              # the .tak files
+cache_dir = "tak_cache"          # read_raw.py
+npz_dir = "markers"              # prepare_markers.py
+ik_dir = "ik"
+ref_dir = "ref"
+kin_dir = "kin"
+
+[input]
+input = "tak"
+up = "y"                         # Motive's world (prepare_markers.py turns it Z-up)
+rate = "native"                  # 100 Hz
+
+[naming]
+raw_trials = "S*_NE.tak"         # under raw_dir
+trial_regex = ""                 # every file the glob finds ...
+trial_name = "{stem}"            # ... named as the file: S01_Solid_NE
+trial_glob = "S*_NE"
+subject_sep = "_"                # subject S01
+raw_static = "static/*_Anatomy.tak"
+static_regex = 'static/(?P<subject>.+)_Anatomy\.tak'
+static_name = "{subject}_Anatomy"
+
+[subjects]
+anthro = "csv"
+anthro_csv = "meta/anthropometrics.csv"   # height cm, mass kg
+anthro_columns = ["Subject", "Height", "Weight"]
+anthro_subject = "S{:02d}"       # the CSV's subject 1 -> S01
+carried_column = "Wgt+K5"        # mass with the metabolic system worn
+carried_body = "torso"
+marker_set = "plug_in_gait"
+
+[task]
+task = "box_lift"
+data = "box_lift"
+data_stem = "box_lift"
+
+[ik]
+static = true                    # calibrate on the static standing trials
+static_markers = "legs"

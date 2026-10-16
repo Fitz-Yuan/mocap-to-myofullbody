@@ -1,7 +1,8 @@
 """Diagnose the joint-angle offsets of an IK run on the static trials.
 
-Each subject with a static trial (raw_tak/static/<static name>.tak, M2M_STATIC_NAME;
-case study: 5 s standing still, arms down, all markers visible; S07 has none):
+Each subject with a static trial (read by read_raw.py into <M2M_CACHE_DIR>/static/
+<static name>.npz, M2M_STATIC_NAME; case study: 5 s standing still, arms down, all
+markers visible; S07 has none):
   1. the IK pose of the static trial with the subject's current calibration
      (<M2M_IK_DIR>/<subject>_offsets.npz): knee / hip / ankle / lumbar flexion while
      the subject stands still and upright;
@@ -12,7 +13,7 @@ case study: 5 s standing still, arms down, all markers visible; S07 has none):
 Ratios use bony landmarks only (ASIS, PSIS, knee, ankle, heel, toe, shoulder,
 elbow, wrist, finger, C7; Plug-in-Gait labels). Subjects: the anthropometrics file.
 
-  python pipeline/validate/static_pose.py        (needs olefile)
+  python pipeline/validate/static_pose.py
 """
 
 import os
@@ -23,11 +24,10 @@ import numpy as np
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from mocap2myo import ik as mk  # noqa: E402
 from mocap2myo import markerset as ms  # noqa: E402
-from mocap2myo import tak  # noqa: E402
 from pipeline import config  # noqa: E402
 from pipeline import prepare_markers as C  # noqa: E402
 
-STATIC = os.path.join(config.RAW_TAK_DIR, "static")  # <static name>.tak (raw)
+STATIC = os.path.join(config.CACHE_DIR, "static")  # <static name>.npz (read_raw.py)
 IKD = config.IK_DIR
 PAIRS = {
   "pelvis width": [("LASI", "RASI")],
@@ -47,9 +47,8 @@ JOINTS = ["knee_angle_r", "knee_angle_l", "hip_flexion_r", "hip_flexion_l",
 
 def static_markers(subj, anthro):
   """Mean static pose [n, 3] in the IK's scaled-subject frame (Z up)."""
-  tk = tak.read_tak(os.path.join(STATIC, f"{config.static_name(subj)}.tak"))
-  A = C.zup(tk["xyz"])
-  P, H, _ = C.body_markers(tk["names"], A)
+  names, A, _ = C.read_take(f"static/{config.static_name(subj)}")
+  P, H, _ = C.body_markers(names, A)
   hk = [mk.LABELS.index(l) for l in ms.HEAD_LABELS]
   P[:, hk], _ = C.assign_head(P, H)
   scale = mk.MODEL_HEIGHT / (anthro[subj] / 100)
@@ -74,7 +73,7 @@ def main():
         + " ".join(j.replace("_angle", "").replace("flexion", "flx").replace("flex_extension", "lumbar")
                    for j in JOINTS) + " | err mm")
   for subj in sorted(anthro):
-    if not os.path.exists(os.path.join(STATIC, f"{config.static_name(subj)}.tak")):
+    if not os.path.exists(os.path.join(STATIC, f"{config.static_name(subj)}.npz")):
       print(f"{subj}  no static trial")
       continue
     P = static_markers(subj, anthro)

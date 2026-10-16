@@ -1,0 +1,47 @@
+# Dataset profile: gait at different walking speeds, Moissenet & Schreiber 2019,
+# Scientific Data, doi:10.1038/s41597-019-0124-4 (data CC BY 4.0, figshare 7734767).
+#   M2M_DATASET=datasets/moissenet2019.toml python pipeline/read_raw.py
+# Layout under root: raw/ = the figshare archive extracted (<subject>/<subject>_C<k>_<nn>.c3d,
+# <subject>/<subject>_ST.c3d). Height and mass are in the trials' C3D parameters.
+# The marker set (52 ISB markers) is not defined in mocap2myo/markerset.py yet: reading
+# works, prepare_markers.py and the IK stop until it is.
+name = "moissenet2019"
+description = """50 subjects walking overground at five speeds (C1-C5); Qualisys, 52 \
+ISB-style markers (Dumas), 100 Hz; two AMTI plates at floor level; eight right-leg EMG \
+channels at 1.5 kHz."""
+
+[paths]
+root = "~/data/moissenet2019"
+raw_dir = "raw/A multimodal dataset of human gait at different walking speeds"
+
+[input]
+input = "c3d"
+up = "auto"
+units = ""
+rate = "native"                  # 100 Hz
+analog = '.*'                    # the EMG channels (R_tibialis_anterior, ...)
+fp_sign = "auto"
+
+[naming]
+raw_trials = "*/*_C*_*.c3d"
+trial_regex = '(?P<subject>\d+)/(?P=subject)_C\d+_\d+\.c3d'
+trial_name = "{stem}"            # 2014001_C1_01
+trial_glob = "*_C*_*"
+subject_sep = "_"
+raw_static = "*/*_ST.c3d"
+static_regex = '(?P<subject>\d+)/(?P=subject)_ST\.c3d'
+static_name = "{subject}_ST"
+
+[subjects]
+anthro = "c3d"                   # parameter group SUBJECT: LABELS / UNITS / VALUES
+anthro_c3d_height = "SUBJECT:height"
+anthro_c3d_mass = "SUBJECT:weight"
+carried_column = ""
+marker_set = "isb_dumas"
+
+[task]
+task = "none"
+
+[ik]
+static = true
+static_markers = "legs"

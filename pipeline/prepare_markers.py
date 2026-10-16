@@ -1,17 +1,24 @@
 """Marker conditioning: labelled marker trajectories -> one marker npz per trial.
 
 Input:
-  tak_cache/<trial>.npz  the raw Motive takes read without Motive (cache_takes.py).
-          Body labels are Motive's live skeleton labels: the marker set's own labels
-          or one of its alias sets (mocap2myo.markerset; case study, S01: ISB names).
-  meta/anthropometrics.csv  height (cm), mass (kg) per subject (config.ANTHRO_*)
-Output: <M2M_NPZ_DIR>/<trial>.npz, Z-up, metres, unscaled, readable by
-  mocap2myo.ik.load_trial: markers [T, n, 3] (marker set order), marker_labels,
-  marker_rate, height_m, mass_kg, pelvis_fixed [T, 4] (rigid refill flags),
-  mislabel_rejected [T, n], source, plus the task's fields (M2M_TASK; box_lift:
-  the box pose, shelf, platform and floor, tasks/box_lift/box_fit.py). The static
-  standing trials in tak_cache/static/ become <M2M_NPZ_DIR>/static/<subject>.npz
-  (body markers only, same layout), read by solve_ik.py with M2M_STATIC=1.
+  <M2M_CACHE_DIR>/<trial>.npz  the raw files as arrays (read_raw.py; tak_cache/ for
+          OptiTrack takes, raw_cache/ for C3D / TRC). Body labels are the
+          recording's labels (a take: Motive's live skeleton labels): the marker set's
+          own labels or one of its alias sets (mocap2myo.markerset; case study, S01:
+          ISB names). Labels the marker set does not know are not body markers.
+  meta/anthropometrics.csv  height (cm), mass (kg) per subject (config.ANTHRO_*; with
+          M2M_ANTHRO=c3d the one read_raw.py collected from the C3D files)
+Output: <M2M_NPZ_DIR>/<trial>.npz, Z-up, metres, unscaled, at the recording's rate,
+  readable by mocap2myo.ik.load_trial: markers [T, n, 3] (marker set order),
+  marker_labels, marker_rate, height_m, mass_kg, pelvis_fixed [T, 4] (rigid refill
+  flags), mislabel_rejected [T, n], source ("tak", "c3d", "trc"), plus the task's
+  fields (M2M_TASK; box_lift: the box pose, shelf, platform and floor,
+  tasks/box_lift/box_fit.py), and from a C3D the force plates in the markers' world
+  frame (fp_force [T, p, 3] N on the body, fp_cop [T, p, 3] m, fp_free [T, p] N m,
+  fp_corners [p, 4, 3] m, see read_raw.py) and the analog channels it kept (analog,
+  analog_labels, analog_units, analog_rate). The static standing trials in
+  <M2M_CACHE_DIR>/static/ become <M2M_NPZ_DIR>/static/<subject>.npz (body markers
+  only, same layout, plates too), read by solve_ik.py with M2M_STATIC=1.
 
 Per trial: labels mapped onto the marker set (alias sets, head markers by
 position), mislabelled samples rejected, pelvis markers refilled as a rigid body.
@@ -43,8 +50,11 @@ from mocap2myo.kinematics import kabsch  # noqa: E402
 from pipeline import config  # noqa: E402
 
 OUT = config.NPZ_DIR
-SOURCE = "tak"  # written into each npz ("source"): the input is a raw take
+SOURCE = "tak"  # written into each npz ("source"): the input is a raw take (or the cache's)
 PELVIS_TOL = 0.012  # m
+# cache fields passed on to the marker npz (C3D: force plates, analog channels)
+EXTRA = ("fp_force", "fp_cop", "fp_free", "fp_corners", "analog", "analog_labels",
+         "analog_units", "analog_rate")
 
 
 def zup(p):
@@ -53,12 +63,28 @@ def zup(p):
 
 
 def read_take(name):
-  """A take through its cache (cache_takes.py) -> (names, [T, n, 3] Z-up, rate),
-  unlabelled tracks included. name: the take's path under raw_tak/ without .tak
-  (a trial, or static/<static name>)."""
-  c = np.load(os.path.join(config.TAK_CACHE_DIR, name + ".npz"))
+  """A recording through its cache (read_raw.py) -> (names, [T, n, 3] Z-up, rate),
+  unlabelled tracks included. name: a trial, or static/<static name>. A take's cache
+  is in Motive's Y-up world; a C3D / TRC cache is Z-up already (zup)."""
+  c = np.load(os.path.join(config.CACHE_DIR, name + ".npz"))
   D = c["data"]
-  return list(c["names"]), zup(D[:, 2:].reshape(len(D), -1, 3)), float(c["rate"])
+  A = D[:, 2:].reshape(len(D), -1, 3)
+  if not ("zup" in c.files and bool(c["zup"])):
+    A = zup(A)
+  return list(c["names"]), A, float(c["rate"])
+
+
+def cache_extras(name):
+  """The cache fields passed on (EXTRA; none for a take) and the input kind."""
+  c = np.load(os.path.join(config.CACHE_DIR, name + ".npz"))
+  src = str(c["source"]) if "source" in c.files else SOURCE
+  return {k: c[k] for k in EXTRA if k in c.files}, src
+
+
+def subject_size(anthro, subj):
+  if subj not in anthro:
+    raise SystemExit(f"subject {subj}: no height / mass in {config.ANTHRO_CSV}")
+  return anthro[subj]
 
 
 def object_column(n):
@@ -202,35 +228,40 @@ def convert(name, anthro, task=None, task_state=None):
   if task is not None:  # objects / scene from the columns that are not body markers
     cols = [i for i, n in enumerate(names) if object_column(n)]
     fields, task_note = task.prepare_trial(name, names, A, cols, rate, task_state)
-  a = anthro[config.subject_of(name)]
+  a = subject_size(anthro, config.subject_of(name))
+  extra, source = cache_extras(name)
   os.makedirs(OUT, exist_ok=True)
   out = os.path.join(OUT, f"{name}.npz")
   np.savez_compressed(
     out[:-4] + ".part.npz", markers=P.astype(np.float32), marker_labels=np.array(ms.LABELS),
     marker_rate=rate, height_m=a["height_cm"] / 100, mass_kg=a["mass_kg"], **fields,
-    pelvis_fixed=pel_fixed, mislabel_rejected=mislabel, source=SOURCE)
+    pelvis_fixed=pel_fixed, mislabel_rejected=mislabel, source=source, **extra)
   os.replace(out[:-4] + ".part.npz", out)
   gaps = np.isnan(P[..., 0]).mean(0)
   print(f"{name}: {T} frames ({T / rate:.0f} s), body missing {missing or '-'}, {rel_note}"
         f"gaps>1% { {l: round(float(g), 3) for l, g in zip(ms.LABELS, gaps) if g > 0.01} }, "
         f"mislabel-rejected { {ms.LABELS[i]: round(float(mislabel[:, i].mean()), 3) for i in np.argsort(-mislabel.mean(0))[:4] if mislabel[:, i].mean() > 0.005} }, "
         f"pelvis refilled {pel_fixed.any(1).mean():.3f} of frames"
-        + (f"; {task_note}" if task_note else ""))
+        + (f"; {task_note}" if task_note else "")
+        + (f"; {extra['fp_force'].shape[1]} force plates" if "fp_force" in extra else ""))
 
 
 def convert_static(subj, anthro):
   """Static standing trial -> <OUT>/static/<subj>.npz (body markers only)."""
-  names, A, rate = read_take(f"static/{config.static_name(subj)}")
+  name = f"static/{config.static_name(subj)}"
+  names, A, rate = read_take(name)
   P, H, renamed = body_markers(names, A)
   hk = [ms.LABELS.index(l) for l in ms.HEAD_LABELS]
   P[:, hk], order = assign_head(P, H)
   P, mislabel = reject_mislabels(P)
-  a = anthro[subj]
+  a = subject_size(anthro, subj)
+  extra, source = cache_extras(name)
   os.makedirs(os.path.join(OUT, "static"), exist_ok=True)
   out = os.path.join(OUT, "static", f"{subj}.npz")
   np.savez_compressed(out[:-4] + ".part.npz", markers=P.astype(np.float32),
                       marker_labels=np.array(ms.LABELS), marker_rate=rate,
-                      height_m=a["height_cm"] / 100, mass_kg=a["mass_kg"], source=SOURCE)
+                      height_m=a["height_cm"] / 100, mass_kg=a["mass_kg"], source=source,
+                      **extra)
   os.replace(out[:-4] + ".part.npz", out)
   seen = np.mean(~np.isnan(P[..., 0]), 0)
   print(f"{subj} static: {len(P)} frames, renamed {len(renamed)} labels, head {order}, "
@@ -239,14 +270,15 @@ def convert_static(subj, anthro):
 
 def main():
   config.usage(__doc__)
+  config.marker_set()  # stops if the dataset's marker set is not the selected one
   anthro = config.anthropometrics()
   task = config.task()
   task_state = task.prepare_setup(read_take) if task is not None else None
-  names = sys.argv[1:] or config.trials(config.TAK_CACHE_DIR)
+  names = sys.argv[1:] or config.trials(config.CACHE_DIR)
   for n in names:
     convert(n, anthro, task, task_state)
   if not sys.argv[1:]:
-    for subj, _ in config.static_files(os.path.join(config.TAK_CACHE_DIR, "static"), ".npz"):
+    for subj, _ in config.static_files(os.path.join(config.CACHE_DIR, "static"), ".npz"):
       convert_static(subj, anthro)
 
 

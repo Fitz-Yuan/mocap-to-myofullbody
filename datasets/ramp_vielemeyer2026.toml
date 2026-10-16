@@ -1,0 +1,54 @@
+# Dataset profile: level and ramp walking, Vielemeyer et al. 2026, Scientific Data,
+# doi:10.1038/s41597-025-06535-y (data CC BY 4.0, figshare; code
+# github.com/jvielemeyer/human-ramp-walking).
+#   M2M_DATASET=datasets/ramp_vielemeyer2026.toml bash pipeline/run_all.sh
+# Layout under root: raw/ = the figshare archives extracted (Ref_<n>/<condition>/*.c3d,
+# static_c3d/Ref_<n>/*.c3d); anthropometrics.csv = Subject (Ref01 ...), Height (cm),
+# Weight (kg) from the article's Table 1 (the C3D files have no height or mass).
+name = "ramp_vielemeyer2026"
+description = """13 subjects walking on a 6 m ramp at 0, 7.5 and 10 deg, up and down, in \
+lab shoes; Vicon Nexus, Plug-in-Gait full body (39 markers), 200 Hz; three AMTI plates \
+in the ramp (inclined with it), 1 kHz; 30 further analog channels (EMG)."""
+
+[paths]
+root = "~/data/ramp_vielemeyer2026"   # outputs: raw_cache/, markers/, ik/, kin/
+raw_dir = "raw"
+
+[input]
+input = "c3d"
+up = "auto"                      # Vicon: Z-up
+units = ""                       # POINT:UNITS (mm)
+rate = "native"                  # 200 Hz
+# Nexus writes Plug-in-Gait's segment points (origin / anterior / lateral / proximal
+# of each segment: PELO, LFEA, ...) as plain points; they are kept apart, with the
+# model outputs the POINT type groups list (angles, forces, moments, powers, CoM)
+points_exclude = '(PEL|HED|TRX|[LR](FE|TI|FO|TO|CL|HU|RA|HN))[OALP]'
+analog = '.*'
+fp_sign = "auto"
+
+[naming]
+raw_trials = "Ref_*/*/*.c3d"
+# Ref_1/level_up/Ref01_sss_le_shoes04.c3d -> Ref01_level_up_04
+trial_regex = 'Ref_\d+/(?P<cond>(level|ramp_\d+)_(up|down))/(?P<subject>Ref\d+)_\w*?shoes(?P<k>\d+)\.c3d'
+trial_name = "{subject}_{cond}_{k}"
+trial_glob = "Ref*"
+subject_sep = "_"
+raw_static = "static_c3d/*/*.c3d"
+# one static trial per subject: the level one (each condition has its own; Ref04's
+# level static is named ..._shoes01)
+static_regex = 'static_c3d/Ref_\d+/(?P<subject>Ref\d+)_(sss_)?le_(sss_)?shoes(_static|01)\.c3d'
+static_name = "{subject}_static"
+
+[subjects]
+anthro = "csv"
+anthro_csv = "anthropometrics.csv"
+anthro_columns = ["Subject", "Height", "Weight"]
+carried_column = ""
+marker_set = "plug_in_gait"
+
+[task]
+task = "none"
+
+[ik]
+static = true
+static_markers = "legs"

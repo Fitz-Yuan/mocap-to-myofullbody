@@ -112,7 +112,7 @@ class Kinetics:
       sole[t] = self.mm.foot_points()
     return dict(C=C, R=R, P=P, Fr=Fr, Ax=Ax, palm=palm, sole=sole)
 
-  def solve(self, K, rate, scale, body_kg, extra_kg=None, loads=(), floor_z=None, lp_hz=6.0,
+  def solve(self, K, rate, scale, body_kg, extra_kg=None, loads=(), floor_z=None, lp_hz=6.0, plates=None,
             legs=True):
     """K: self.kinematics(Q) for IK qpos Q in model units (the model is uniformly `scale` x
     the subject).
@@ -167,11 +167,19 @@ class Kinetics:
     if legs:
       sole = K["sole"] * k
       share, foot_cop, contact = self.split_feet(sole, cop, rate, floor_z)
-      out.update(foot_share=share, foot_cop=foot_cop, foot_contact=contact)
+      foot_F = share[..., None] * F[:, None, :]
+      foot_free = share * free[:, None]
+      source = np.zeros((T, 2), np.int8)  # 0 estimated (lever rule), 1 measured, 2 remainder
+      if plates is not None:
+        foot_F, foot_cop, foot_free, source = feet_from_plates(
+          plates, foot_F, foot_cop, foot_free, contact, sole, self.sole, F, M, floor_z)
+        out.update(plates_check(plates, contact, source, F))
+      out.update(foot_share=share, foot_cop=foot_cop, foot_contact=contact, foot_force=foot_F,
+                 foot_free=foot_free, foot_source=source)
       for i, s in enumerate("lr"):
         ext.append(dict(body=self.foot_b[s], point=np.nan_to_num(foot_cop[:, i]),
-                        force=share[:, i, None] * F,
-                        torque=(share[:, i] * free)[:, None] * np.array([0.0, 0.0, 1.0])))
+                        force=foot_F[:, i],
+                        torque=foot_free[:, i, None] * np.array([0.0, 0.0, 1.0])))
     for j, (_, _, _, comps) in JOINTS.items():
       if not legs and j not in TOP_DOWN:
         continue
@@ -222,3 +230,76 @@ class Kinetics:
     foot_cop += shift[:, None]
     foot_cop[:, :, 2] = floor_z[:, None]
     return share, foot_cop, contact
+
+
+def feet_from_plates(plates, foot_F, foot_cop, foot_free, contact, sole, sole_idx, F, M, floor_z,
+                     on_plate=0.25, min_fz=20.0):
+  """Measured ground reactions where the feet are on force plates.
+
+  plates: dict(force [T, P, 3] N on the body, cop [T, P, 3] m, free [T, P] N m) in the same world
+  frame and units as the kinetics (subject size). A plate carrying more than min_fz belongs to
+  the loaded foot whose contact centre is within `on_plate` of its centre of pressure (none if
+  both are: the two feet share the plate and stay estimated). A foot gets the sum of its
+  plates (source 1). If only one foot is measured and the other is also on the ground, the
+  other carries the rest of the total ground reaction from the whole-body dynamics (source 2),
+  at the centre of pressure that balances the moments. Elsewhere the estimate stays (0).
+  """
+  T = len(F)
+  foot_F, foot_cop, foot_free = foot_F.copy(), foot_cop.copy(), foot_free.copy()
+  source = np.zeros((T, 2), np.int8)
+  centre = np.zeros((T, 2, 3))
+  for i, s in enumerate("lr"):
+    centre[:, i] = sole[:, sole_idx[s]].mean(1)
+  pf, pc, pm = plates["force"], plates["cop"], plates["free"]
+  for t in range(T):
+    acc = [[np.zeros(3), np.zeros(3), 0.0, 0.0] for _ in range(2)]  # force, sum(Fz * cop), Fz, free
+    for p in range(pf.shape[1]):
+      fz = pf[t, p, 2]
+      if not np.isfinite(fz) or fz < min_fz or not np.isfinite(pc[t, p]).all():
+        continue
+      d = np.linalg.norm(centre[t, :, :2] - pc[t, p, :2], axis=1)
+      near = [i for i in range(2) if contact[t, i] and d[i] < on_plate]
+      if len(near) != 1:
+        continue
+      a = acc[near[0]]
+      a[0] = a[0] + pf[t, p]
+      a[1] = a[1] + fz * pc[t, p]
+      a[2] += fz
+      a[3] += pm[t, p]
+    measured = [acc[i][2] > 0 for i in range(2)]
+    for i in range(2):
+      if measured[i]:
+        foot_F[t, i] = acc[i][0]
+        foot_cop[t, i] = acc[i][1] / acc[i][2]
+        foot_free[t, i] = acc[i][3]
+        source[t, i] = 1
+    if sum(measured) == 1:
+      m, o = (0, 1) if measured[0] else (1, 0)
+      if contact[t, o]:
+        Fo = F[t] - foot_F[t, m]
+        rm = foot_cop[t, m] - np.array([0.0, 0.0, floor_z[t]])
+        Mo = M[t] - np.cross(rm, foot_F[t, m]) - np.array([0.0, 0.0, foot_free[t, m]])
+        if Fo[2] > min_fz:
+          cop = np.array([-Mo[1] / Fo[2], Mo[0] / Fo[2], floor_z[t]])
+          if np.linalg.norm(cop[:2] - centre[t, o, :2]) > on_plate:
+            cop = np.array([centre[t, o, 0], centre[t, o, 1], floor_z[t]])
+          foot_F[t, o] = Fo
+          foot_cop[t, o] = cop
+          foot_free[t, o] = Mo[2] - (cop[0] * Fo[1] - cop[1] * Fo[0])
+        else:
+          foot_F[t, o] = 0.0
+          foot_free[t, o] = 0.0
+        source[t, o] = 2
+      else:
+        foot_F[t, o] = 0.0
+        foot_free[t, o] = 0.0
+  return foot_F, foot_cop, foot_free, source
+
+
+def plates_check(plates, contact, source, F):
+  """Where every loaded foot is measured: the plates' total vertical force against the
+  whole-body prediction (validation of the dynamics, independent of any split)."""
+  all_measured = (source == 1).sum(1) == contact.sum(1)
+  all_measured &= contact.any(1)
+  fz = np.nansum(np.where(plates["force"][..., 2] > 20.0, plates["force"][..., 2], 0.0), 1)
+  return dict(plates_all_measured=all_measured, plates_fz=fz, plates_pred_fz=F[:, 2])

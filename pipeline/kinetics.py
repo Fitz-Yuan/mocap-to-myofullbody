@@ -52,6 +52,19 @@ def fill_unsolved(Q, bad):
   return Q, bad
 
 
+def force_plates(trial, n):
+  """Calibrated force plates stored with the conditioned markers (C3D inputs), or None."""
+  f = os.path.join(config.NPZ_DIR, f"{trial}.npz")
+  if not os.path.exists(f):
+    return None
+  D = np.load(f)
+  if "fp_force" not in D.files:
+    return None
+  a = int(config.IK_FRAMES.split(":")[0]) if config.IK_FRAMES else 0
+  cut = lambda x: x[a:a + n].astype(np.float64)
+  return dict(force=cut(D["fp_force"]), cop=cut(D["fp_cop"]), free=cut(D["fp_free"]))
+
+
 def init():
   global KIN
   KIN = kinetics.Kinetics(ik.MarkerModel())
@@ -70,7 +83,7 @@ def run(trial):
   if task is not None and hasattr(task, "kinetics_loads"):
     loads, more = task.kinetics_loads(trial, KIN, kin, scale, rate)
   out = KIN.solve(kin, rate, scale, body, {config.CARRIED_BODY: extra} if extra > 0 else None,
-                  loads, lp_hz=config.KIN_LOWPASS_HZ)
+                  loads, lp_hz=config.KIN_LOWPASS_HZ, plates=force_plates(trial, len(Q)))
   out.update(more)
   out["unsolved"] = bad
   out["uncertain"] = out.get("uncertain", np.zeros(len(Q), bool)) | bad
