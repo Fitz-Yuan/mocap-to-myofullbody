@@ -663,27 +663,27 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
   <p class="lede">Two public gait datasets (both CC BY 4.0) go through the same stages as the case study, read from their C3D files with their force plates. <b>Vielemeyer et al. 2026</b>: level and ramp walking, Vicon, Plug-in-Gait markers, 200 Hz, three inclined AMTI plates; its C3D files also carry Vicon's own Plug-in-Gait joint angles and moments, an independent reference. <b>Moissenet and Schreiber 2019</b>: gait at five speeds, Qualisys, the 52-marker ISB / Dumas set, 100 Hz, plates and EMG.</p>
   <div class="sub">
     <h3 id="pig">Joint angles and moments against Vicon Plug-in-Gait (36 level-walking trials, 3 subjects)</h3>
-    <p>MyoFullBody, static-trial calibration, per-trial comparison with the Plug-in-Gait outputs in each C3D (<code>pipeline/validate/pig_compare.py</code>): correlation, mean difference (offset) and RMS difference after removing it, median over trials. Moments are compared only while that side's foot is on a plate, where Vicon includes the ground reaction.</p>
+    <p>MyoFullBody, static-trial calibration, the dataset profile's settings (ankle smoothing 0.08), per-trial comparison with the Plug-in-Gait outputs in each C3D (<code>pipeline/validate/pig_compare.py</code>): correlation, mean difference (offset) and RMS difference after removing it, median over trials. Moments are compared only while that side's foot is on a plate, where Vicon includes the ground reaction.</p>
     <div class="tbl">
       <table class="tabnum tight">
         <thead><tr><th>Quantity (left / right)</th><th>r</th><th>Offset, ours − Vicon</th><th>RMS after the offset</th></tr></thead>
         <tbody>
-          <tr><td>Knee flexion</td><td>0.994 / 0.996</td><td>+1.3 / +0.7 deg</td><td>2.3 / 2.0 deg</td></tr>
-          <tr><td>Hip flexion</td><td>0.991 / 0.993</td><td>-9.2 / -10.8 deg</td><td>2.7 / 2.7 deg</td></tr>
-          <tr><td>Hip adduction</td><td>0.726 / 0.731</td><td>+1.7 / +2.6 deg</td><td>3.9 / 3.5 deg</td></tr>
-          <tr><td>Ankle dorsiflexion</td><td>0.513 / 0.375</td><td>+4.4 / +4.5 deg</td><td>7.3 / 9.2 deg</td></tr>
-          <tr><td>Elbow flexion</td><td>0.956 / 0.974</td><td>-6.2 / -11.6 deg</td><td>9.7 / 7.4 deg</td></tr>
-          <tr><td>Hip extension moment</td><td>0.942 / 0.966</td><td>+11.9 / +13.5 N m</td><td>11.5 / 9.2 N m</td></tr>
-          <tr><td>Knee extension moment</td><td>0.809 / 0.928</td><td>+14.2 / +8.3 N m</td><td>16.0 / 11.3 N m</td></tr>
-          <tr><td>Ankle plantarflexion moment</td><td>0.970 / 0.976</td><td>-16.5 / -17.5 N m</td><td>9.2 / 8.6 N m</td></tr>
+          <tr><td>Knee flexion</td><td>0.995 / 0.997</td><td>+1.7 / +0.8 deg</td><td>2.0 / 1.6 deg</td></tr>
+          <tr><td>Hip flexion</td><td>0.991 / 0.994</td><td>-9.4 / -10.9 deg</td><td>2.5 / 2.4 deg</td></tr>
+          <tr><td>Hip adduction</td><td>0.770 / 0.799</td><td>+1.8 / +2.9 deg</td><td>3.3 / 2.8 deg</td></tr>
+          <tr><td>Ankle dorsiflexion</td><td>0.838 / 0.804</td><td>+2.8 / +3.3 deg</td><td>5.3 / 6.2 deg</td></tr>
+          <tr><td>Elbow flexion</td><td>0.956 / 0.974</td><td>-6.2 / -11.6 deg</td><td>9.6 / 7.4 deg</td></tr>
+          <tr><td>Hip extension moment</td><td>0.931 / 0.961</td><td>+11.7 / +13.2 N m</td><td>12.4 / 9.2 N m</td></tr>
+          <tr><td>Knee extension moment</td><td>0.800 / 0.932</td><td>+13.5 / +7.9 N m</td><td>14.2 / 9.2 N m</td></tr>
+          <tr><td>Ankle plantarflexion moment</td><td>0.973 / 0.978</td><td>-16.3 / -17.0 N m</td><td>9.4 / 8.2 N m</td></tr>
         </tbody>
       </table>
     </div>
-    <p class="note">Knee and hip flexion follow Plug-in-Gait closely in shape. The hip flexion offset of about −10° is a difference of definition: Plug-in-Gait measures the thigh against its own pelvis frame from the ASIS and PSIS markers, the model against its pelvis bone. The ankle agrees least (r 0.38–0.51): the two define the foot differently (Plug-in-Gait from the heel and toe markers), and the ankle's frame-to-frame smoothing (<code>M2M_IK_ANKLE_SMOOTH</code>, 0.3), set to steady the ankle in the case study's deep squats, lags the faster ankle of walking; half the smoothing time gave r 0.59–0.70. Moments agree in shape (hip and ankle r 0.94–0.98, knee 0.81–0.93) with offsets of 8–18 N m, which come from where each model puts the joint centres relative to the plates' centre of pressure.</p>
+    <p class="note">Knee and hip flexion follow Plug-in-Gait closely in shape. The hip flexion offset of about −10° is a difference of definition: Plug-in-Gait measures the thigh against its own pelvis frame from the ASIS and PSIS markers, the model against its pelvis bone. The ankle agrees least (r 0.80–0.84), partly because the two define the foot differently (Plug-in-Gait from the heel and toe markers). Its frame-to-frame smoothing matters here: the case study's 0.3 (<code>M2M_IK_ANKLE_SMOOTH</code>), set to steady the ankle in deep squats, lags the faster ankle of walking (r 0.38–0.51), so the gait profiles set 0.08; that also lowered the frames at the joint speed limit (0.11 → 0.05 %) and the marker residual (7.8 → 7.6 mm). Moments agree in shape (hip and ankle r 0.94–0.98, knee 0.81–0.93) with offsets of 8–18 N m, which come from where each model puts the joint centres relative to the plates' centre of pressure.</p>
   </div>
   <div class="sub">
     <h3 id="allmodels">Every model on one trial of each dataset</h3>
-    <p>Ramp: trial Ref01 level up 04 (200 Hz). Moissenet: trial 2014001 C3 03 (100 Hz). Static-trial calibration (pelvis and legs) for every model. Residual: median / 95th percentile distance between measured and model markers. Plates: RMS of the predicted total vertical force against the plates, in % of body weight. No unsolved frames and no joint flips on either trial.</p>
+    <p>Ramp: trial Ref01 level up 04 (200 Hz). Moissenet: trial 2014001 C3 03 (100 Hz). Static-trial calibration (pelvis and legs) for every model, the default ankle smoothing (0.3). Residual: median / 95th percentile distance between measured and model markers. Plates: RMS of the predicted total vertical force against the plates, in % of body weight. No unsolved frames and no joint flips on either trial.</p>
     <div class="tbl">
       <table class="tabnum tight">
         <thead><tr><th>Model</th><th>Ramp: markers used</th><th>Ramp: residual (mm)</th><th>Ramp: plates (% BW)</th><th>Moissenet: markers used</th><th>Moissenet: residual (mm)</th><th>Moissenet: plates (% BW)</th></tr></thead>
