@@ -19,7 +19,7 @@ Mocap to MSK turns optical motion capture (OptiTrack `.tak`, C3D, TRC) into join
 |---|---|
 | Recordings | OptiTrack Motive `.tak` (read directly), C3D (Vicon, Qualisys, ...; with force plates and EMG), TRC |
 | Marker sets | Plug-in-Gait (39 markers), ISB / Dumas (52 markers), or your own as one TOML file |
-| Models | MyoFullBody (416 muscles, default), MS-Human-700 (700) and its legs (100), MASS (284), Rajagopal 2016 (80), Lai–Uhlrich 2022 (80), Gait2354 (54), MyoLeg (80) |
+| Models | MyoFullBody (416 muscles, default), MS-Human-700 (700; also a legs-only variant), MASS (284), Rajagopal 2016 (80), Lai–Uhlrich 2022 (80), Gait2354 (54), MyoLeg (80). The OpenSim models are converted with MyoConverter and MASS from its DART files; all run in MuJoCo |
 
 ## How it works
 

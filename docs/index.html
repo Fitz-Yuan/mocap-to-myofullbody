@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mocap to MSK</title>
-<meta name="description" content="Mocap to MSK: an open pipeline from motion capture (OptiTrack takes, C3D, TRC) to eight musculoskeletal models in MuJoCo, MyoFullBody by default, with documentation and a browser viewer.">
+<meta name="description" content="Mocap to MSK: an open pipeline from motion capture (OptiTrack takes, C3D, TRC) to seven musculoskeletal models in MuJoCo, MyoFullBody by default, with documentation and a browser viewer.">
 <meta name="theme-color" content="#000000">
 <meta name="color-scheme" content="dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='4' fill='%23e0605a'/%3E%3C/svg%3E">
@@ -270,6 +270,8 @@ h1 {
 .s-b { grid-column: 8 / span 5; }
 .s-c { grid-column: 1 / span 6; }
 .s-d { grid-column: 7 / span 6; }
+.s-e { grid-column: 1 / span 7; }
+.s-f { grid-column: 8 / span 5; }
 @media (max-width: 899px) { .stat { grid-column: 1 / -1; } }
 
 .osim { padding: clamp(80px, 10vw, 144px) 0 clamp(64px, 8vw, 112px); border-top: 1px solid var(--line-2); }
@@ -387,7 +389,7 @@ footer a { color: var(--fg-2); }
   <section class="hero" id="hero">
     <div class="hero-copy" data-reveal>
       <h1>Mocap to <span class="nowrap">MSK.</span></h1>
-      <p class="lede">Optical motion capture in, musculoskeletal motion and joint loads out, on eight MuJoCo models. <span class="more">MyoFullBody by default; half the marker error of OpenSim on the same data.</span></p>
+      <p class="lede">Optical motion capture in, musculoskeletal motion and joint loads out, on seven musculoskeletal models in MuJoCo. <span class="more">MyoFullBody by default; half the marker error of OpenSim on the same data.</span></p>
     </div>
     <div class="hero-fallback" id="heroFallback" aria-hidden="true"></div>
     <div class="hero-foot">
@@ -527,7 +529,15 @@ footer a { color: var(--fg-2); }
         </div>
         <div class="stat s-d" data-reveal style="--d:.12s">
           <div class="num"><span data-fact="cpuHours"></span><small>hour</small></div>
-          <p>Wall-clock time for the whole dataset on one workstation's CPU, <span data-fact="cpuCores"></span> trials solved in parallel. On a GPU, one trial takes under a minute.</p>
+          <p>Wall-clock time for the whole dataset on one workstation's CPU, <span data-fact="cpuCores"></span> trials solved in parallel.</p>
+        </div>
+        <div class="stat s-e" data-reveal>
+          <div class="num"><span data-fact="cpuTrialMin"></span><small>min</small><span class="to">→</span><span data-fact="gpuTrialS"></span><small>s</small></div>
+          <p>One trial's inverse kinematics on a CPU core, then on a GPU: <span data-fact="gpuSpeedup"></span> times faster, the same result.</p>
+        </div>
+        <div class="stat s-f" data-reveal style="--d:.12s">
+          <div class="num"><span data-fact="models"></span><small>models</small></div>
+          <p>MyoFullBody, MS-Human-700, MASS, Rajagopal 2016, Lai–Uhlrich 2022, Gait2354 and MyoLeg, all from the same markers.</p>
         </div>
       </div>
     </div>
@@ -553,7 +563,7 @@ footer a { color: var(--fg-2); }
     <footer>
       <div class="wrap">
         <p>Code under Apache-2.0. The MyoFullBody model is by the MuscleMimic team, built upon MyoSuite / MyoSim models; its arm and hand derive from MoBL-ARMS, released for non-commercial use only (see the model's NOTICE). Rendering with three.js (MIT).</p>
-        <p>The figures on this page are the eight models in their neutral standing poses (fit: median distance between measured and model markers on one public walking trial, Moissenet &amp; Schreiber 2019, CC BY 4.0; the models come from their own repositories and keep their own licences) and MyoFullBody with procedural poses. The viewer's demo clip is one de-identified carry cycle from the case study; nothing else from the study's data is published.</p>
+        <p>The figures on this page are the seven models in their neutral standing poses (fit: median distance between measured and model markers on one public walking trial, Moissenet &amp; Schreiber 2019, CC BY 4.0; the models come from their own repositories and keep their own licences) and MyoFullBody with procedural poses. The viewer's demo clip is one de-identified carry cycle from the case study; nothing else from the study's data is published.</p>
       </div>
     </footer>
   </section>
@@ -586,6 +596,7 @@ window.FACTS = {
   cpuCores: 22,               // trials solved in parallel (IK_WORKERS)
   gpuTrialS: 51,              // IK of trial S08 Solid (11,738 frames) on a GPU, M2M_IK_DEVICE=gpu (a shared card)
   cpuTrialMin: 27,            // ... the same trial on one CPU core (1,627 s)
+  models: 7,                  // musculoskeletal models (profiles, not counting the MS-Human-700 legs and knee-frame variants)
   gpuSpeedup: 32,             // 1627 / 51; same result (residual equal to 0.01 mm, joint angles within 0.02 deg RMS)
 };
 /* Plug-in-Gait markers placed on the model at rest (model coordinates, metres,
@@ -1104,7 +1115,7 @@ async function main() {
   }
 
 
-  /* ---------- the cover: the eight models on a ring; scrolling melts them into the markers ----------
+  /* ---------- the cover: the seven models on a ring; scrolling melts them into the markers ----------
      Each model's file from the viewer folder at its neutral standing pose (meta.canonical turns it
      into z up, facing -y), standing on a ring around the spot where the story's markers appear. The
      ring turns slowly; the model passing the front gets a white outline (OutlinePass) and its name
@@ -1118,7 +1129,6 @@ async function main() {
     { k: "lai_uhlrich2022", label: "Lai-Uhlrich 2022", muscles: 80, spec: "80 muscles · 27 joints solved", repo: "https://github.com/stanfordnmbl/opencap-core" },
     { k: "gait2354", label: "Gait2354", muscles: 54, spec: "54 muscles · 17 joints solved", repo: "https://github.com/opensim-org/opensim-models" },
     { k: "myoleg", label: "MyoLeg", muscles: 80, spec: "80 muscles · 14 joints solved", repo: "https://github.com/MyoHub/myo_sim" },
-    { k: "ms_human_700_locomotion", label: "MS-Human-700 legs", muscles: 100, spec: "100 muscles · 14 joints solved", repo: "https://github.com/LNSGroup/MS-Human-700" },
   ];
   const RN = RMODELS.length, RSTEP = (2 * Math.PI) / RN, RR = 2.15, RSPEED = (2 * Math.PI) / 72;   // one turn in 72 s
   const ringG = new THREE.Group(); scene.add(ringG);

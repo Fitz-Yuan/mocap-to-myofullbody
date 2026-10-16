@@ -1,6 +1,6 @@
 [
   {"id": "lift", "title": "Lifting · lab recording, MyoFullBody", "file": "demo_1.elvw"},
-  {"id": "walk", "title": "Walking · public data, eight models", "model": "myofullbody", "models": {
+  {"id": "walk", "title": "Walking · public data, seven models", "model": "myofullbody", "models": {
     "myofullbody": {"file": "walk/myofullbody.elvw", "label": "MyoFullBody · 416 muscles", "credit": "Apache-2.0; arm and hand from MoBL-ARMS, non-commercial use"},
     "ms_human_700": {"file": "walk/ms_human_700.elvw", "label": "MS-Human-700 · 700 muscles", "credit": "Apache-2.0"},
     "mass": {"file": "walk/mass.elvw", "label": "MASS · 284 muscles", "credit": "Apache-2.0"},
@@ -8,6 +8,6 @@
     "lai_uhlrich2022": {"file": "walk/lai_uhlrich2022.elvw", "label": "Lai–Uhlrich 2022 · 80 muscles", "credit": "OpenCap, Apache-2.0; converted with MyoConverter"},
     "gait2354": {"file": "walk/gait2354.elvw", "label": "OpenSim Gait2354 · 54 muscles", "credit": "CC BY 3.0; converted with MyoConverter"},
     "myoleg": {"file": "walk/myoleg.elvw", "label": "MyoLeg · 80 muscles", "credit": "MyoSim, Apache-2.0"},
-    "ms_human_700_locomotion": {"file": "walk/ms_human_700_locomotion.elvw", "label": "MS-Human-700 legs · 100 muscles", "credit": "Apache-2.0"}
+    "ms_human_700_locomotion": {"file": "walk/ms_human_700_locomotion.elvw", "label": "MS-Human-700 legs (variant) · 100 muscles", "credit": "Apache-2.0"}
   }}
 ]

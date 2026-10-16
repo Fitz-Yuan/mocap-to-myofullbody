@@ -334,7 +334,7 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
   <div class="eyebrow">Mocap to MSK · MMH Elevator case study · updated 15 Oct 2026</div>
   <h1>Mocap to MSK Documentation</h1>
   <p class="lede"><a href="../">Website home</a> · <a href="../viewer/">Motion viewer</a> · <a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody">Source on GitHub</a></p>
-  <p class="lede">How motion-capture marker trajectories become motions and joint loads of a MuJoCo musculoskeletal model (MyoFullBody by default, or one of seven others), worked through on the elevator lifting study and checked on two public datasets: joint angles, joint loads, and for the case study the box and the scene. This page covers each step, the scripts, how every step was checked, what the checks found, and what is still open. Muscle activations and forces are not produced here: they need a muscle-level method on top of these motions, such as static optimisation or a controller trained to track them.</p>
+  <p class="lede">How motion-capture marker trajectories become motions and joint loads of a MuJoCo musculoskeletal model (MyoFullBody by default, or one of six others), worked through on the elevator lifting study and checked on two public datasets: joint angles, joint loads, and for the case study the box and the scene. This page covers each step, the scripts, how every step was checked, what the checks found, and what is still open. Muscle activations and forces are not produced here: they need a muscle-level method on top of these motions, such as static optimisation or a controller trained to track them.</p>
 </header>
 
 <div class="bottom">
@@ -344,7 +344,7 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
     <li>Before the calibration fix, against an earlier version built from a collaborator's export of the same takes, it fitted the markers equally well (median residual 9.2 vs 9.5 mm) and kept 73 vs 76 carry cycles. The final run (static-trial calibration) keeps 63 of 110 carry cycles (25.9 min) after the per-cycle checks and a manual review.</li>
     <li><b>Main accuracy problem found and traced:</b> joint angles carried per-subject offsets (quiet-standing knee flexion 10–24° in 16 of 22 trials) that the marker residual cannot show. The cause is the subject calibration: a marker's position on its bone and the joint angle are not separable from the motion trials alone. Calibrating on each subject's static standing trial removes it: quiet-standing knee flexion median 18° → 0.1°, knee offset against Xsens from −8 / −10° to +1.3 / −2.4°. It is the default of <code>run_all.sh</code> (<code>M2M_STATIC=1</code>).</li>
     <li><b>Against OpenSim</b> (Scale + Marker Placer + IK, Rajagopal 2016, same markers): marker residual median 9.2 vs 19.8 mm, quiet-standing knee 0.1° vs 10.6°.</li>
-    <li><b>Any model, any marker set:</b> eight musculoskeletal models (MyoFullBody, MS-Human-700 and its legs, MASS, Rajagopal 2016, Lai–Uhlrich 2022, Gait2354, MyoLeg), Plug-in-Gait or the ISB set, C3D and TRC input with force plates. On public Vicon data the knee flexion follows Vicon's own Plug-in-Gait output with r = 0.996 (36 walking trials).</li>
+    <li><b>Any model, any marker set:</b> seven musculoskeletal models in MuJoCo (MyoFullBody, MS-Human-700, MASS, Rajagopal 2016, Lai–Uhlrich 2022, Gait2354, MyoLeg; four of them converted from OpenSim and DART), Plug-in-Gait or the ISB set, C3D and TRC input with force plates. On public Vicon data the knee flexion follows Vicon's own Plug-in-Gait output with r = 0.996 (36 walking trials).</li>
     <li><b>Inverse dynamics</b> (joint loads): low-back L5/S1 extension moment agrees with OpenSim Inverse Dynamics given the same loads (r = 0.984, RMS 13 N m); the predicted total ground force matches the lab's force plates to 1.8 % of body weight, and the plates give back the box mass (13.2 vs 13.6 kg).</li>
   </ul>
 </div>
@@ -368,7 +368,7 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
         <tr><td>Force-plate check</td><td><span class="pill ok">Done</span></td><td>AMTI plates in front of the shelf, 22 trials</td></tr>
         <tr><td>C3D and TRC input, force plates</td><td><span class="pill ok">Done</span></td><td>Vicon and Qualisys C3D (ezc3d), TRC; plates as ground reaction per marker frame</td></tr>
         <tr><td>Marker sets as data</td><td><span class="pill ok">Done</span></td><td>Plug-in-Gait and the 52-marker ISB / Dumas set (<a href="#models">models and marker sets</a>)</td></tr>
-        <tr><td>Eight musculoskeletal models</td><td><span class="pill ok">Done</span></td><td>MyoFullBody, MS-Human-700 (and its legs), MASS, Rajagopal 2016, Lai–Uhlrich 2022, Gait2354, MyoLeg</td></tr>
+        <tr><td>Seven musculoskeletal models</td><td><span class="pill ok">Done</span></td><td>MyoFullBody, MS-Human-700 (and its legs), MASS, Rajagopal 2016, Lai–Uhlrich 2022, Gait2354, MyoLeg</td></tr>
         <tr><td>Force plates in the inverse dynamics</td><td><span class="pill ok">Done</span></td><td>Measured foot loads where a foot is on a plate; floor height from the standing foot</td></tr>
         <tr><td>Validation on public data</td><td><span class="pill ok">Done</span></td><td>Against Vicon Plug-in-Gait outputs (36 trials); every model on one trial of each dataset (<a href="#public">public-data validation</a>)</td></tr>
         <tr><td>IK on the GPU</td><td><span class="pill ok">Done (opt-in)</span></td><td><code>M2M_IK_DEVICE=gpu</code>: 37–108 s per case-study trial instead of 20–30 min on one core, same result; MyoFullBody + Plug-in-Gait at 100 Hz</td></tr>
@@ -659,7 +659,7 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
 </section>
 
 <section>
-  <h2 id="public">Validation on public data: Vicon Plug-in-Gait outputs, and eight models on the same trials</h2>
+  <h2 id="public">Validation on public data: Vicon Plug-in-Gait outputs, and every model on the same trials</h2>
   <p class="lede">Two public gait datasets (both CC BY 4.0) go through the same stages as the case study, read from their C3D files with their force plates. <b>Vielemeyer et al. 2026</b>: level and ramp walking, Vicon, Plug-in-Gait markers, 200 Hz, three inclined AMTI plates; its C3D files also carry Vicon's own Plug-in-Gait joint angles and moments, an independent reference. <b>Moissenet and Schreiber 2019</b>: gait at five speeds, Qualisys, the 52-marker ISB / Dumas set, 100 Hz, plates and EMG.</p>
   <div class="sub">
     <h3 id="pig">Joint angles and moments against Vicon Plug-in-Gait (36 level-walking trials, 3 subjects)</h3>
