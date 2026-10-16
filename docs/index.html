@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Mocap to MSK</title>
-<meta name="description" content="Mocap to MSK: an open pipeline from motion capture (OptiTrack takes, C3D, TRC) to musculoskeletal models in MuJoCo, MyoFullBody by default, with a handbook and a browser viewer.">
+<meta name="description" content="Mocap to MSK: an open pipeline from motion capture (OptiTrack takes, C3D, TRC) to musculoskeletal models in MuJoCo, MyoFullBody by default, with documentation and a browser viewer.">
 <meta name="theme-color" content="#000000">
 <meta name="color-scheme" content="dark">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='4' fill='%23e0605a'/%3E%3C/svg%3E">
@@ -40,7 +40,7 @@
    Static mode (reduced motion / no WebGL) lays the five stages out in flow. */
 :root {
   /* Type. SF Pro on Apple devices, Inter Tight (Google Fonts) elsewhere.
-     These variables can be copied as-is into the handbook and the viewer. */
+     These variables can be copied as-is into the documentation and the viewer. */
   --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter Tight", "Helvetica Neue", Arial, sans-serif;
   --font-text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter Tight", "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
@@ -100,7 +100,8 @@ h1, h2, h3, p, figure { margin: 0; }
 .nav nav a.cta:hover { background: #fff; }
 .nav nav a.gh { display: inline-flex; align-items: center; gap: 7px; }
 .nav nav a.gh svg { width: 16px; height: 16px; }
-@media (max-width: 479px) { .nav nav a.gh span { display: none; } }
+.nav nav a .short { display: none; }
+@media (max-width: 479px) { .nav nav a.gh span { display: none; } .nav nav a .long { display: none; } .nav nav a .short { display: inline; } }
 @media (max-width: 379px) { .brand { font-size: 14px; } .nav nav { gap: 2px; } .nav nav a { font-size: 13px; padding: 8px 9px; } .nav nav a.cta { padding: 8px 12px; } }
 
 /* ---------- 3D layer ---------- */
@@ -303,12 +304,13 @@ h1 {
 .cta-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .cta-big { display: block; padding: clamp(36px, 4.5vw, 64px) 0; color: var(--fg); text-decoration: none; min-width: 0; }
 .cta-big + .cta-big { border-left: 1px solid var(--line); padding-left: clamp(24px, 4.5vw, 72px); }
-.cta-t { display: flex; align-items: baseline; gap: 0.18em; font: var(--weight-display) clamp(52px, 6vw, 96px)/1 var(--font-display); letter-spacing: var(--track-display); }
+.cta-t { display: flex; align-items: baseline; gap: 0.18em; font: var(--weight-display) clamp(40px, 4.6vw, 68px)/1 var(--font-display); letter-spacing: var(--track-display); }
 .cta-t i { font-style: normal; font-weight: 400; color: var(--accent); transition: transform .45s var(--ease); }
 .cta-big:hover .cta-t i, .cta-big:focus-visible .cta-t i { transform: translateX(0.14em); }
 .cta-d { display: block; margin-top: 18px; color: var(--fg-2); font-size: 17px; line-height: 1.45; max-width: 26em; }
 @media (max-width: 899px) {
   .cta-grid { grid-template-columns: minmax(0, 1fr); }
+  .cta-t { font-size: min(64px, 11.5vw); }
   .cta-big + .cta-big { border-left: 0; border-top: 1px solid var(--line); padding-left: 0; }
 }
 .gh { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px 32px; padding: 32px 0 clamp(72px, 9vw, 120px); }
@@ -352,7 +354,7 @@ footer a { color: var(--fg-2); }
 <header class="nav" id="nav">
   <a class="brand" href="./">Mocap <span>to</span> MSK</a>
   <nav aria-label="Site">
-    <a href="handbook/">Handbook</a>
+    <a href="documentation/"><span class="long">Documentation</span><span class="short">Docs</span></a>
     <a class="gh" href="https://github.com/Fitz-Yuan/mocap-to-myofullbody"><svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
     <a class="cta" href="viewer/">Open the viewer</a>
   </nav>
@@ -366,7 +368,7 @@ footer a { color: var(--fg-2); }
       <h1>Mocap to <span class="nowrap">MSK.</span></h1>
       <p class="lede">Optical motion capture in, musculoskeletal motion and joint loads out. OptiTrack takes, C3D or TRC; MyoFullBody, <span data-fact="muscles"></span> muscles, by default. <span class="more">Half the marker error of OpenSim on the same data.</span></p>
       <div class="actions">
-        <a class="btn" href="handbook/">Read the handbook</a>
+        <a class="btn" href="documentation/">Read the documentation</a>
         <a class="tlink" href="viewer/">Open the viewer <span class="arr" aria-hidden="true">→</span></a>
       </div>
     </div>
@@ -512,9 +514,9 @@ footer a { color: var(--fg-2); }
   <section class="sheet cta" id="start">
     <div class="wrap">
       <div class="cta-grid" data-reveal>
-        <a class="cta-big" href="handbook/">
-          <span class="cta-t">Handbook <i aria-hidden="true">→</i></span>
-          <span class="cta-d">Every stage, how it was checked, what the checks found, and the calibration fix.</span>
+        <a class="cta-big" href="documentation/">
+          <span class="cta-t">Documentation <i aria-hidden="true">→</i></span>
+          <span class="cta-d">Every stage and its method, the validation against OpenSim, Xsens and force plates, and what is still open. Searchable.</span>
         </a>
         <a class="cta-big" href="viewer/">
           <span class="cta-t">Viewer <i aria-hidden="true">→</i></span>
@@ -538,7 +540,7 @@ footer a { color: var(--fg-2); }
 <script>
 /* =====================================================================
    FACTS. Every number on this page is read from here; edit here only.
-   Sources: the README results table and the handbook; the OpenSim
+   Sources: the README results table and the documentation; the OpenSim
    comparison (knee 11 degrees, L5/S1 moment) from the pipeline's comparison outputs.
    ===================================================================== */
 window.FACTS = {

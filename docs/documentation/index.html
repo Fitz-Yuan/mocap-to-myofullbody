@@ -1,0 +1,947 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='4' fill='%23e0605a'/%3E%3C/svg%3E">
+<title>Mocap to MSK Documentation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: a fixed top bar (as on the landing page), a sticky contents column on the left and one reading column.
+   Summary first (bottom line, status), then the pipeline, then results and validation, then reference material.
+   Dark by default, light when the system asks for it; data-theme="dark" / "light" on <html> forces either. */
+:root {
+  /* Type: the same stack as the landing page and the viewer. */
+  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter Tight", "Helvetica Neue", Arial, sans-serif;
+  --font-text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter Tight", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --font-body: var(--font-text);
+  --track-display: -0.03em;
+  --track-title: -0.02em;
+
+  --bg: #000000;
+  --surface: #111113;
+  --surface-2: #1c1c1f;
+  --fg: #f5f5f7;
+  --muted: #a1a1a6;
+  --faint: #6e6e73;
+  --line: #2a2a2e;
+  --accent: #e0605a;
+  --accent-soft: rgba(255, 90, 54, 0.14);
+  --ok: #30d158;
+  --ok-soft: rgba(48, 209, 88, 0.13);
+  --warn: #ff9f0a;
+  --warn-soft: rgba(255, 159, 10, 0.14);
+  --bad: #ff453a;
+  --bad-soft: rgba(255, 69, 58, 0.15);
+  --code-bg: rgba(255, 255, 255, 0.08);
+  --nav-bg: rgba(12, 12, 14, 0.7);
+  --nav-h: 52px;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg: #ffffff; --surface: #f5f5f7; --surface-2: #e8e8ed; --fg: #1d1d1f; --muted: #6e6e73; --faint: #86868b;
+    --line: #d2d2d7; --accent: #d9381a; --accent-soft: rgba(217, 56, 26, 0.09);
+    --ok: #248a3d; --ok-soft: rgba(36, 138, 61, 0.1); --warn: #b25f00; --warn-soft: rgba(255, 149, 0, 0.13);
+    --bad: #d70015; --bad-soft: rgba(215, 0, 21, 0.08); --code-bg: rgba(0, 0, 0, 0.05); --nav-bg: rgba(255, 255, 255, 0.72);
+    color-scheme: light;
+  }
+}
+:root[data-theme="light"] {
+  --bg: #ffffff; --surface: #f5f5f7; --surface-2: #e8e8ed; --fg: #1d1d1f; --muted: #6e6e73; --faint: #86868b;
+  --line: #d2d2d7; --accent: #d9381a; --accent-soft: rgba(217, 56, 26, 0.09);
+  --ok: #248a3d; --ok-soft: rgba(36, 138, 61, 0.1); --warn: #b25f00; --warn-soft: rgba(255, 149, 0, 0.13);
+  --bad: #d70015; --bad-soft: rgba(215, 0, 21, 0.08); --code-bg: rgba(0, 0, 0, 0.05); --nav-bg: rgba(255, 255, 255, 0.72);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font: 400 17px/1.6 var(--font-body);
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility;
+}
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+p { margin: 0; }
+b, strong { font-weight: 600; }
+
+/* ---------- top bar ---------- */
+.site-nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 20;
+  height: calc(var(--nav-h) + env(safe-area-inset-top, 0px));
+  padding: env(safe-area-inset-top, 0px) clamp(16px, 5vw, 80px) 0;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  background: var(--nav-bg); -webkit-backdrop-filter: saturate(180%) blur(20px); backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--line);
+}
+.site-nav .brand { font: 600 15px/1 var(--font-display); letter-spacing: -0.01em; color: var(--fg); white-space: nowrap; }
+.site-nav .brand span { color: var(--faint); font-weight: 500; }
+.site-nav .brand:hover { text-decoration: none; }
+.site-nav nav { display: flex; gap: clamp(16px, 2.6vw, 34px); }
+.site-nav nav a { font: 400 13px/1 var(--font-text); color: var(--muted); }
+.site-nav nav a:hover { color: var(--fg); text-decoration: none; }
+.site-nav nav a[aria-current="page"] { color: var(--fg); }
+@media (max-width: 379px) { .site-nav .brand { font-size: 14px; } .site-nav nav { gap: 12px; } }
+
+/* ---------- page grid ---------- */
+.layout {
+  max-width: 1240px; margin: 0 auto;
+  padding: calc(var(--nav-h) + env(safe-area-inset-top, 0px) + clamp(48px, 7vw, 96px)) clamp(16px, 5vw, 80px) 120px;
+  display: grid; grid-template-columns: 200px minmax(0, 820px); gap: clamp(40px, 5vw, 80px); justify-content: center;
+}
+.wrap { min-width: 0; display: flex; flex-direction: column; gap: 56px; }
+h2[id], h3[id] { scroll-margin-top: calc(var(--nav-h) + 28px + env(safe-area-inset-top, 0px)); }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+
+/* contents column: search box, then the contents list (or the search results) */
+.toc {
+  position: sticky; top: calc(var(--nav-h) + 32px + env(safe-area-inset-top, 0px)); align-self: start;
+  max-height: calc(100vh - var(--nav-h) - 64px); overflow-y: auto; font-size: 13.5px; scrollbar-width: thin;
+}
+.toc-title { font: 600 13px/1 var(--font-display); color: var(--fg); margin-bottom: 14px; }
+.toc-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.toc-list a { display: block; padding: 5px 0 5px 14px; border-left: 1px solid var(--line); color: var(--muted); line-height: 1.35; transition: color .2s, border-color .2s; }
+.toc-list li.sub a { padding-left: 26px; font-size: 12.5px; color: var(--faint); }
+.toc-list a:hover { color: var(--fg); text-decoration: none; }
+.toc-list a[aria-current="true"] { color: var(--fg); border-left: 2px solid var(--accent); padding-left: 13px; font-weight: 500; }
+.toc-list li.sub a[aria-current="true"] { padding-left: 25px; }
+.toc.searching .toc-title, .toc.searching .toc-list { display: none; }
+
+.search { position: sticky; top: 0; z-index: 1; background: var(--bg); padding-bottom: 20px; }
+.search-box {
+  display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 8px 0 11px; border-radius: 10px;
+  background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); transition: box-shadow .15s;
+}
+.search-box:focus-within { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px var(--accent-soft); }
+.search-box > svg { width: 14px; height: 14px; color: var(--faint); flex: none; }
+.search-box input {
+  flex: 1 1 auto; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; padding: 0;
+  color: var(--fg); font: 400 14px/1 var(--font-text); -webkit-appearance: none; appearance: none;
+}
+.search-box input::placeholder { color: var(--faint); }
+.search-box input::-webkit-search-cancel-button, .search-box input::-webkit-search-decoration { -webkit-appearance: none; }
+.search-box kbd { font: 500 11px/1 var(--font-mono); color: var(--faint); border: 1px solid var(--line); border-radius: 5px; padding: 3px 6px; }
+.search-box .x {
+  display: none; width: 20px; height: 20px; border: 0; border-radius: 50%; padding: 0; cursor: pointer;
+  background: var(--surface-2); color: var(--muted); font: 500 13px/20px var(--font-text);
+}
+.search-box .x:hover { color: var(--fg); }
+.toc.searching .search-box kbd { display: none; }
+.toc.searching .search-box .x { display: block; }
+@media (hover: none) { .search-box kbd { display: none; } }
+.search-meta { display: none; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.toc.searching .search-meta { display: flex; }
+.search-meta .step { display: flex; gap: 4px; }
+.search-meta button {
+  width: 26px; height: 22px; border: 0; border-radius: 6px; padding: 0; cursor: pointer;
+  background: var(--surface); color: var(--muted); font: 500 12px/22px var(--font-text);
+}
+.search-meta button:hover:not(:disabled) { color: var(--fg); background: var(--surface-2); }
+.search-meta button:disabled { opacity: .4; cursor: default; }
+.results { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.results a { display: block; padding: 8px 10px; border-radius: 9px; color: var(--muted); }
+.results a:hover, .results a.on { background: var(--surface); text-decoration: none; }
+.results .rt { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; color: var(--fg); font-size: 13px; font-weight: 500; line-height: 1.3; }
+.results .rc { flex: none; font-size: 11.5px; font-weight: 400; color: var(--faint); font-variant-numeric: tabular-nums; }
+.results .rs {
+  font-size: 12px; line-height: 1.45; margin-top: 3px; color: var(--muted);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.results .none { padding: 4px 2px; font-size: 13px; color: var(--muted); }
+mark { background: rgba(255, 204, 0, 0.26); color: inherit; border-radius: 3px; padding: 0 1px; }
+mark.hit.on { background: #ffd60a; color: #1d1d1f; box-shadow: 0 0 0 2px rgba(255, 214, 10, 0.35); }
+
+@media (max-width: 1100px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 32px; }
+  .toc { position: static; max-height: none; overflow: visible; }
+  .search { position: static; padding-bottom: 16px; }
+  .toc-list { flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  .toc-list li.sub { display: none; }
+  .toc-list a, .toc-list a[aria-current="true"] { border: 0; border-radius: 99px; padding: 6px 12px; background: var(--surface); color: var(--muted); font-size: 13px; font-weight: 400; }
+}
+
+/* ---------- type ---------- */
+h1, h2, h3 { text-wrap: balance; margin: 0; font-family: var(--font-display); font-weight: 600; }
+h1 { font-size: clamp(40px, 5.6vw, 72px); line-height: 1.02; letter-spacing: var(--track-display); }
+h2 { font-size: clamp(28px, 3.1vw, 40px); line-height: 1.1; letter-spacing: var(--track-display); }
+h3 { font-size: 21px; line-height: 1.25; letter-spacing: var(--track-title); }
+code, .mono { font-family: var(--font-mono); font-size: 0.84em; }
+code { background: var(--code-bg); color: var(--fg); padding: 1px 6px; border-radius: 5px; overflow-wrap: anywhere; }
+pre {
+  margin: 0; font-family: var(--font-mono); font-size: 13px; line-height: 1.65; color: var(--fg);
+  background: var(--surface); border-radius: 14px; padding: 20px 22px; overflow-x: auto;
+}
+.eyebrow { font-size: 14px; color: var(--faint); }
+.lede { color: var(--muted); max-width: 40em; font-size: 19px; line-height: 1.5; }
+.wrap > header { display: flex; flex-direction: column; gap: 18px; }
+.wrap > header .eyebrow { order: -1; }
+.wrap > header .lede:first-of-type { font-size: 15px; }
+section { display: flex; flex-direction: column; gap: 20px; padding-top: 48px; border-top: 1px solid var(--line); }
+section > .lede { font-size: 17px; }
+div.sub { display: flex; flex-direction: column; gap: 14px; margin-top: 12px; }
+ul.plain { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 8px; }
+ul.plain li::marker, .body ul li::marker { color: var(--faint); }
+
+/* summary panel */
+.bottom { background: var(--surface); border-radius: 22px; padding: clamp(24px, 3.4vw, 40px); display: flex; flex-direction: column; gap: 16px; }
+.bottom h2 { font-size: clamp(22px, 2.2vw, 28px); letter-spacing: var(--track-title); }
+.bottom ul.plain { gap: 12px; }
+
+/* flow strip: one row on wide screens, a column on phones */
+.flow { display: flex; align-items: stretch; gap: 4px; }
+.node {
+  flex: 1 1 0; min-width: 0; background: var(--surface); border-radius: 12px;
+  padding: 12px; display: flex; flex-direction: column; gap: 3px;
+}
+.node b { font-size: 13.5px; line-height: 1.3; font-weight: 600; }
+.node span { font-size: 12px; color: var(--muted); line-height: 1.35; }
+.node.data { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+.arrow { align-self: center; color: var(--faint); flex: 0 0 auto; font-size: 14px; }
+.arrow::before { content: "→"; }
+@media (max-width: 720px) {
+  .flow { flex-direction: column; }
+  .node { flex: 0 0 auto; flex-direction: row; gap: 10px; align-items: baseline; }
+  .arrow::before { content: "↓"; }
+}
+.legend { font-size: 13px; color: var(--muted); display: flex; gap: 18px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 14px; height: 10px; border-radius: 3px; margin-right: 7px; vertical-align: -1px; background: var(--surface-2); }
+.legend i.d { background: transparent; box-shadow: inset 0 0 0 1px var(--faint); }
+
+/* stages: a large numeral and one content column */
+.stages { display: flex; flex-direction: column; gap: 16px; }
+.stage { background: var(--surface); border-radius: 22px; padding: clamp(22px, 3vw, 34px); display: flex; gap: clamp(16px, 2.6vw, 32px); align-items: flex-start; }
+.num {
+  flex: 0 0 auto; min-width: 1.1em; font: 600 44px/0.9 var(--font-display); letter-spacing: -0.04em;
+  color: var(--accent); font-variant-numeric: tabular-nums;
+}
+.body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.body h3 { font-size: 20px; }
+.files { font-family: var(--font-mono); font-size: 12px; color: var(--faint); overflow-wrap: anywhere; margin-top: -4px; }
+.io { display: flex; flex-wrap: wrap; gap: 4px 20px; font-size: 14px; color: var(--muted); }
+.io b { color: var(--fg); font-weight: 600; }
+.body ul { margin: 0; padding-left: 1.2em; display: flex; flex-direction: column; gap: 6px; }
+.callout { font-size: 14.5px; line-height: 1.55; border-radius: 12px; padding: 12px 16px; }
+.callout b { font-weight: 600; }
+.callout.check { background: var(--ok-soft); }
+.callout.check b { color: var(--ok); }
+.callout.pit { background: var(--warn-soft); }
+.callout.pit b { color: var(--warn); }
+.callout.bad { background: var(--bad-soft); }
+.callout.bad b { color: var(--bad); }
+@media (max-width: 520px) {
+  .lede { font-size: 17px; }
+  .stage { flex-direction: column; gap: 12px; padding: 20px; }
+  .num { font-size: 36px; }
+}
+
+/* tables */
+.tbl { overflow-x: auto; border-radius: 14px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 600px; font-size: 14px; line-height: 1.5; }
+th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+tr:last-child td { border-bottom: 0; }
+td:first-child { font-weight: 600; white-space: nowrap; }
+table.tabnum td { font-variant-numeric: tabular-nums; }
+table.tight td { white-space: nowrap; }
+td.w { background: var(--warn-soft); }
+td.f { background: var(--bad-soft); }
+.pill { display: inline-block; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 99px; white-space: nowrap; letter-spacing: 0.01em; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.run { background: var(--accent-soft); color: var(--accent); }
+.pill.todo { background: var(--warn-soft); color: var(--warn); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+
+/* glossary + reading order */
+.gloss { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px 32px; margin: 0; }
+.gloss div { min-width: 0; padding-top: 14px; border-top: 1px solid var(--line); }
+.gloss dt { font-weight: 600; margin-bottom: 4px; }
+.gloss dd { margin: 0; color: var(--muted); font-size: 14.5px; line-height: 1.5; }
+ol.read { margin: 0; padding-left: 1.6em; display: flex; flex-direction: column; gap: 10px; }
+ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+.note { font-size: 14.5px; line-height: 1.55; color: var(--muted); }
+</style>
+</head>
+<body>
+<header class="site-nav">
+  <a class="brand" href="../">Mocap <span>to</span> MSK</a>
+  <nav aria-label="Site">
+    <a href="./" aria-current="page">Documentation</a>
+    <a href="../viewer/">Viewer</a>
+    <a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody">GitHub</a>
+  </nav>
+</header>
+<div class="layout">
+  <aside class="toc" id="toc">
+    <div class="search" role="search">
+      <label class="search-box">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.75" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M10.6 10.6 14 14" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <input id="q" type="search" placeholder="Search" aria-label="Search the documentation" autocomplete="off" spellcheck="false" enterkeyhint="search">
+        <kbd aria-hidden="true">/</kbd>
+        <button class="x" type="button" id="qClear" aria-label="Clear the search">×</button>
+      </label>
+      <div class="search-meta"><span id="qCount" aria-live="polite"></span><span class="step"><button type="button" id="qPrev" aria-label="Previous match">↑</button><button type="button" id="qNext" aria-label="Next match">↓</button></span></div>
+    </div>
+    <ol class="results" id="qResults" aria-label="Search results" hidden></ol>
+    <nav aria-label="Contents">
+    <div class="toc-title">Contents</div>
+    <ol class="toc-list" id="tocList">
+      <li><a href="#bottom-line">Summary of results</a></li>
+      <li><a href="#status">Implementation status</a></li>
+      <li><a href="#pipeline">Pipeline architecture</a></li>
+      <li><a href="#sources">Input data sources</a></li>
+      <li><a href="#steps">Processing stages</a></li>
+      <li class="sub"><a href="#stage-read">1 · Reading the recording</a></li>
+      <li class="sub"><a href="#stage-markers">2 · Marker conditioning</a></li>
+      <li class="sub"><a href="#stage-ik">3 · Calibration and IK</a></li>
+      <li class="sub"><a href="#stage-ref">4 · Reference construction</a></li>
+      <li class="sub"><a href="#stage-qa">5 · QA and segmentation</a></li>
+      <li><a href="#routes">Input sensitivity of the IK</a></li>
+      <li><a href="#validation">Joint-angle validation</a></li>
+      <li class="sub"><a href="#lomo">Leave-one-marker-out error</a></li>
+      <li class="sub"><a href="#xsens">Knee angle vs Xsens</a></li>
+      <li class="sub"><a href="#posture">Standing posture bias</a></li>
+      <li><a href="#static">Static-trial calibration</a></li>
+      <li><a href="#opensim">IK vs OpenSim</a></li>
+      <li><a href="#kinetics">Inverse dynamics method</a></li>
+      <li class="sub"><a href="#kin-validation">ID vs OpenSim and plates</a></li>
+      <li><a href="#report">Per-trial QA grades</a></li>
+      <li><a href="#problems">Raw-take defects</a></li>
+      <li><a href="#next">Open technical issues</a></li>
+      <li><a href="#effort">Run time and effort</a></li>
+      <li><a href="#run">Command-line usage</a></li>
+      <li><a href="#code">Source layout</a></li>
+      <li><a href="#terms">Glossary</a></li>
+      <li><a href="#reading">Code reading order</a></li>
+    </ol>
+    </nav>
+  </aside>
+<div class="wrap">
+<header>
+  <div class="eyebrow">Mocap to MSK · MMH Elevator case study · updated 15 Oct 2026</div>
+  <h1>Mocap to MSK Documentation</h1>
+  <p class="lede"><a href="../">Website home</a> · <a href="../viewer/">Motion viewer</a> · <a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody">Source on GitHub</a></p>
+  <p class="lede">How the motion-capture marker trajectories of the elevator lifting study become reference motions the MyoFullBody musculoskeletal model can track: joint angles plus the box and the scene. This page covers each step, the scripts, how every step was checked, what the checks found, and what is still open. Muscle activations and forces are not produced here: they need a muscle-level method on top of these motions, such as static optimisation or a controller trained to track them.</p>
+</header>
+
+<div class="bottom">
+  <h2 id="bottom-line">Summary: accuracy, validation and status</h2>
+  <ul class="plain">
+    <li>The pipeline runs from the <b>raw OptiTrack takes</b> to motion clips with no Motive, no OpenSim and no file processed by hand. One command, CPU only, about an hour for the 22 trials of the case study.</li>
+    <li>Before the calibration fix, against an earlier version built from a collaborator's export of the same takes, it fitted the markers equally well (median residual 9.2 vs 9.5 mm) and kept 73 vs 76 carry cycles. The final run (static-trial calibration) keeps 63 of 110 carry cycles (25.9 min) after the per-cycle checks and a manual review.</li>
+    <li><b>Main accuracy problem found and traced:</b> joint angles carried per-subject offsets (quiet-standing knee flexion 10–24° in 16 of 22 trials) that the marker residual cannot show. The cause is the subject calibration: a marker's position on its bone and the joint angle are not separable from the motion trials alone. Calibrating on each subject's static standing trial removes it: quiet-standing knee flexion median 18° → 0.1°, knee offset against Xsens from −8 / −10° to +1.3 / −2.4°. It is the default of <code>run_all.sh</code> (<code>M2M_STATIC=1</code>).</li>
+    <li><b>Against OpenSim</b> (Scale + Marker Placer + IK, Rajagopal 2016, same markers): marker residual median 9.2 vs 19.8 mm, quiet-standing knee 0.1° vs 10.6°.</li>
+    <li><b>Inverse dynamics</b> (joint loads): low-back L5/S1 extension moment agrees with OpenSim Inverse Dynamics given the same loads (r = 0.984, RMS 13 N m); the predicted total ground force matches the lab's force plates to 1.8 % of body weight, and the plates give back the box mass (13.2 vs 13.6 kg).</li>
+  </ul>
+</div>
+
+<section>
+  <h2 id="status">Implementation status by component</h2>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Item</th><th>Status</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Reading raw takes</td><td><span class="pill ok">Verified</span></td><td>11 processed takes (6 subjects) identical to Motive's TRC exports</td></tr>
+        <tr><td>Raw take to cleaned markers</td><td><span class="pill ok">Done</span></td><td>22 trials; compared point by point with the collaborator export, every difference explained</td></tr>
+        <tr><td>Raw-take route: IK, reference, QA, dataset</td><td><span class="pill ok">Done</span></td><td>Final run (static-trial calibration): 63 of 110 carry cycles pass the per-cycle checks and the manual review, 25.9 min</td></tr>
+        <tr><td>One-command rebuild from raw takes</td><td><span class="pill ok">Done</span></td><td><code>pipeline/run_all.sh</code></td></tr>
+        <tr><td>Leave-one-marker-out test</td><td><span class="pill ok">Done</span></td><td>Final run: median prediction error 14.45 mm (per trial 12.3–24.0 mm)</td></tr>
+        <tr><td>Comparison with Xsens</td><td><span class="pill todo">Partial</span></td><td>Only one trial has a usable Xsens export; the rest need a batch export from MVN</td></tr>
+        <tr><td>Per-trial pass / warn / fail report</td><td><span class="pill ok">Done</span></td><td>Final run: 1 FAIL, 17 WARN, 4 PASS, mostly a marker missing in many frames or the hip flexed while standing (table below)</td></tr>
+        <tr><td>Static-trial calibration</td><td><span class="pill ok">Done</span></td><td>Default of <code>run_all.sh</code> (<code>M2M_STATIC=1</code>): the static trial places the pelvis and leg markers (<code>M2M_STATIC_MARKERS=legs</code>)</td></tr>
+        <tr><td>OpenSim head-to-head</td><td><span class="pill ok">Done</span></td><td>IK and inverse dynamics on the same data; optional in the pipeline (<code>run_all.sh --opensim</code>)</td></tr>
+        <tr><td>Inverse dynamics</td><td><span class="pill ok">Done</span></td><td>L5/S1, shoulders and elbows top-down; ground reaction; legs with an estimated foot split</td></tr>
+        <tr><td>Force-plate check</td><td><span class="pill ok">Done</span></td><td>AMTI plates in front of the shelf, 22 trials</td></tr>
+        <tr><td>Browser viewer</td><td><span class="pill ok">Done</span></td><td>Joint angles, joint loads, force arrows, OpenSim overlay; one public demo clip</td></tr>
+        <tr><td>Muscle level: static optimisation vs EMG</td><td><span class="pill todo">Next</span></td><td>16 EMG channels (trunk and arm), MVC trials for 7 of 8 muscles</td></tr>
+        <tr><td>Code</td><td><span class="pill ok">Public</span></td><td>This repository</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2 id="pipeline">Pipeline architecture: Motive .tak → MyoFullBody joint angles (qpos)</h2>
+  <div class="flow" role="list">
+    <div class="node data" role="listitem"><b>Raw .tak</b><span>OptiTrack Motive, 100 Hz</span></div>
+    <div class="arrow" aria-hidden="true"></div>
+    <div class="node" role="listitem"><b>1 .tak parse</b><span>OLE streams, no Motive</span></div>
+    <div class="arrow" aria-hidden="true"></div>
+    <div class="node" role="listitem"><b>2 Marker conditioning</b><span>labels, Kabsch box pose</span></div>
+    <div class="arrow" aria-hidden="true"></div>
+    <div class="node" role="listitem"><b>3 Registration + IK</b><span>least squares → qpos</span></div>
+    <div class="arrow" aria-hidden="true"></div>
+    <div class="node" role="listitem"><b>4 Reference build</b><span>floor, box, grasp labels</span></div>
+    <div class="arrow" aria-hidden="true"></div>
+    <div class="node" role="listitem"><b>5 QA + segmentation</b><span>one clip per carry cycle</span></div>
+    <div class="arrow" aria-hidden="true"></div>
+    <div class="node data" role="listitem"><b>Motion dataset</b><span>npz, one clip per carry cycle</span></div>
+  </div>
+  <div class="legend"><span><i></i>processing step</span><span><i class="d"></i>data</span></div>
+  <p class="note">Scripts: <code>pipeline/</code> (generic stages) and <code>tasks/box_lift/</code> (the lifting task); library: <code>mocap2myo/</code>. Data: <code>$M2M_ROOT</code> (default <code>~/data/mocap2myo</code>); paths and file naming in <code>pipeline/config.py</code>. CPU only.</p>
+</section>
+
+<section>
+  <h2 id="sources">Input data: raw Motive takes vs a hand-processed export</h2>
+  <p class="lede">The pipeline reads the raw takes; no file anyone has processed by hand. An earlier version read an export of the same takes prepared by a collaborating group. That route is not part of this repository (its converter depends on the collaborator's files), but the two inputs were compared point by point, and the comparison is kept below as a check.</p>
+  <div class="tbl">
+    <table>
+      <thead><tr><th></th><th>Collaborator export (earlier version, not in this repository)</th><th>Raw take (this repository)</th></tr></thead>
+      <tbody>
+        <tr><td>Input</td><td>Marker coordinates exported from Motive by a collaborating group, converted to xlsx</td><td><code>raw_tak/*.tak</code> for each trial, <code>raw_tak/static/</code> for the static trials</td></tr>
+        <tr><td>Body labels</td><td>Edited and gap-filled by them in Motive</td><td>Labels Motive assigned live during recording</td></tr>
+        <tr><td>Box and scene markers</td><td>Labels lost in the export; recovered from geometry</td><td>Owning rigid body is in the file; still matched by geometry</td></tr>
+        <tr><td>Outputs</td><td>—</td><td><code>tak_cache/</code>, then <code>markers/</code> (<code>M2M_NPZ_DIR</code>)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2 id="steps">Processing stages: parsing, marker conditioning, IK, reference, QA</h2>
+  <div class="stages">
+
+    <article class="stage">
+      <div class="num">1</div>
+      <div class="body">
+        <h3 id="stage-read">Stage 1 · Reading the recording: .tak (OLE compound file), C3D and TRC, force plates</h3>
+        <div class="files">mocap2myo/tak.py · pipeline/read_raw.py · pipeline/validate/tak_reader.py</div>
+        <p>A .tak file is a Microsoft OLE compound file, which the open-source library olefile can open. The marker trajectories are in <code>Channels.dat</code>: one record of frame number plus x, y, z per marker per frame, with no record when the marker was not seen. Marker names, the skeleton or rigid body each marker belongs to, and each rigid body's marker layout are in <code>Nodes.dat</code>. We worked out this layout ourselves; there is no official specification and no existing open-source reader.</p>
+        <div class="io"><span><b>In</b> .tak</span><span><b>Out</b> <code>tak_cache/</code>: marker trajectories per trial (Motive world, Y up, metres)</span></div>
+        <div class="callout check"><b>Checked.</b> All 11 processed takes in the dataset (S01, S03, S04, S09, S10, S11: anatomy, platform and S03's two NE trials) are identical to Motive's own TRC exports, largest difference 0.005 mm (float32 rounding). Raw takes match the TRC exports wherever both have a sample; they differ only where the lab edited the take in Motive before exporting.</div>
+        <div class="callout pit"><b>Caution.</b> Verified for this study's Motive version. For data from another Motive version, compare against one TRC export first: <code>python -m mocap2myo.tak IN.tak --compare EXPORT.trc</code>.</div>
+        <p>Other labs' data comes as C3D or TRC (<code>mocap2myo/readers.py</code>; C3D through ezc3d), described by a dataset profile (<code>datasets/*.toml</code>: file kind, which files are trials and static trials and how they are named, up axis, units, rate, where heights and masses come from, the task). The reader puts the markers in metres in a Z-up world, keeps the lab software's model outputs (joint angles, forces, segment points) apart from the markers, and turns each force plate into the ground reaction on the body per marker frame (the analog samples of a frame averaged): force, centre of pressure on the plate surface (also on inclined plates), free moment about the vertical, plate corners, in the markers' world frame. These go into the marker files for the later stages, with the other analog channels (EMG) by name. Every stage keeps the recording's frame rate.</p>
+        <div class="callout check"><b>Checked on public data.</b> Vielemeyer et al. 2026 (Vicon, Plug-in-Gait, 200 Hz, three AMTI plates, subject Ref01): the 39 markers found by name, 76 segment points and 82 model outputs kept apart; body mass from the plates 67.0 kg (12 level trials, mean vertical force between two plate contacts corrected for the pelvis's vertical acceleration, range 66.8–67.2; the static trial 67.1 kg; the article lists 65 kg), the same on the inclined plates of the ramp trials; centre of pressure inside the plate and under the stance foot (from the heel marker to just past the toe marker) in every loaded frame. IK on one level trial (1.65 s): body-marker residual median 7.0 mm, 95th percentile 23 mm; static pose knees 0°, hips −2° (without the static trial: hips −11°, ankles 7–9°). Moissenet and Schreiber 2019 (Qualisys, 100 Hz, one subject, 25 trials): 52 markers, height and mass from the C3D, mass from single support on the plates 67.1 kg (C3D: 67.0). The TRC route reproduces the take route on a Motive TRC export (static trial, largest difference 0.005 mm).</div>
+      </div>
+    </article>
+
+    <article class="stage">
+      <div class="num">2</div>
+      <div class="body">
+        <h3 id="stage-markers">Stage 2 · Marker conditioning: label mapping, mislabel rejection, rigid-body fits</h3>
+        <div class="files">pipeline/prepare_markers.py · mocap2myo/markerset.py · tasks/box_lift/box_fit.py (box, shelf, platform, floor)</div>
+        <p>Brings every trial to one format: the 39 Plug-in-Gait body markers, the box's 6 markers and pose, the shelf and elevator platform positions, and the floor height.</p>
+        <ul>
+          <li>Coordinates are turned to Z up.</li>
+          <li>Mislabelled samples are dropped: a marker's distance to the steadiest markers on its own segment should stay nearly constant, and a sample that breaks this is treated as a wrong label.</li>
+          <li>Missing pelvis markers are refilled from the other three, using the pelvis as a rigid body.</li>
+          <li>Box: a template of its 6 markers is taken while the box rests in S03; each frame's box position and orientation come from a rigid (Kabsch) fit of that template.</li>
+          <li>Shelf and floor: static markers, sorted by height.</li>
+          <li>S01's labels are renamed (below), and the four head markers of every trial are assigned by their front/back and left/right position.</li>
+        </ul>
+        <div class="io"><span><b>In</b> stage 1 trajectories, subject height and weight (<code>meta/anthropometrics.csv</code>)</span><span><b>Out</b> <code>markers/</code> (<code>M2M_NPZ_DIR</code>)</span></div>
+        <div class="callout check"><b>Checked.</b> The raw-take markers were compared point by point with the collaborator's export. In 18 of 22 trials, 98–99.9% of the shared samples are identical; box pose, floor and shelf heights are identical in all 22. S06: the export was smoothed (3–5 mm per point, no time shift). S01: it was reconstructed again in Motive (differences below 1 mm).</div>
+      </div>
+    </article>
+
+    <article class="stage">
+      <div class="num">3</div>
+      <div class="body">
+        <h3 id="stage-ik">Stage 3 · Subject marker registration and per-frame bounded least-squares IK</h3>
+        <div class="files">pipeline/solve_ik.py · mocap2myo/ik.py (the solver)</div>
+        <p>IK finds the joint angles that bring the model's virtual markers as close as possible to the measured ones. It is the same idea as OpenSim's IK, written directly on MuJoCo's MyoFullBody and solved with <code>scipy.optimize.least_squares</code>; joint limits are the bounds of the variables.</p>
+        <ul>
+          <li><b>Scaling.</b> The model stays as it is; the markers are scaled by the ratio of model height to subject height.</li>
+          <li><b>Calibration, once per subject.</b> 40 frames with varied poses are taken from all of the subject's trials, plus standing frames, which must have flat feet. The solver alternates between solving IK with the current marker placements and updating where each marker sits on its segment from the solved poses, like OpenSim's Scale plus Marker Placer. A marker may move from its starting position on the segment by up to 6 cm, 10 cm for the foot markers (on thick-soled slides) and 15 cm for the wand, trunk and head markers, whose placement varies most.</li>
+          <li><b>Static trial (the default).</b> The subject's static standing trial joins the calibration: in its frames the hips, knees, ankles and subtalar joints are pulled toward 0°, and they carry half the weight of every update of the marker placements. They place only the pelvis and leg markers (<code>M2M_STATIC_MARKERS=legs</code>); the arm and trunk markers come from the motion trials. <code>run_all.sh</code> turns this on (<code>M2M_STATIC=1</code>); the default in <code>pipeline/config.py</code> is off, so a stage run on its own needs <code>M2M_STATIC=1</code>. Why it is needed: see <a href="#validation">joint-angle validation</a> and <a href="#static">static-trial calibration</a>.</li>
+          <li><b>Per-frame solve.</b> 37 degrees of freedom: pelvis 6, legs 14, lumbar 3, arms 14. Other joints follow the model's coupling constraints. Each frame starts from the previous one, and the pelvis starting pose comes from a rigid fit to the four pelvis markers.</li>
+          <li><b>Safeguards.</b> Markers are low-pass filtered at 6 Hz. A robust loss weakens the pull of a marker that is far off. Feet may not go through the floor, a standing foot stays where it was planted, and joint speed is capped so the solution cannot flip between frames.</li>
+        </ul>
+        <div class="io"><span><b>In</b> stage 2 markers</span><span><b>Out</b> <code>ik/</code>: joint angles (qpos) per frame, each marker's residual, and the frames the IK could not solve</span></div>
+        <div class="callout check"><b>Fit (final run).</b> Body-marker residual per trial: median 7.7–14.3 mm, 95th percentile 25–48 mm (the IK's own measure, on the height-scaled, filtered markers). Against the raw markers in the subject's own size, as used for the OpenSim comparison: median 7.9–14.3 mm per trial (9.2 mm, median over trials); OpenSim IK on the same markers 14.6–27.5 mm (19.8 mm; S09: 16.0 and 14.9 mm).</div>
+        <div class="callout bad"><b>Why the static trial.</b> From the motion trials alone, the calibration can trade where markers sit on a segment against the pose itself: a knee marker a few centimetres further back fits as well as a knee bent 20°, which shifts the joint angles of every frame of that subject. The static trial removes that freedom; see <a href="#validation">joint-angle validation</a> and <a href="#static">static-trial calibration</a>.</div>
+        <div class="callout pit"><b>Model limits.</b> The knee has no axial rotation, so all twisting during turns goes to the hip. Deep squats go past the model's 120° joint limits. There is no neck joint, so head markers carry a low weight (an optional neck for the IK, <code>M2M_NECK=1</code>, lets the head follow its markers; it is not validated).</div>
+      </div>
+    </article>
+
+    <article class="stage">
+      <div class="num">4</div>
+      <div class="body">
+        <h3 id="stage-ref">Stage 4 · Reference construction: floor alignment, box pose, grasp and support labels</h3>
+        <div class="files">tasks/box_lift/build_reference.py</div>
+        <ul>
+          <li>The body is aligned with the floor (the elevator platform). Subjects wore thick-soled slides; with the static-trial calibration the barefoot model's soles sit between 1.3 cm below and 2.6 cm above the platform before this shift (median over trials −0.2 cm).</li>
+          <li>Box size: width and height from the marker layout; length from the distance between the palms while carrying (0.428 m). Box mass 30 lb (13.6 kg).</li>
+          <li>Shelf top height = height of the box bottom while the box rests on the shelf.</li>
+          <li>Grasp label: the box is off the floor and shelf, and that palm is close enough to the box surface.</li>
+          <li>Support state (floor, hands, shelf) is labelled, and each carry cycle is found: box lifted off the floor until it is set back down.</li>
+        </ul>
+        <div class="io"><span><b>Out</b> <code>ref/</code> (<code>M2M_REF_DIR</code>)</span></div>
+      </div>
+    </article>
+
+    <article class="stage">
+      <div class="num">5</div>
+      <div class="body">
+        <h3 id="stage-qa">Stage 5 · QA gating and carry-cycle segmentation</h3>
+        <div class="files">pipeline/qa.py · tasks/box_lift/build_dataset.py · pipeline/report.py</div>
+        <ul>
+          <li>Each carry cycle becomes one clip at 100 Hz.</li>
+          <li>Clips that fail the checks are dropped automatically: 95th-percentile marker residual above 6 cm, unsolved frames, sudden root jumps, pelvis markers far off, or the pelvis turning too fast (IK loses the pelvis when a deep squat goes past the model's limits).</li>
+          <li>A manual review on top: after viewing the reference motions, subjects S10 and S11 and the 5th cycle of S09 Spring were removed.</li>
+          <li><code>report.py</code> grades every trial on gaps, fit, leave-one-marker-out prediction, joint flips and standing posture (PASS / WARN / FAIL with reasons). It does not drop anything by itself.</li>
+        </ul>
+        <div class="io"><span><b>Out</b> <code>data/&lt;M2M_DATA&gt;/</code>: final run 63 of 110 carry cycles pass, 25.9 min (S02–S09)</span></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<section>
+  <h2 id="routes">Input sensitivity: IK on the raw take vs the hand-processed export</h2>
+  <p class="lede">Same IK code and settings, both with the calibration from the motion trials alone that was used before the static-trial fix; only the input differs. These are not the final results (those are in the sections below).</p>
+  <div class="tbl">
+    <table class="tabnum">
+      <thead><tr><th>Measure (before the fix)</th><th>Raw take</th><th>Export</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><td>Marker residual, median of trial medians</td><td>9.2 mm</td><td>9.5 mm</td><td>range 7.5–12.3 vs 7.5–12.7</td></tr>
+        <tr><td>Marker residual, 95th pct, median</td><td>31.1 mm</td><td>31.2 mm</td><td>range 25–49 vs 26–46</td></tr>
+        <tr><td>Carry cycles kept</td><td>73 (30.0 min)</td><td>76 (31.1 min)</td><td>S01 6 vs 9, S06 8 vs 6, S07 4 vs 6; others equal</td></tr>
+        <tr><td>Joint angles, same frame</td><td colspan="2">S02, S04, S05, S09, S11: median difference below 1°</td><td>S01, S03, S07: hip flexion shifted 5–11° over the whole trial</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">The S01 / S03 / S07 shifts appear although the two inputs share 98–99.9% of their samples. A small change in input moves the subject calibration and with it every joint angle of that subject: the same weakness the validation below points at, and the reason for the static-trial calibration. With it, the raw-take route keeps 63 carry cycles (25.9 min).</p>
+</section>
+
+<section>
+  <h2 id="validation">Joint-angle validation: errors the marker residual cannot show</h2>
+  <p class="lede">The marker residual only says how tightly the model was fitted to the markers it saw. Three checks look further.</p>
+
+  <div class="sub">
+    <h3 id="lomo">Leave-one-marker-out cross-validation: marker prediction error</h3>
+    <p>Every body marker is left out in turn (one frame per second, all 22 trials), the frame is solved again, and the model's prediction of the missing marker is compared with where it was measured. Script: <code>pipeline/validate/lomo.py</code>. Final run (static-trial calibration); per marker, the median over trials:</p>
+    <ul class="plain">
+      <li>Prediction error per trial: median 12.3–24.0 mm (median 14.45), against a residual of 6.6–11.3 mm with all markers.</li>
+      <li>Legs are pinned down well: ankle 8–10 mm, knee 11–13 mm, shank 7–9 mm.</li>
+      <li>Shoulder 23–25 mm (residual 17 mm) and elbow about 19 mm (residual 12 mm): the upper arm is the loosest part of the fit.</li>
+      <li>Finger 37–44 mm and toe 19–21 mm: each is the only marker that sets the wrist or toe angle, so leaving it out is expected to fail.</li>
+      <li>This test cannot see a whole-subject offset: if the calibration bent the knees, the other markers still predict each other well.</li>
+    </ul>
+  </div>
+
+  <div class="sub">
+    <h3 id="xsens">Knee flexion against Xsens MVN inertial capture (S11 Spring)</h3>
+    <p>The subjects also wore an Xsens suit. Only S11 Spring NE has a usable export (a c3d of MVN's 64 virtual anatomical points, 60 Hz; the other trials exist only as raw .mvn files, and S11 Solid's c3d is empty). The same geometric angles were computed on both sides and aligned by cross-correlation (lag 0.05 s). Script: <code>pipeline/validate/xsens.py</code>.</p>
+    <div class="tbl">
+      <table class="tabnum">
+        <thead><tr><th>Angle</th><th>Correlation, before the fix / final</th><th>Mean offset (IK − Xsens), before the fix / final</th><th>RMS after removing the offset, before the fix / final</th></tr></thead>
+        <tbody>
+          <tr><td>Right knee</td><td>0.994 / 0.995</td><td>−8.2° / +1.3°</td><td>3.2° / 3.8°</td></tr>
+          <tr><td>Left knee</td><td>0.995 / 0.996</td><td>−10.0° / −2.4°</td><td>2.8° / 3.0°</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">"Before the fix": calibration from the motion trials alone; "final": with the static trial (pelvis + legs). Negative offset = the IK knee is more flexed (the included angle is smaller). The knee's shape over time matches almost exactly; before the fix the level was 8–10° apart, and the model's own geometry accounts for only 1.4° of it. Elbow and trunk were also computed but are not comparable: Xsens gives the acromion rather than the shoulder joint centre, and the model's elbow carries a 13° geometric offset. Xsens has its own errors of several degrees, so this is supporting evidence, not ground truth.</p>
+  </div>
+
+  <div class="sub">
+    <h3 id="posture">Quiet-standing bias in knee and hip flexion</h3>
+    <p>Quiet standing frames are found from the markers alone: pelvis and both ankles moving less than 5 cm/s for 0.5 s, pelvis within 3 cm of its upright height. A person standing quietly has the knee at about 0–5° and the hip near 0°. Before the calibration fix (motion trials only):</p>
+    <ul class="plain">
+      <li>Knee flexion in quiet standing: 0–24°. At least 10° in 16 of 22 trials, above 20° in 7 (S07, S08, S09, S10 Spring).</li>
+      <li>Hip flexion in quiet standing: up to 28° from neutral. Above 10° in 15 trials, above 20° in 5 (S01, S02 Solid, S10).</li>
+      <li>Asymmetry within a subject, e.g. S07: right knee about 0°, left 20° in the most extended frames.</li>
+    </ul>
+    <p>Final run (static-trial calibration): knee flexion in quiet standing median 0.1°, at least 10° in no trial; |hip flexion| median 9.4°, above 10° in 10 trials (see the QA report below).</p>
+    <div class="callout bad"><b>Reading.</b> Neither the residual nor the leave-one-marker-out test catches this, and Xsens independently points the same way at the knee. The static standing trials settle the cause: with the motion-trial calibration, the IK puts subjects who stand still and upright at 13–26° of knee flexion or 14–21° of hip extension, while their bone-length ratios match the model within about 5 % (S02 and S08 have nearly the same ratios and 0° vs 24° of knee flexion). So it is not a segment-length problem. The calibration lets each marker move a few centimetres on its bone, and a knee marker a few centimetres further back fits as well as a knee bent 20°: from the motion trials alone the two cannot be told apart.</div>
+  </div>
+</section>
+
+<section>
+  <h2 id="static">Static-trial calibration: separating marker placement from joint angle</h2>
+  <p class="lede">Each subject was recorded standing still and upright for 5 s before the task (<code>raw_tak/static/S&lt;ss&gt;_Anatomy.tak</code>; S07 has none and uses quiet standing from its trials). Those frames join the calibration with the hips, knees, ankles and subtalar joints pulled toward 0°, and carry half the weight of every update of the marker placements (<code>mocap2myo.ik.calibrate(static=...)</code>). This is the role of the static trial in OpenSim's Scale and Marker Placer. It is switched on by <code>M2M_STATIC=1</code>, which <code>run_all.sh</code> sets; the default in <code>pipeline/config.py</code> is <code>0</code>, so a stage run on its own (for example <code>pipeline/solve_ik.py</code>) needs <code>M2M_STATIC=1</code> to reproduce these results.</p>
+  <div class="tbl">
+    <table class="tabnum">
+      <thead><tr><th>Measure (22 trials)</th><th>Motion trials only</th><th>Static trial: all markers</th><th>Static trial: pelvis + legs (default)</th><th>Static trial: legs only</th></tr></thead>
+      <tbody>
+        <tr><td>Quiet-standing knee flexion, median</td><td>18.2°</td><td>0.05°</td><td>0.1°</td><td>0.0°</td></tr>
+        <tr><td>Quiet-standing |hip flexion|, median</td><td>13.2°</td><td>6.9°</td><td>9.4°</td><td>8.8°</td></tr>
+        <tr><td>Knee offset against Xsens (S11 Spring), R / L</td><td>-8.2° / -10.0°</td><td>+0.7° / −2.4°</td><td>+1.3° / -2.4°</td><td>+1.1° / -2.2°</td></tr>
+        <tr><td>Knee RMS against Xsens after the offset, R / L</td><td>3.2° / 2.8°</td><td>4.0° / 2.9°</td><td>3.8° / 3.0°</td><td>4.1° / 3.5°</td></tr>
+        <tr><td>Marker residual median / 95th pct, raw markers in the subject's size (as for OpenSim)</td><td>10.0 / 35.5 mm</td><td>not computed</td><td>9.2 / 32.7 mm</td><td>9.5 / 35.8 mm</td></tr>
+        <tr><td>Marker residual median / 95th pct, the IK's own measure (height-scaled, filtered markers; median over trials)</td><td>9.2 / 31.1 mm</td><td>9.8 / 39.0 mm</td><td>8.5 / 29.9 mm</td><td>8.8 / 31.1 mm</td></tr>
+        <tr><td>Report verdicts FAIL / WARN / PASS</td><td>11 / 11 / 0</td><td>3 / 16 / 3</td><td>1 / 17 / 4</td><td>2 / 14 / 6</td></tr>
+        <tr><td>Carry cycles passing QA</td><td>73</td><td>64</td><td>63</td><td>66</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">All three static variants remove the knee offset. Placing every marker with the static trial cost upper-body fit: with the arms hanging loosely in the static pose, the hand markers were placed poorly. Letting the static trial place only the pelvis and leg markers recovers that (the lowest residual, by either measure), and is the default of <code>run_all.sh</code> (<code>M2M_STATIC=1</code>, <code>M2M_STATIC_MARKERS=legs</code>). Against Xsens the three static variants are about the same: offsets within 2.4°, RMS after the offset 3.8–4.1° on the right and 2.9–3.5° on the left, slightly above the 3.2 / 2.8° of the motion-trial calibration, whose offset is much larger. Placing only the legs (pelvis from the motion trials) keeps three more carry cycles, mostly in subjects whose pelvis markers are unreliable, at a slightly higher residual; it is an option. The raw-marker residual is against the unfiltered markers in the subject's own size, so it reads higher than the IK's own measure.</p>
+</section>
+
+
+<section>
+  <h2 id="opensim">IK benchmark against OpenSim: Rajagopal 2016, Scale, Marker Placer and IK on the same markers</h2>
+  <p class="lede">The standard OpenSim workflow, run on exactly the markers this pipeline uses: the Rajagopal 2016 full-body model with the case study's Plug-in-Gait marker set, Scale and Marker Placer on the static trial with the subject's mass, then IK (<code>pipeline/validate/opensim_ik.py</code>; <code>run_all.sh --opensim</code>). Both are scored by the same code (<code>pipeline/validate/opensim_compare.py</code>).</p>
+  <div class="tbl"><table class="tabnum"><thead><tr><th>Measure (22 trials)</th><th>motion trials</th><th>static, legs</th><th>static, legs only</th><th>OpenSim</th></tr></thead><tbody><tr><td>Marker residual, median / 95th pct (mm)</td><td>10.0 / 35.5</td><td>9.2 / 32.7</td><td>9.5 / 35.8</td><td>19.8 / 77.3</td></tr><tr><td>Quiet-standing knee flexion, median (trials ≥ 10°)</td><td>18.2° (16)</td><td>0.1° (0)</td><td>0.0° (0)</td><td>10.6° (12)</td></tr><tr><td>Quiet-standing |hip flexion|, median (trials > 10°)</td><td>13.2° (15)</td><td>9.4° (10)</td><td>8.8° (9)</td><td>11.6° (13)</td></tr><tr><td>Frames with a joint faster than 15 rad/s, median</td><td>0.16 %</td><td>0.08 %</td><td>0.10 %</td><td>1.18 %</td></tr><tr><td>Knee vs Xsens (S11 Spring): offset R / L</td><td>-8.2° / -10.0°</td><td>+1.3° / -2.4°</td><td>+1.1° / -2.2°</td><td>-4.0° / -7.7°</td></tr><tr><td>Knee vs Xsens: RMS after the offset R / L</td><td>3.2° / 2.8°</td><td>3.8° / 3.0°</td><td>4.1° / 3.5°</td><td>3.9° / 3.6°</td></tr></tbody></table></div>
+  <p class="note">OpenSim's residual is about twice ours for two reasons: the Rajagopal model has no scapula (the shoulder markers ride on the thorax, so arm elevation is fitted poorly when the box goes onto the shelf), and one scaling setup is used for every subject. Joint angles, ours minus OpenSim over all frames: knee -8.9° / -8.2°, hip +3.0° / +3.3°, ankle -0.5° / +0.2° (R / L). OpenSim's IK took 16 min of wall time for the 22 trials on the same machine; it is faster than ours, which solves 37 degrees of freedom with a robust loss and contact constraints.</p>
+</section>
+<section>
+  <h2 id="kinetics">Inverse dynamics: subtree Newton–Euler joint moments, ground reaction and L5/S1 compression</h2>
+  <p class="lede">Net joint forces and moments come from Newton–Euler sums over subtrees of MyoFullBody, scaled to the subject's size and body mass (plus the 1–3 kg COSMED K5 system the subjects wore in these trials, lumped at the torso). For a joint, the parent segment's force and moment on everything distal to it equal the rate of change of that subtree's momentum minus gravity and the external loads on it (<code>mocap2myo/kinetics.py</code>, <code>pipeline/kinetics.py</code>). Body positions are low-passed at 6 Hz before the double differentiation (<code>M2M_KIN_LOWPASS_HZ</code>), as the markers are for the IK. Frames the IK did not solve (listed in its output) are interpolated and shaded like the undetermined ones.</p>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Output</th><th>How it is determined</th><th>Reliability</th></tr></thead>
+      <tbody>
+        <tr><td>L5/S1 moment and force; shoulder and elbow moments</td><td>Top-down: the motion of the trunk, head and arms and the box's load on the hands. No ground reaction needed.</td><td><span class="pill ok">Determined</span> except while the box is half on a surface (shaded in the viewer)</td></tr>
+        <tr><td>Total ground reaction and its centre of pressure</td><td>The same sum over the whole body</td><td><span class="pill ok">Determined</span> (checked against the force plates below)</td></tr>
+        <tr><td>Hip, knee and ankle moments</td><td>Bottom-up from the ground reaction under each foot. In single support the foot carrying it is known; in double support it is shared by the lever rule along the line between the two feet's contact centres</td><td><span class="pill run">Estimated</span> in double support (shaded in the viewer)</td></tr>
+        <tr><td>L5/S1 compression</td><td>Axial force plus the extension moment over a 5 cm erector-spinae moment arm (8 cm abdominals for flexion), the classic single-equivalent-muscle estimate</td><td><span class="pill run">Approximation</span>; a muscle-level estimate needs static optimisation</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><b>The box's load on the hands.</b> While the box is off its support (support state "hands" in the reference) the hands carry <i>m</i>(<i>g</i> − <i>a</i>) through the box centre plus the couple −d<i>H</i>/d<i>t</i>, from the box pose fitted to its markers and its 13.6 kg mass. The total is what L5/S1 needs; for the shoulders and elbows it is shared between the grasping hands by a minimum-norm split, applied at the palm centres (<code>tasks/box_lift/loads.py</code>). Frames where the box is held but still within 2 cm of the floor or the shelf are flagged: there the surface carries an unknown part of it.</p>
+  <div class="callout pit"><b>Model parameter fixed for the dynamics.</b> MyoFullBody inherits from MyoArm eight massless shoulder "phantom" bodies (clavphant, scapphant, humphant, humphant1) with a placeholder inertia of 1 kg m² each, more than the whole trunk; the arm model's 1 g thorax keeps a thorax inertia too. Rotating with the shoulder joints, they added up to ~15 N m of false axial torque at L5/S1. The kinetics drops the inertia of every body under 10 g (their mass is kept). The model files are not changed.</div>
+  <div class="tbl"><table><thead><tr><th>Joint loads (median over 22 trials)</th><th>Value</th></tr></thead><tbody><tr><td>Ground force / weight while not carrying</td><td>0.999 (range 0.996–1.002)</td></tr><tr><td>L5/S1 extension moment, 95th pct</td><td>178 N m (trials 137–205)</td></tr><tr><td>L5/S1 extension moment, peak</td><td>268 N m (trials 210–343)</td></tr><tr><td>L5/S1 compression (single-muscle estimate), 95th pct</td><td>3.9 kN (trials 3.1–4.4; NIOSH action limit 3.4 kN)</td></tr><tr><td>Elbow flexion moment, 95th pct (R / L)</td><td>30 / 30 N m</td></tr><tr><td>Shoulder flexion moment, 95th pct (R / L)</td><td>31 / 30 N m</td></tr></tbody></table></div>
+</section>
+
+<section>
+  <h2 id="kin-validation">Inverse-dynamics validation: OpenSim Inverse Dynamics and force plates</h2>
+  <p class="lede">Two independent checks. First, OpenSim Inverse Dynamics on the OpenSim IK (another model, another IK), given the same external loads: the box on each hand at our palm points and the ground reaction under each foot at our centres of pressure (<code>pipeline/opensim_id.py</code>, <code>pipeline/validate/kinetics_compare.py</code>). Median over the 22 trials, frames with an undetermined hand load left out:</p>
+  <div class="tbl"><table class="tabnum"><thead><tr><th>Net joint moment</th><th>r</th><th>Mean difference (N m)</th><th>RMS difference (N m)</th><th>95th pct, ours / OpenSim (N m)</th></tr></thead><tbody><tr><td>L5/S1 extension</td><td>0.984</td><td>+5.1</td><td>13.2</td><td>178 / 185</td></tr><tr><td>Hip extension R</td><td>0.981</td><td>+11.0</td><td>16.4</td><td>133 / 121</td></tr><tr><td>Hip extension L</td><td>0.968</td><td>+10.3</td><td>17.2</td><td>106 / 93</td></tr><tr><td>Hip abduction R</td><td>0.988</td><td>-3.4</td><td>7.3</td><td>67 / 79</td></tr><tr><td>Hip abduction L</td><td>0.974</td><td>-4.8</td><td>8.8</td><td>65 / 70</td></tr><tr><td>Knee extension R</td><td>0.869</td><td>-12.2</td><td>22.5</td><td>58 / 77</td></tr><tr><td>Knee extension L</td><td>0.880</td><td>-10.6</td><td>19.9</td><td>50 / 75</td></tr><tr><td>Ankle plantarflexion R</td><td>0.961</td><td>-8.4</td><td>13.6</td><td>82 / 104</td></tr><tr><td>Ankle plantarflexion L</td><td>0.963</td><td>-9.0</td><td>13.7</td><td>84 / 104</td></tr><tr><td>Shoulder flexion R</td><td>0.983</td><td>-0.4</td><td>2.2</td><td>31 / 32</td></tr><tr><td>Shoulder flexion L</td><td>0.988</td><td>-0.4</td><td>2.1</td><td>30 / 30</td></tr><tr><td>Elbow flexion R</td><td>0.972</td><td>-1.0</td><td>2.9</td><td>30 / 30</td></tr><tr><td>Elbow flexion L</td><td>0.961</td><td>-0.7</td><td>3.2</td><td>30 / 30</td></tr></tbody></table></div>
+  <p class="note">The trunk, shoulders, elbows and hips agree closely. Knees and ankles differ by 14–23 N m RMS: the same centre of pressure falls a centimetre or two differently under two skeletons whose joint centres and knee angles differ (OpenSim's knees are about 9° more flexed throughout), and the hip–knee–ankle lever arms change with it. Neither is a reference for the other there.</p>
+  <p>Second, the lab's force plates. The plates were stored as raw voltages without their calibration matrix, so only the vertical channels are used, and only checks that need no calibration: the gain comes from quiet standing without the box (body + K5 weight), and the comparison uses the frames where both feet are on the two AMTI plates in front of the shelf (<code>tasks/box_lift/force_plates.py</code>).</p>
+  <div class="tbl"><table><thead><tr><th>Check (22 trials)</th><th>Result</th></tr></thead><tbody><tr><td>Plate delay behind the motion capture</td><td>100 ms (median; 60–130 ms by trial)</td></tr><tr><td>Vertical gain from quiet standing (body + K5 weight)</td><td>292.6 N/V (median; mean 292.9), standard deviation 0.4 % across 22 trials of 11 subjects</td></tr><tr><td>Total vertical force, ours vs plates (both feet on the AMTI plates)</td><td>RMS 15.2 N = 1.8 % of body weight (median; worst trial 5.8 %)</td></tr><tr><td>Dynamic part (force minus static weight), correlation</td><td>r = 0.88 (median)</td></tr><tr><td>Box mass from the plates (with box minus without, quiet standing)</td><td>13.2 kg (median; 11.3–14.3 kg by trial) vs 13.6 kg nominal</td></tr><tr><td>Right-foot share of the vertical force, ours vs plates</td><td>RMS error 0.08, r = 0.88 (median)</td></tr></tbody></table></div>
+  <div class="callout check"><b>What the plates confirm.</b> The same gain for every subject (calibration consistent), the box mass recovered from standing with and without it, and the predicted total force within a few percent of body weight including its dynamic part: the whole-body accelerations from the IK are right. The left / right split in double support is the weak point (an estimate, see above); there are no plates under the elevator platform, where the box is lifted from the floor.</div>
+  <div class="callout pit"><b>Clock offset.</b> The plate channels run about 100 ms behind the motion capture (60–130 ms by trial), seen both in the force traces and as plate onsets after the foot lands in the marker data. Any analog channel recorded through the same path (EMG) needs the same check before it is compared with the motion.</div>
+</section>
+
+<section>
+  <h2 id="report">Per-trial QA grades: marker residual, standing posture, marker gaps, joint flips</h2>
+  <p class="lede">Every trial is graded on each check (<code>pipeline/report.py</code>): WARN and FAIL mark something to look at, not a failed trial; nothing is dropped here. Limits (warn / fail): marker residual median 12 / 20 mm and 95th pct 40 / 60 mm; quiet-standing knee and hip 10 / 20°; the worst-placed marker missing in 20 % / 90 % of frames; joint flips above 15 rad/s in 0.3 % / 1 % of frames. Result: 4 PASS, 17 WARN, 1 FAIL.</p>
+  <div class="tbl">
+    <table class="tabnum tight">
+      <thead><tr><th>Trial</th><th>Verdict</th><th>Residual med / p95 (mm)</th><th>Stand knee (°)</th><th>Stand hip (°)</th><th>Worst gap</th><th>Cycles kept</th><th>Flagged for</th></tr></thead>
+      <tbody>
+<tr><td>S01_Solid</td><td><span class="pill todo">WARN</span></td><td>10.5 / 30</td><td>5</td><td class="w">12</td><td class="w">24% LTIB</td><td>0/5</td><td>a marker missing in many frames (recording), hip flexed while standing</td></tr>
+<tr><td>S01_Spring</td><td><span class="pill todo">WARN</span></td><td>10.9 / 28</td><td>0</td><td class="w">10</td><td>6% LASI</td><td>0/5</td><td>hip flexed while standing</td></tr>
+<tr><td>S02_Solid</td><td><span class="pill bad">FAIL</span></td><td>8.2 / 30</td><td>1</td><td class="w">11</td><td class="f">98% C7</td><td>5/5</td><td>a marker missing in many frames (recording), hip flexed while standing</td></tr>
+<tr><td>S02_Spring</td><td><span class="pill todo">WARN</span></td><td>8.3 / 28</td><td>0</td><td>8</td><td class="w">75% C7</td><td>5/5</td><td>a marker missing in many frames (recording)</td></tr>
+<tr><td>S03_Solid</td><td><span class="pill todo">WARN</span></td><td>8.6 / 31</td><td>0</td><td class="w">13</td><td class="w">26% CLAV</td><td>5/5</td><td>a marker missing in many frames (recording), hip flexed while standing</td></tr>
+<tr><td>S03_Spring</td><td><span class="pill todo">WARN</span></td><td>8.0 / 30</td><td>0</td><td class="w">11</td><td>18% CLAV</td><td>4/5</td><td>hip flexed while standing</td></tr>
+<tr><td>S04_Solid</td><td><span class="pill todo">WARN</span></td><td class="w">14.0 / 40</td><td>0</td><td>2</td><td>12% CLAV</td><td>4/5</td><td>marker fit, marker fit, worst frames</td></tr>
+<tr><td>S04_Spring</td><td><span class="pill todo">WARN</span></td><td class="w">14.3 / 39</td><td>0</td><td class="w">14</td><td class="w">28% LWRB</td><td>2/5</td><td>a marker missing in many frames (recording), marker fit, hip flexed while standing</td></tr>
+<tr><td>S05_Solid</td><td><span class="pill todo">WARN</span></td><td>9.1 / 29</td><td>0</td><td class="w">17</td><td>19% CLAV</td><td>5/5</td><td>hip flexed while standing</td></tr>
+<tr><td>S05_Spring</td><td><span class="pill todo">WARN</span></td><td>8.4 / 29</td><td>0</td><td class="w">13</td><td>19% CLAV</td><td>5/5</td><td>hip flexed while standing</td></tr>
+<tr><td>S06_Solid</td><td><span class="pill todo">WARN</span></td><td>7.9 / 28</td><td>1</td><td>9</td><td class="w">72% RUPA</td><td>3/5</td><td>a marker missing in many frames (recording)</td></tr>
+<tr><td>S06_Spring</td><td><span class="pill todo">WARN</span></td><td>7.7 / 27</td><td>0</td><td>6</td><td class="w">65% RUPA</td><td>2/5</td><td>a marker missing in many frames (recording)</td></tr>
+<tr><td>S07_Solid</td><td><span class="pill ok">PASS</span></td><td>8.2 / 29</td><td>3</td><td>3</td><td>15% LWRB</td><td>3/5</td><td>—</td></tr>
+<tr><td>S07_Spring</td><td><span class="pill ok">PASS</span></td><td>8.3 / 28</td><td>0</td><td>2</td><td>11% LWRB</td><td>1/5</td><td>—</td></tr>
+<tr><td>S08_Solid</td><td><span class="pill todo">WARN</span></td><td>9.5 / 33</td><td>1</td><td>10</td><td class="w">42% RTHI</td><td>5/5</td><td>a marker missing in many frames (recording)</td></tr>
+<tr><td>S08_Spring</td><td><span class="pill todo">WARN</span></td><td>9.2 / 32</td><td>0</td><td>8</td><td class="w">34% RTHI</td><td>5/5</td><td>a marker missing in many frames (recording)</td></tr>
+<tr><td>S09_Solid</td><td><span class="pill ok">PASS</span></td><td>8.0 / 26</td><td>3</td><td>6</td><td>3% STRN</td><td>5/5</td><td>—</td></tr>
+<tr><td>S09_Spring</td><td><span class="pill ok">PASS</span></td><td>8.2 / 25</td><td>0</td><td>7</td><td>5% STRN</td><td>4/5</td><td>—</td></tr>
+<tr><td>S10_Solid</td><td><span class="pill todo">WARN</span></td><td class="w">11.8 / 48</td><td>0</td><td class="w">19</td><td class="w">47% RWRB</td><td>0/5</td><td>a marker missing in many frames (recording), marker fit, worst frames, fast joint flips, hip flexed while standing</td></tr>
+<tr><td>S10_Spring</td><td><span class="pill todo">WARN</span></td><td class="w">10.3 / 46</td><td>0</td><td class="w">18</td><td>19% RWRB</td><td>0/5</td><td>marker fit, worst frames, hip flexed while standing</td></tr>
+<tr><td>S11_Solid</td><td><span class="pill todo">WARN</span></td><td>8.3 / 28</td><td>2</td><td>4</td><td class="w">88% C7</td><td>0/5</td><td>a marker missing in many frames (recording), fast joint flips</td></tr>
+<tr><td>S11_Spring</td><td><span class="pill todo">WARN</span></td><td>8.9 / 31</td><td>2</td><td>4</td><td>15% LWRB</td><td>0/5</td><td>fast joint flips</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="note">How to read it. The most common flag is a <b>marker missing in many frames</b> (C7 in S02, the upper-arm wands in S06, a thigh wand in S08): a property of the recording, which the IK bridges with the other markers. The second is <b>hip flexion while standing</b> above 10° (S01–S05 and S10): the static trial pins the knees, but the hip angle also depends on where the pelvis markers sit on the body, and part of it may be real posture. S04 and S10 have the highest residuals (soft-tissue and marker placement); S02 Solid's only FAIL is C7 missing in 98 % of frames. <b>Cycles kept</b> is the dataset's own per-cycle check (95th-percentile marker residual, unsolved frames, root jumps, pelvis markers far off, pelvis turning speed, and the manual review that removed S10 and S11); it is stricter than the trial grade.</p>
+</section>
+
+<section>
+  <h2 id="problems">Raw-take defects: wrong skeleton template, rotated head labels, labelling gaps</h2>
+  <ul class="plain">
+    <li><b>S01 was labelled with the wrong skeleton template.</b> Motive used a template with ISB landmark names (LIAS, LFAL, LHLE, ...) on the subject's Plug-in-Gait markers. An anatomy-based name map turns them back (<code>ISB_TO_PIG</code> in <code>mocap2myo/markerset.py</code>); the single elbow marker took either epicondyle name and is merged. The collaborators' export had renamed them the same way, which confirms the map.</li>
+    <li><b>Head labels rotated by 90°</b> in S01 and S10. The four head markers are now assigned by position in every trial.</li>
+    <li><b>S01 has no forearm markers</b> (LFRM, RFRM) in any source.</li>
+    <li><b>Large live-labelling gaps</b> in some markers: C7 in S02 (75–98% of frames missing) and S11 Solid (88%), RUPA in S06 (65–72%), RTHI in S08 (34–42%). The collaborators' export had these filled.</li>
+    <li><b>S01's right PSIS</b> is not rigid with the rest of the pelvis in either source (distance to the left PSIS varies by 35–42 mm; 2.5 mm in S03).</li>
+    <li><b>What the manual Motive processing adds</b> to a raw take is gap filling: in S03, the 5,765 samples the processed take has and the raw labels lack are in none of the unlabelled tracks. A few wrong labels were also removed (8 ASIS frames about 40 mm off).</li>
+    <li><b>S07 has no anatomy (static) trial</b> in the dataset.</li>
+  </ul>
+</section>
+
+<section>
+  <h2 id="next">Open technical issues: muscle forces, double-support load split, segment scaling</h2>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Item</th><th>Why</th><th>What it involves</th></tr></thead>
+      <tbody>
+        <tr><td>Muscle forces: static optimisation vs EMG</td><td>Muscle-level loads (and a better L5/S1 compression than the single-muscle estimate), checked against the 16 recorded EMG channels</td><td>Static optimisation over MyoFullBody's trunk and arm muscles for the top-down joints; EMG band-passed, rectified, enveloped and normalised by the MVC trials (7 of 8 muscles have one; the trapezius has no counterpart in the model); align for the analog delay first.</td></tr>
+        <tr><td>Leg loads in double support</td><td>The left / right split of the ground reaction is estimated; the elevator platform has no plates</td><td>Calibration matrices for the AMTI and Bertec plates would add measured centres of pressure where the feet are on them; elsewhere only a better split model helps.</td></tr>
+        <tr><td>Xsens exports for all trials</td><td>Independent joint-angle check for every subject, not one trial</td><td>Export the other NE trials from MVN Analyze as c3d, as for S11 Spring; the comparison script then runs on all of them.</td></tr>
+        <tr><td>Per-subject segment scaling</td><td>Pelvis depth and hand length differ from the model by 10–40 %</td><td>Optional: scale factors per segment from the static trial, where the upper-body residual matters.</td></tr>
+        <tr><td>Make it general</td><td>Reuse on other datasets</td><td>Done in part: settings and file naming in <code>pipeline/config.py</code> and a profile per dataset (<code>datasets/*.toml</code>), trial input from C3D and TRC with force plates and analog channels (<code>mocap2myo/readers.py</code>), the marker set in <code>mocap2myo/markerset.py</code>, the task in <code>tasks/</code>. Still to do: marker sets other than Plug-in-Gait (e.g. the 52 ISB markers of the Moissenet 2019 data), and the Plug-in-Gait label endings left in the calibration caps (<code>pipeline/solve_ik.py</code>).</td></tr>
+        <tr><td>IK on the GPU</td><td>The IK is ~95 % of the run time (about an hour on 22 cores)</td><td>All frames of a trial solved together with MuJoCo Warp; needs a whole-trial initialisation instead of frame-to-frame warm starts, and the same validation rerun.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2 id="effort">Run time and manual effort for 22 trials</h2>
+  <p>Measured machine time for the 22 trials: reading the takes about 1 min, cleaning about 2 min, calibration plus IK about 50 min on 22 CPU cores, references, QA and clips about 1 min. Human work left: one marker-set configuration per new dataset, one reader check against a TRC export, and reviewing the report and the reference motions (in the viewer).</p>
+  <p class="note">For comparison, a manual Motive plus OpenSim workflow is estimated (not measured) at roughly 15–40 person-hours for the same 22 trials: labelling and gap filling per trial, OpenSim scaling per subject, IK setup per trial. The automation relies on Motive's live labels; recordings without them need labelling in Motive or another source such as Xsens.</p>
+</section>
+
+<section>
+  <h2 id="run">Command-line usage: build, validate, export</h2>
+<pre># install (Python 3.10+)
+pip install -e ".[tak,xsens]"
+
+# whole pipeline from the raw takes (CPU, ~1 h for 22 trials on 22 cores)
+M2M_ROOT=~/data/mocap2myo IK_WORKERS=22 bash pipeline/run_all.sh
+
+# check the take reader against Motive's TRC exports (folder of .tak / .trc pairs)
+python pipeline/validate/tak_reader.py DIR
+
+# validation: leave-one-marker-out, Xsens, static-trial diagnosis
+python pipeline/validate/lomo.py
+python pipeline/validate/xsens.py $M2M_ROOT/ik
+python pipeline/validate/static_pose.py
+
+# viewer files: the model once, then clips (optionally with a ghost from another run)
+python pipeline/export_viewer.py model OUT_DIR
+python pipeline/export_viewer.py clip S01_Solid_NE OUT_DIR --clip 1 --ghost-ref-dir OTHER_REF_DIR
+
+# the same plus the OpenSim workflow (IK and Inverse Dynamics) for the comparison
+M2M_ROOT=~/data/mocap2myo bash pipeline/run_all.sh --opensim    # opensim from conda
+
+# inverse dynamics alone (after the IK and the reference), and its checks
+python pipeline/kinetics.py
+python tasks/box_lift/force_plates.py           # case study: the lab's force plates
+python pipeline/validate/kinetics_compare.py    # vs OpenSim ID (after --opensim)
+
+# a de-identified demo clip for a public page (no trial name, clip position, subject scale or QA grades)
+python pipeline/export_viewer.py clip S01_Solid_NE OUT_DIR --clip 1 --public "Demo 1"</pre>
+  <p class="note">Data layout under <code>$M2M_ROOT</code>: <code>raw_tak/</code> (trial takes), <code>raw_tak/static/</code> (static trials), <code>meta/anthropometrics.csv</code>, and for <code>--opensim</code> <code>opensim_setup/</code> (see the README), or what a dataset profile says (<code>M2M_DATASET</code>, <code>datasets/*.toml</code>); written by the pipeline: <code>tak_cache/</code> (<code>raw_cache/</code> for C3D / TRC), <code>markers/</code>, <code>ik/</code> (with <code>qa.json</code>, <code>report.json</code> and <code>report.md</code>; <code>lomo.json</code> when <code>validate/lomo.py</code> is run), <code>ref/</code>, <code>kin/</code>, and the motion dataset in <code>data/&lt;M2M_DATA&gt;/</code> of the repository; with <code>--opensim</code> also <code>opensim_ik/</code>, <code>opensim_id/</code> and <code>compare_osim/</code>. Every folder, file-naming rule and <code>M2M_*</code> setting is in <code>pipeline/config.py</code>. The only subject data in this repository is one de-identified demo clip that ships with the viewer.</p>
+</section>
+
+<section>
+  <h2 id="code">Source layout: modules and what each does</h2>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>File</th><th>What</th></tr></thead>
+      <tbody>
+        <tr><td><code>mocap2myo/tak.py</code></td><td>Reads .tak files without Motive; exports TRC; compares against a TRC export</td></tr>
+        <tr><td><code>mocap2myo/readers.py</code></td><td>Reads one C3D, TRC or .tak file: markers (metres, Z-up), force plates as the ground reaction per marker frame, analog channels, the lab software's model outputs apart</td></tr>
+        <tr><td><code>pipeline/config.py</code>, <code>datasets/*.toml</code></td><td>Folders, file naming (trials, subjects, static trials, anthropometrics) and every setting / environment variable; a dataset's settings as a profile</td></tr>
+        <tr><td><code>pipeline/read_raw.py</code></td><td>Raw recordings (.tak, C3D, TRC; trials and static trials) to the cache the cleaning step reads</td></tr>
+        <tr><td><code>pipeline/prepare_markers.py</code></td><td>Marker conditioning: label maps, head by position, mislabel rejection, pelvis refill (the task adds box and scene)</td></tr>
+        <tr><td><code>mocap2myo/markerset.py</code></td><td>The marker set (Plug-in-Gait): body, weight and anatomical guess per marker, label aliases</td></tr>
+        <tr><td><code>mocap2myo/ik.py</code></td><td>The IK solver: marker model, per-frame least squares, subject calibration (with the static-trial option)</td></tr>
+        <tr><td><code>pipeline/solve_ik.py</code></td><td>Calibration and IK for all trials in parallel</td></tr>
+        <tr><td><code>pipeline/qa.py</code></td><td>QA of an IK run (with the task's checks)</td></tr>
+        <tr><td><code>tasks/box_lift/</code>: <code>box_fit.py</code>, <code>build_reference.py</code>, <code>checks.py</code>, <code>build_dataset.py</code>, <code>motion_io.py</code>, <code>viewer_scene.py</code></td><td>The lifting task: box and scene, reference, its QA checks, carry-cycle clips, motion-dataset writer, viewer objects</td></tr>
+        <tr><td><code>pipeline/report.py</code>, <code>pipeline/validate/lomo.py</code>, <code>xsens.py</code>, <code>static_pose.py</code></td><td>Validation</td></tr>
+        <tr><td><code>pipeline/validate/opensim_ik.py</code>, <code>opensim_compare.py</code></td><td>OpenSim baseline on the same markers, and the side-by-side scores</td></tr>
+        <tr><td><code>mocap2myo/kinetics.py</code>, <code>pipeline/kinetics.py</code>, <code>tasks/box_lift/loads.py</code></td><td>Inverse dynamics: subtree Newton–Euler at the subject's size and mass, ground reaction and foot split, the box's load on the hands</td></tr>
+        <tr><td><code>pipeline/opensim_id.py</code>, <code>pipeline/validate/kinetics_compare.py</code>, <code>tasks/box_lift/force_plates.py</code></td><td>OpenSim joint centres and Inverse Dynamics with the same loads; the comparison; the force-plate check</td></tr>
+        <tr><td><code>pipeline/export_viewer.py</code>, <code>pipeline/viewer_layers.py</code></td><td>Model and clip files for the browser viewer; plots, force arrows and the OpenSim overlay in a clip</td></tr>
+        <tr><td><code>mocap2myo/</code></td><td>MyoFullBody model files (MuscleMimic; Apache-2.0, with a non-commercial restriction on the arm and hand parts derived from MoBL-ARMS: see the README and the model's NOTICE) and small kinematic helpers</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2 id="terms">Glossary: markers, labels, IK, calibration, residual</h2>
+  <dl class="gloss">
+    <div><dt>Marker and label</dt><dd>A reflective ball on the body. Its label tells IK which point on the model it belongs to; without that, IK cannot tell where to pull.</dd></div>
+    <div><dt>Gap</dt><dd>Frames where a marker was hidden. Short gaps are interpolated, pelvis gaps are refilled as a rigid body, and IK handles the rest.</dd></div>
+    <div><dt>Plug-in-Gait</dt><dd>A common 39-marker full-body placement (LASI, RKNE, C7, ...). Used by the elevator study.</dd></div>
+    <div><dt>Kabsch fit</dt><dd>Finds the rotation and translation that best map a set of points known in an object's frame onto their measured positions. Used for the box and the pelvis.</dd></div>
+    <div><dt>Forward kinematics</dt><dd>From joint angles to the position of every segment and virtual marker. Computed by MuJoCo.</dd></div>
+    <div><dt>Least-squares IK</dt><dd>The reverse: the joint angles that minimise the weighted sum of squared distances between virtual and measured markers.</dd></div>
+    <div><dt>Calibration</dt><dd>Finding where each marker sits on its segment, since placement differs from person to person.</dd></div>
+    <div><dt>Residual</dt><dd>How far a virtual marker still is from the measured one after the fit: a measure of how tight the fit is, not of whether the joint angles are right.</dd></div>
+    <div><dt>Leave one marker out</dt><dd>Solve without one marker and predict where it should be. Tests whether the other markers pin that segment down.</dd></div>
+  </dl>
+</section>
+
+<section>
+  <h2 id="reading">Code reading order for new contributors</h2>
+  <ol class="read">
+    <li><code>mocap2myo/tak.py</code>: the format notes at the top explain what a raw file contains.</li>
+    <li><code>pipeline/prepare_markers.py</code>: read <code>convert()</code> from top to bottom; each helper is one bullet of stage 2 (the box and scene part is <code>tasks/box_lift/box_fit.py</code>).</li>
+    <li><code>mocap2myo/markerset.py</code> (which segment each marker is on), then the core, <code>mocap2myo/ik.py</code>: <code>MarkerModel.solve</code> (one frame), <code>calibrate</code> (calibration) and <code>ik_trial</code> (a whole trial, including foot locking).</li>
+    <li><code>pipeline/solve_ik.py</code>: runs the functions above in parallel with the current settings (<code>pipeline/config.py</code>).</li>
+    <li><code>tasks/box_lift/build_reference.py</code>, <code>pipeline/qa.py</code>, <code>tasks/box_lift/build_dataset.py</code>: scene, checks, clips.</li>
+    <li><code>pipeline/report.py</code>, <code>pipeline/validate/lomo.py</code>, <code>pipeline/validate/xsens.py</code>: the validation.</li>
+    <li><code>pipeline/run_all.sh</code>: the script that chains it all.</li>
+  </ol>
+  <p class="note">For background, work through OpenSim's Scale and IK tutorial first; the principle is the same. Solver details: <a href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.optimize.least_squares.html" target="_blank" rel="noopener">scipy least_squares</a>. Model and forward kinematics: <a href="https://mujoco.readthedocs.io/" target="_blank" rel="noopener">MuJoCo documentation</a>.</p>
+</section>
+</div>
+</div>
+<script>
+(() => {
+  const links = new Map([...document.querySelectorAll('.toc-list a')].map(a => [a.getAttribute('href').slice(1), a]));
+  const heads = [...links.keys()].map(id => document.getElementById(id)).filter(Boolean);
+  if (!('IntersectionObserver' in window) || !heads.length) return;
+  let current = null;
+  const set = id => {
+    if (id === current) return;
+    current = id;
+    links.forEach((a, k) => a.setAttribute('aria-current', k === id ? 'true' : 'false'));
+  };
+  const onScroll = () => {
+    let id = heads[0].id;
+    for (const h of heads) { if (h.getBoundingClientRect().top < 120) id = h.id; else break; }
+    set(id);
+  };
+  addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+})();
+
+/* Search: every text node of the page is searched, block by block (a stage, a sub-section, a
+   section). A query matches as a phrase, case-insensitive; a phrase of several words that occurs
+   nowhere falls back to the blocks that contain all of its words, each word highlighted. Enter / Shift+Enter step through the matches,
+   Escape clears, "/" or Ctrl/Cmd+K focuses the box, ?q=... in the address opens with a search. */
+(() => {
+  const toc = document.getElementById('toc'), input = document.getElementById('q');
+  const list = document.getElementById('qResults'), count = document.getElementById('qCount');
+  const prev = document.getElementById('qPrev'), next = document.getElementById('qNext');
+  const root = document.querySelector('.wrap');
+  const BLOCKS = 'article.stage, div.sub, section, .bottom, .wrap > header';
+  const LINE = 'p, li, td, th, dd, dt, pre, h1, h2, h3, .callout, .node, .io, .files, .note';
+  const smooth = matchMedia('(prefers-reduced-motion: no-preference)').matches ? 'smooth' : 'auto';
+  let hits = [], at = -1, groups = [], timer = 0, ran = '';
+  const esc = t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const html = t => t.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+
+  function clearMarks() {
+    const parents = new Set();
+    root.querySelectorAll('mark.hit').forEach(m => {
+      parents.add(m.parentNode);
+      m.replaceWith(document.createTextNode(m.textContent));
+    });
+    parents.forEach(p => p.normalize());
+    hits = []; at = -1; groups = [];
+  }
+  function textNodes() {
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+      acceptNode: n => n.data.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT,
+    });
+    const out = [];
+    for (let n = w.nextNode(); n; n = w.nextNode()) out.push(n);
+    return out;
+  }
+  function snippet(mark, re) {
+    const line = (mark.closest(LINE) || mark.parentElement).textContent.replace(/\s+/g, ' ').trim();
+    re.lastIndex = 0;
+    const m = re.exec(line) || { index: 0, 0: '' };
+    const a = Math.max(0, m.index - 48), b = Math.min(line.length, m.index + m[0].length + 90);
+    let t = (a ? '…' : '') + line.slice(a, b) + (b < line.length ? '…' : '');
+    re.lastIndex = 0;
+    return html(t).replace(new RegExp(re.source.replace(/&/g, '&amp;'), 'gi'), x => `<mark>${x}</mark>`);
+  }
+  function show(i) {
+    if (!hits.length) return;
+    if (at >= 0) hits[at].classList.remove('on');
+    at = (i + hits.length) % hits.length;
+    const m = hits[at];
+    m.classList.add('on');
+    m.scrollIntoView({ block: 'center', inline: 'nearest', behavior: smooth });
+    count.textContent = `${at + 1} of ${hits.length} in ${groups.length} ${groups.length === 1 ? 'section' : 'sections'}`;
+    list.querySelectorAll('a').forEach(a => a.classList.toggle('on', +a.dataset.g === m._g));
+  }
+  function run(q, jump) {
+    clearMarks();
+    q = q.replace(/\s+/g, ' ').trim();
+    ran = q;
+    toc.classList.toggle('searching', q.length > 0);
+    list.hidden = q.length === 0;
+    list.textContent = '';
+    if (!q) { count.textContent = ''; return; }
+    const words = [...new Set(q.toLowerCase().split(' ').filter(w => w.length > 1 || /\d/.test(w)))];
+    if (!words.length) { count.textContent = ''; return; }
+    // the exact phrase first; if it is nowhere, the blocks that contain every word
+    const byBlock = new Map();
+    for (const n of textNodes()) {
+      const b = n.parentElement.closest(BLOCKS);
+      if (!b) continue;
+      if (!byBlock.has(b)) byBlock.set(b, []);
+      byBlock.get(b).push(n);
+    }
+    let re = new RegExp(esc(q).replace(/ /g, '\\s+'), 'gi');
+    let keep = text => { re.lastIndex = 0; return re.test(text); };
+    let mode = 'phrase';
+    if (words.length > 1 && ![...byBlock.values()].some(nodes => keep(nodes.map(n => n.data).join(' ')))) {
+      re = new RegExp(words.map(esc).join('|'), 'gi');
+      keep = text => { text = text.toLowerCase(); return words.every(w => text.includes(w)); };
+      mode = 'words';
+    }
+    for (const [b, nodes] of byBlock) {
+      if (!keep(nodes.map(n => n.data).join(' '))) continue;
+      const g = { block: b, first: hits.length, n: 0 };
+      for (const n of nodes) {
+        const s = n.data;
+        re.lastIndex = 0;
+        if (!re.test(s)) continue;
+        re.lastIndex = 0;
+        const frag = document.createDocumentFragment();
+        let last = 0, m;
+        while ((m = re.exec(s))) {
+          if (!m[0]) { re.lastIndex++; continue; }
+          frag.append(s.slice(last, m.index));
+          const mk = document.createElement('mark');
+          mk.className = 'hit'; mk.textContent = m[0]; mk._g = groups.length;
+          frag.append(mk); hits.push(mk); g.n++;
+          last = m.index + m[0].length;
+        }
+        frag.append(s.slice(last));
+        n.replaceWith(frag);
+      }
+      if (g.n) groups.push(g);
+    }
+    prev.disabled = next.disabled = hits.length < 2;
+    if (!hits.length) {
+      count.textContent = 'No matches';
+      list.innerHTML = `<li class="none">Nothing on this page matches “${html(q)}”.</li>`;
+      return;
+    }
+    count.textContent = `${hits.length} ${hits.length === 1 ? 'match' : 'matches'} in ${groups.length} ${groups.length === 1 ? 'section' : 'sections'}` + (mode === 'words' ? ', all words' : '');
+    groups.forEach((g, k) => {
+      const h = g.block.querySelector('h3, h2, h1');
+      const short = h && h.id && document.querySelector(`.toc-list a[href="#${h.id}"]`);  // the contents label
+      const title = short ? short.textContent : h && h.tagName !== 'H1' ? h.textContent.replace(/\s+/g, ' ').trim() : 'Introduction';
+      const li = document.createElement('li');
+      li.innerHTML = `<a href="#${h && h.id ? h.id : ''}" data-g="${k}"><span class="rt"><span>${html(title)}</span><span class="rc">${g.n}</span></span><span class="rs">${snippet(hits[g.first], re)}</span></a>`;
+      li.firstChild.addEventListener('click', e => { e.preventDefault(); show(g.first); });
+      list.append(li);
+    });
+    if (jump) show(0);
+  }
+  function sync(q) {
+    try {
+      const u = new URL(location.href);
+      if (q) u.searchParams.set('q', q); else u.searchParams.delete('q');
+      history.replaceState(null, '', u);
+    } catch (e) { /* file:// or a sandbox: the address is left alone */ }
+  }
+  input.addEventListener('input', () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { run(input.value, false); sync(input.value.trim()); }, 140);
+  });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      clearTimeout(timer);
+      if (input.value.replace(/\s+/g, ' ').trim() !== ran) { run(input.value, false); sync(ran); }
+      show(at < 0 ? 0 : at + (e.shiftKey ? -1 : 1));
+    } else if (e.key === 'Escape') {
+      input.value = ''; run('', false); sync(''); input.blur();
+    }
+  });
+  document.getElementById('qClear').addEventListener('click', () => { input.value = ''; run('', false); sync(''); input.focus(); });
+  prev.addEventListener('click', () => show(at - 1));
+  next.addEventListener('click', () => show(at + 1));
+  addEventListener('keydown', e => {
+    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) || document.activeElement.isContentEditable;
+    if ((e.key === '/' && !typing) || (e.key.toLowerCase() === 'k' && (e.metaKey || e.ctrlKey))) {
+      e.preventDefault(); input.focus(); input.select();
+    }
+  });
+  const q0 = new URLSearchParams(location.search).get('q');
+  if (q0) { input.value = q0; run(q0, !location.hash); }
+})();
+</script>
+</body>
+</html>

@@ -5,7 +5,7 @@
 Turn optical motion-capture recordings (OptiTrack Motive takes, or C3D / TRC files from other labs; Plug-in-Gait markers) into motions of **MyoFullBody**, a 416-muscle MuJoCo musculoskeletal model, with checks that show how accurate the result is.
 
 - **Website:** https://fitz-yuan.github.io/mocap-to-myofullbody/
-- **Handbook:** https://fitz-yuan.github.io/mocap-to-myofullbody/handbook/ (every stage, the validation, and what it found)
+- **Documentation:** https://fitz-yuan.github.io/mocap-to-myofullbody/documentation/ (every stage, the validation, and what it found)
 - **Motion viewer:** https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/ (plays one demo clip; open your own exported clip in the browser)
 
 The pipeline was built for a box-lifting study (the MMH Elevator data: subjects pick a 13.6 kg box up from a platform, carry it, and put it on a shelf). The stages in `pipeline/` and the library in `mocap2myo/` are general; the lifting task (box, shelf, carry cycles) lives in `tasks/box_lift/`, and each dataset's settings (file kind and naming, up axis, subjects' sizes, task) in a profile in `datasets/`. See [Adapting to other data](#adapting-to-other-data).
@@ -37,7 +37,7 @@ The pipeline was built for a box-lifting study (the MMH Elevator data: subjects 
 | Total vertical ground force vs the lab's force plates | RMS 1.8 % of body weight; box mass recovered from the plates 13.2 kg (nominal 13.6) |
 | Machine time, 22 trials | about 1 h on 22 CPU cores (IK); inverse dynamics a few seconds per trial |
 
-Details, caveats and open items are in the [handbook](https://fitz-yuan.github.io/mocap-to-myofullbody/handbook/).
+Details, caveats and open items are in the [documentation](https://fitz-yuan.github.io/mocap-to-myofullbody/documentation/).
 
 ## Install
 
@@ -221,7 +221,7 @@ tasks/box_lift/      the lifting task: __init__.py (the hooks), box_fit.py, chec
                      loads.py, viewer_scene.py, build_reference.py, build_dataset.py,
                      motion_io.py, force_plates.py
 datasets/            dataset profiles (TOML): mmh_elevator, ramp_vielemeyer2026, moissenet2019
-docs/                GitHub Pages: landing page, handbook, viewer; assets/ (README images)
+docs/                GitHub Pages: landing page, documentation (handbook/ redirects there), viewer; assets/ (README images)
 ```
 
 ## License and credits
