@@ -245,6 +245,10 @@ th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--li
 th { font-size: 12.5px; color: var(--muted); font-weight: 500; }
 tr:last-child td { border-bottom: 0; }
 td:first-child { font-weight: 600; white-space: nowrap; }
+/* reference tables (files, settings): the first cell holds several names, so it wraps */
+table.refs td:first-child { white-space: normal; width: 36%; min-width: 13em; }
+table.refs td:first-child code { white-space: nowrap; }
+table.refs { table-layout: auto; }
 table.tabnum td { font-variant-numeric: tabular-nums; }
 table.tight td { white-space: nowrap; }
 td.w { background: var(--warn-soft); }
@@ -869,7 +873,7 @@ task = &quot;none&quot;</pre>
   <h2 id="settings">Settings reference: environment variables, profile keys, stage inputs and outputs</h2>
   <p class="lede">Every <code>M2M_*</code> setting and <code>IK_WORKERS</code> is read in <code>pipeline/config.py</code>; <code>MYOFULLBODY_MODEL</code> and <code>M2M_MODELS_DIR</code> belong to the library, <code>PY</code> / <code>OSIM_PY</code> to <code>run_all.sh</code>. A setting comes from its environment variable, else from the dataset profile (key = the name without <code>M2M_</code>, lower case), else the default. Settings with a fixed set of values, and unknown profile keys, stop the run. <code>run_all.sh</code> turns the static-trial calibration on (<code>M2M_STATIC=1</code>); a stage run on its own does not.</p>
   <div class="tbl">
-    <table>
+    <table class="refs">
       <thead><tr><th>Variable</th><th>Default</th><th>Meaning</th></tr></thead>
       <tbody>
         <tr><td><code>M2M_DATASET</code></td><td>(none)</td><td>dataset profile (TOML), e.g. <code>datasets/ramp_vielemeyer2026.toml</code></td></tr>
@@ -908,7 +912,7 @@ task = &quot;none&quot;</pre>
   <h3 id="stage-io">Stage inputs and outputs</h3>
   <p>Run the scripts from the repository root; <code>run_all.sh</code> runs them in order, and each runs on its own (<code>python pipeline/&lt;stage&gt;.py --help</code>). The motion dataset of a task goes to <code>data/&lt;M2M_DATA&gt;/</code> of the repository.</p>
   <div class="tbl">
-    <table>
+    <table class="refs">
       <thead><tr><th>Script</th><th>Input</th><th>Output</th></tr></thead>
       <tbody>
         <tr><td><code>pipeline/read_raw.py</code></td><td><code>raw_tak/*.tak</code> (<code>M2M_RAW_DIR</code>; C3D, TRC)</td><td><code>tak_cache/</code> (<code>M2M_CACHE_DIR</code>)</td></tr>
@@ -925,7 +929,7 @@ task = &quot;none&quot;</pre>
   </div>
   <h3 id="validation-scripts">Validation scripts</h3>
   <div class="tbl">
-    <table>
+    <table class="refs">
       <thead><tr><th>Script</th><th>What it checks</th></tr></thead>
       <tbody>
         <tr><td><code>pipeline/validate/tak_reader.py DIR</code></td><td>the take reader against Motive's TRC exports</td></tr>
@@ -953,7 +957,7 @@ task = &quot;none&quot;</pre>
 <section>
   <h2 id="code">Source layout: modules and what each does</h2>
   <div class="tbl">
-    <table>
+    <table class="refs">
       <thead><tr><th>File</th><th>What</th></tr></thead>
       <tbody>
         <tr><td><code>mocap2myo/tak.py</code></td><td>Reads .tak files without Motive; exports TRC; compares against a TRC export</td></tr>
