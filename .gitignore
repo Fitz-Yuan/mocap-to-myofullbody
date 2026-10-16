@@ -5,8 +5,11 @@ data/
 *.npz
 *.elvw
 !docs/viewer/myofullbody_model.elvw
-# the one de-identified demo clip shipped with the viewer (nothing else from the study)
+# shipped with the viewer: one de-identified clip of the case study (nothing else from that
+# study), and the other models with one public walking trial (Moissenet & Schreiber 2019, CC BY 4.0)
 !docs/viewer/demos/demo_1.elvw
+!docs/viewer/models/*.elvw
+!docs/viewer/demos/walk/*.elvw
 *.trc
 *.tak
 *.mot

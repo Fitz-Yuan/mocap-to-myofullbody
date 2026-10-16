@@ -298,6 +298,7 @@ def export_clip(a):
     clip_label=task.CLIP_LABEL if task is not None else "clip", frames=len(idx),
     fps=fps, start_s=lo / rate, pos_scale=ps, subject_scale=s, labels=mm.ms.LABELS,
     curves=cnames, objects=objects, tracks=tracks, model=mm.profile.name,
+    inactive=[l for l, on in zip(mm.ms.LABELS, mm.active) if not on],  # no counterpart on this model
     run=a.run_label or os.path.basename(os.path.normpath(a.ik_dir)), ghost=ghost, **lm,
     qa={k: qa[k] for k in ("verdict", "resid_med_mm", "resid_p95_mm", "lomo_med_mm",
                            "stand_knee_deg", "stand_hip_deg", "gap_max", "gap_worst")

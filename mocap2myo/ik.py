@@ -153,6 +153,20 @@ class MarkerModel:
         moved = b in jbody
         b = m.body_parentid[b]
       self.active[k] = moved
+    # a joint with no active marker beyond it (the neck of MASS and MS-Human-700 with a set
+    # that has no head markers) has nothing to hold it: left at the reference pose, not
+    # solved. The toes (profile [ik] mtp) keep their prior instead.
+    kids = [[] for _ in range(m.nbody)]
+    for b in range(1, m.nbody):
+      kids[m.body_parentid[b]].append(b)
+    marked = {int(b) for b, a in zip(self.bid, self.active) if a}
+
+    def reaches(b):
+      return b in marked or any(reaches(c) for c in kids[b])
+    keep = set(p.ik_cfg.get("mtp", [])) | {p.root_joint} | (set(NECK) if neck else set())
+    self.unsolved_joints = [n for n in self.free if n not in keep
+                            and not reaches(int(m.jnt_bodyid[m.joint(n).id]))]
+    self.free = [n for n in self.free if n not in self.unsolved_joints]
     self.w = np.array([ms.MARKERS[l][1] if a else 0.0 for l, a in zip(LABELS, self.active)])
     self.adr = np.array([m.jnt_qposadr[m.joint(n).id] for n in self.free])
     self.mtp = np.array([self.free.index(n) for n in p.ik_cfg.get("mtp", [])], int)

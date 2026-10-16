@@ -182,6 +182,9 @@ button.osim[aria-pressed="true"] { color: var(--osim); background: color-mix(in 
 .sub { color: var(--muted); font-size: 12px; line-height: 1.45; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 #demoList { width: 100%; }
+.pick { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 10px; font-size: 12.5px; color: var(--muted); }
+.pick select { width: 100%; }
+#modelSub { margin-top: -4px; }
 .pill { display: inline-block; font: 600 11px/1 var(--font-ui); padding: 4px 8px; border-radius: 99px; letter-spacing: 0.02em; }
 .pill.PASS { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
 .pill.WARN { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
@@ -286,6 +289,8 @@ input[type=file] { display: none; }
       <div class="title" id="clipTitle">No clip loaded</div>
       <div class="sub" id="clipSub">Model loaded from myofullbody_model.elvw</div>
       <select id="demoList" aria-label="Demo clips" hidden></select>
+      <label class="pick" id="modelPick" hidden><span>Model</span><select id="modelList" aria-label="Musculoskeletal model"></select></label>
+      <div class="sub" id="modelSub" hidden></div>
       <button id="openBtn" class="droparea" type="button"><i aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg></i><span><b>Open your own clip</b><small>Drop a .elvw file here · stays on this device</small></span><em aria-hidden="true">Browse</em></button>
       <div class="row">
         <select id="clipList" aria-label="Loaded clips" hidden></select>
@@ -430,12 +435,41 @@ const cmpDotMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.95
 /* ---------- model ---------- */
 let model = null, bodyGroups = [], ghostGroups = [], volGroup = new THREE.Group();
 let boneGroup = new THREE.Group(), ghostRoot = new THREE.Group(), musLines = null, musBuf = null, segSites = null;
-const human = new THREE.Group(); human.add(boneGroup, volGroup); scene.add(human, ghostRoot);
+const human = new THREE.Group(); scene.add(human);
+/* Models are kept by profile name (a model file's meta.model); a clip names the model it was
+   solved on (meta.model; clips written before had MyoFullBody). One model is in the scene. */
+const models = new Map();
+const modelOf = c => c.meta.model ?? "myofullbody";
+const modelFile = name => name === "myofullbody" ? "myofullbody_model.elvw" : `models/${name}_model.elvw`;
+function useModel(name) {
+  const r = models.get(name);
+  if (!r || r.model === model) return;
+  if (model) { human.remove(boneGroup, volGroup, musLines); scene.remove(ghostRoot); }
+  ({ model, bodyGroups, ghostGroups, boneGroup, volGroup, ghostRoot, musLines, musBuf, segSites } = r);
+  human.add(boneGroup, volGroup, musLines); scene.add(ghostRoot);
+  sitesW.arr = null;
+}
+async function ensureModel(name) {  // the model files next to the page; others must be opened with the clip
+  if (models.has(name)) return;
+  const r = await fetch(modelFile(name)).catch(() => null);
+  if (!r?.ok) throw new Error(`this clip uses the ${name} model: open ${name}_model.elvw together with it`);
+  buildModel(parseELVW(await r.arrayBuffer()));
+}
 const q4 = (q) => new THREE.Quaternion(q[1], q[2], q[3], q[0]);
 
 function buildModel(m) {
+  const name = m.meta.model ?? "myofullbody";
+  if (models.has(name)) return;
+  const prev = model?.meta.model ?? (model ? "myofullbody" : null);
+  if (model) { human.remove(boneGroup, volGroup, musLines); scene.remove(ghostRoot); }
   model = m;
-  const nb = m.meta.bodies.length;
+  boneGroup = new THREE.Group(); volGroup = new THREE.Group(); ghostRoot = new THREE.Group();
+  human.add(boneGroup, volGroup); scene.add(ghostRoot);
+  const nb = m.meta.bodies.length, B = m.meta.bodies;
+  // the pelvis (followed by the camera): by name, else the first body under the world
+  m.pelvis = B.indexOf("pelvis");
+  if (m.pelvis < 0) m.pelvis = B.findIndex(b => /pelvis/i.test(b));
+  if (m.pelvis < 0) m.pelvis = Math.max(1, m.meta.parents.findIndex((p, i) => i > 0 && p === 0 && B[i] !== "ground"));
   const V = m.a.verts.data, F = m.a.faces.data;
   const geoms = m.meta.meshes.map(me => {
     const pos = new Float32Array(me.nv * 3);
@@ -483,7 +517,10 @@ function buildModel(m) {
   musBuf = lg.attributes.instanceStart.data;
   human.add(musLines);
   ghostRoot.visible = false;
+  models.set(name, { model: m, bodyGroups, ghostGroups, boneGroup, volGroup, ghostRoot, musLines, musBuf, segSites });
+  sitesW.arr = null;
   setBodies(m.a.rest_pos.data, m.a.rest_quat.data, 0, true);
+  if (prev) useModel(prev);  // a model opened while a clip plays waits until a clip needs it
 }
 
 /* site world positions from body poses (rotate by quaternion w,x,y,z) */
@@ -526,7 +563,7 @@ function setBodies(bpos, bquat, f, isFloat, scale = 1, groups = bodyGroups, with
 let clip = null, clips = [], frame = 0, playing = false, tAcc = 0, lastPelvis = null;
 const sceneGroup = new THREE.Group(); scene.add(sceneGroup);
 let objMeshes = [], mkMeas = null, mkModel = null, errLines = null;
-const pelvisIdx = () => model.meta.bodies.indexOf("pelvis");
+const pelvisIdx = () => model.pelvis;
 const edgeMat = new THREE.LineBasicMaterial({ color: 0x9fb4c2 });
 
 function hull(pts) {
@@ -638,7 +675,7 @@ function updateTracks() {
 
 const tmpM = new THREE.Matrix4(), tmpP = new THREE.Vector3(), tmpQ = new THREE.Quaternion(), one = new THREE.Vector3(1, 1, 1);
 const hidden = new THREE.Matrix4().makeScale(0, 0, 0);
-const colOk = new THREE.Color(), colWarn = new THREE.Color(), colBad = new THREE.Color();
+const colOk = new THREE.Color(), colWarn = new THREE.Color(), colBad = new THREE.Color(), colOff = new THREE.Color();
 
 function showFrame(f) {
   if (!clip) return;
@@ -653,14 +690,17 @@ function showFrame(f) {
   }
   if (mkMeas) {
     const nm = meta.labels.length, Mm = a.marker_meas.data, Md = a.marker_model.data, E = errLines.geometry.attributes.position.array;
-    colOk.set(css("--ok")); colWarn.set(css("--warn")); colBad.set(css("--bad"));
+    colOk.set(css("--ok")); colWarn.set(css("--warn")); colBad.set(css("--bad")); colOff.set(css("--muted"));
+    const off = clip.inactive ??= new Set(meta.inactive ?? []);  // markers this model has no place for
     for (let i = 0; i < nm; i++) {
       const o = 3 * (frame * nm + i);
       const mx = Md[o] * ps, my = Md[o + 1] * ps, mz = Md[o + 2] * ps;
-      tmpM.compose(tmpP.set(mx, my, mz), tmpQ.identity(), one); mkModel.setMatrixAt(i, tmpM);
+      const unused = off.has(meta.labels[i]);
+      tmpM.compose(tmpP.set(mx, my, mz), tmpQ.identity(), one); mkModel.setMatrixAt(i, unused ? hidden : tmpM);
       if (Mm[o] === MISSING) { mkMeas.setMatrixAt(i, hidden); E.fill(0, 6 * i, 6 * i + 6); continue; }
       const x = Mm[o] * ps, y = Mm[o + 1] * ps, z = Mm[o + 2] * ps;
       tmpM.compose(tmpP.set(x, y, z), tmpQ.identity(), one); mkMeas.setMatrixAt(i, tmpM);
+      if (unused) { mkMeas.setColorAt(i, colOff); E.fill(0, 6 * i, 6 * i + 6); continue; }
       const e = Math.hypot(x - mx, y - my, z - mz) * 1000;
       mkMeas.setColorAt(i, e < 10 ? colOk : e < 25 ? colWarn : colBad);
       E.set([x, y, z, mx, my, mz], 6 * i);
@@ -1070,25 +1110,40 @@ $("lyOsim").addEventListener("change", () => setOsim($("lyOsim").checked));
 /* ---------- loading ---------- */
 async function loadClipBuffer(buf, name, opts = {}) {
   const c = parseELVW(buf);
-  if (c.meta.format?.startsWith("elvw-model")) { if (!model) buildModel(c); return; }  // loaded once; a second copy would draw a second skeleton
-  if (!model) throw new Error("Model not loaded yet");
+  if (c.meta.format?.startsWith("elvw-model")) { buildModel(c); return; }  // one copy per model name
   const same = clips.findIndex(o => o.name === name && o.bytes === buf.byteLength);
-  if (same >= 0) { selectClip(same); $("clipList").value = same; return; }
+  if (same >= 0) { selectClip(same, opts.keep); return; }
+  const mname = modelOf(c);
+  await ensureModel(mname);
+  const nb = models.get(mname).model.meta.bodies.length;
+  if (c.a.body_pos.shape[1] !== nb) throw new Error(`its bodies do not match the ${mname} model file (${c.a.body_pos.shape[1]} vs ${nb})`);
   c.name = name; c.bytes = buf.byteLength;
-  c.demo = !!opts.demo;
+  c.demo = opts.demo ?? null;  // {d: the demos/index.json entry, model}
   upgradeLegacy(c);
   clips.push(c);
-  const opt = document.createElement("option"); opt.value = clips.length - 1; opt.textContent = name; $("clipList").append(opt);
-  $("clipList").hidden = clips.length < 2; $("clipList").value = clips.length - 1;
-  selectClip(clips.length - 1);
+  if (!c.demo) {  // the menu of opened files; demos have their own menu
+    const opt = document.createElement("option"); opt.value = clips.length - 1; opt.textContent = name; $("clipList").append(opt);
+    $("clipList").hidden = clips.filter(o => !o.demo).length < 2;
+  }
+  selectClip(clips.length - 1, opts.keep);
 }
-function selectClip(i) {
+function selectClip(i, keep = null) {
   clip = clips[i];
+  useModel(modelOf(clip));
   // arrows and the comparison first: buildScene draws a frame, which must not use the previous clip's
   buildArrows(clip.meta); buildCompare(clip.meta); buildScene(clip.meta); buildPlotMenu(); showMeta(clip.meta);
   $("dropzone").hidden = true;
   $("dropHint").hidden = !clip.demo;
   $("view").classList.toggle("demo", !!clip.demo);
+  $("clipList").value = clip.demo ? "" : i;
+  if (!clip.demo) $("demoList").value = "";
+  showModelMenu();
+  if (keep) {  // another model of the same demo: the same moment, the same view
+    frame = Math.min(clip.meta.frames - 1, Math.round(keep.t * clip.meta.fps)); tAcc = frame / clip.meta.fps;
+    lastPelvis = null;
+    applyLayers(); showFrame(frame); setPlaying(keep.playing);
+    return;
+  }
   tAcc = 0; frame = 0;
   const pi = pelvisIdx(), P = clip.a.body_pos.data, ps = clip.meta.pos_scale, nb = model.meta.bodies.length;
   controls.autoRotate = false;  // the rest-pose turntable orbits the camera, never the body
@@ -1114,25 +1169,53 @@ addEventListener("dragover", e => { e.preventDefault(); document.body.classList.
 addEventListener("dragleave", e => { if (e.target === document.documentElement || !e.relatedTarget) { document.body.classList.remove("drag-on"); if (clip) $("dropzone").hidden = true; } });
 addEventListener("drop", e => { e.preventDefault(); document.body.classList.remove("drag-on"); if (clip) $("dropzone").hidden = true; loadFiles(e.dataTransfer.files); });
 
-/* ---------- demos: demos/index.json lists clips shipped with the page ---------- */
-async function loadDemo(d) {
-  const had = clips.findIndex(c => c.name === d.title);
-  if (had >= 0) { selectClip(had); $("clipList").value = had; return; }
-  const r = await fetch(`demos/${d.file}`);
-  if (!r.ok) throw new Error(r.status);
-  await loadClipBuffer(await r.arrayBuffer(), d.title, { demo: true });
+/* ---------- demos: demos/index.json lists clips shipped with the page ----------
+   An entry is {id, title, file} or, for one motion solved on several models,
+   {id, title, models: {profile: {file, label, credit}}, model: the default}.
+   ?demo=<id>&model=<profile> in the address opens that one. */
+let demos = [];
+async function loadDemo(d, mname, keep) {
+  const v = d.models;
+  mname = v ? (v[mname] ? mname : d.model ?? Object.keys(v)[0]) : modelOf({ meta: {} });
+  const file = v ? v[mname].file : d.file;
+  const name = v ? `${d.title} · ${mname}` : d.title;
+  $("demoList").value = demos.indexOf(d);
+  const had = clips.findIndex(c => c.name === name);
+  if (had >= 0) { selectClip(had, keep); return; }
+  const r = await fetch(`demos/${file}`);
+  if (!r.ok) throw new Error(`HTTP ${r.status}`);
+  await loadClipBuffer(await r.arrayBuffer(), name, { demo: { d, model: mname }, keep });
 }
+function showModelMenu() {
+  const dm = clip?.demo, v = dm?.d.models, n = v ? Object.keys(v).length : 0;
+  $("modelPick").hidden = n < 2; $("modelSub").hidden = n < 2;
+  if (n < 2) return;
+  const sel = $("modelList");
+  sel.innerHTML = Object.entries(v).map(([k, e]) => `<option value="${k}">${e.label ?? k}</option>`).join("");
+  sel.value = dm.model;
+  $("modelSub").textContent = [model.meta.title, v[dm.model].credit].filter(Boolean).join(" · ");
+  $("hudSub").textContent = `${clip.meta.trial} · ${v[dm.model].label ?? dm.model}`;
+}
+$("modelList").addEventListener("change", e => {
+  const dm = clip?.demo;
+  if (!dm) return;
+  const keep = { t: frame / clip.meta.fps, playing };
+  $("hudSub").textContent = "Loading the model…";
+  loadDemo(dm.d, e.target.value, keep).catch(err => { $("modelSub").textContent = `Could not load ${e.target.value}: ${err.message}`; });
+});
 async function loadDemos() {
   try {
     const r = await fetch("demos/index.json");
     if (!r.ok) return;
-    const demos = await r.json();
+    demos = await r.json();
     if (!demos.length) return;
     const sel = $("demoList");
     sel.innerHTML = `<option value="" disabled>Demos</option>` + demos.map((d, i) => `<option value="${i}">${d.title}</option>`).join("");
-    sel.hidden = demos.length < 2; sel.value = "0";
-    sel.addEventListener("change", () => loadDemo(demos[+sel.value]).catch(() => {}));
-    await loadDemo(demos[0]);
+    sel.hidden = demos.length < 2;
+    sel.addEventListener("change", () => { if (sel.value !== "") loadDemo(demos[+sel.value]).catch(() => {}); });
+    const p = new URLSearchParams(location.search);
+    const d = demos.find(x => x.id === p.get("demo")) ?? demos[0];
+    await loadDemo(d, p.get("model"));
   } catch (e) { /* no demos next to the page: the empty model and the drop card stay */ }
 }
 
