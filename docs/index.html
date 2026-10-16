@@ -1231,7 +1231,7 @@ async function main() {
   composer.addPass(outline); composer.addPass(new OutputPass());
   // caption and pointer
   const cap = $("ringCap");
-  let rTheta = 0, rTarget = null, rHold = 0, rFront = 0, rCapT = 0, rDrag = null, rScroll = 0;
+  let rTheta = 0, rVel = -RSPEED, rTarget = null, rHold = 0, rFront = 0, rCapT = 0, rDrag = null, rScroll = 0;
   const frontOf = (th) => ((Math.round(-th / RSTEP) % RN) + RN) % RN;
   function caption(i) {
     if (i === rFront) return;
@@ -1259,12 +1259,17 @@ async function main() {
   const interactive = (e) => rScroll < 0.04 && !e.target.closest("a, button, .hero-copy");
   hero.addEventListener("pointerdown", (e) => {
     if (!interactive(e) || e.button !== 0) return;
-    rDrag = { x: e.clientX, t0: rTheta, moved: 0 }; rTarget = null; hero.setPointerCapture(e.pointerId); hero.classList.add("drag");
+    rDrag = { x: e.clientX, t0: rTheta, to: rTheta, moved: 0, t: e.timeStamp, hist: [[e.timeStamp, rTheta]] }; rTarget = null; hero.setPointerCapture(e.pointerId); hero.classList.add("drag");
   });
   hero.addEventListener("pointermove", (e) => {
     if (rDrag) {
       const dx = e.clientX - rDrag.x; rDrag.moved = Math.max(rDrag.moved, Math.abs(dx));
-      rTheta = rDrag.t0 + (dx / VW) * Math.PI * 1.6; ringDirty = true;
+      const to = rDrag.t0 + (dx / VW) * Math.PI * 1.6;
+      // recent samples, for the throw's speed (all the moves a slow frame merged, with their own times)
+      const evs = e.getCoalescedEvents?.() ?? [];
+      for (const c of evs.length ? evs : [e]) rDrag.hist.push([c.timeStamp, rDrag.t0 + ((c.clientX - rDrag.x) / VW) * Math.PI * 1.6]);
+      while (rDrag.hist.length > 2 && e.timeStamp - rDrag.hist[0][0] > 120) rDrag.hist.shift();
+      rDrag.to = to; rDrag.t = e.timeStamp; ringDirty = true;
     } else hero.classList.toggle("over", interactive(e) && ringPick(e) >= 0);
   });
   hero.addEventListener("pointerup", (e) => {
@@ -1275,7 +1280,12 @@ async function main() {
       const i = ringPick(e);
       if (i >= 0 && i === frontOf(rTheta)) window.open(RMODELS[i].repo, "_blank", "noopener");
       else if (i >= 0) turnTo(i, now);
-    } else rHold = now + 2500;
+    } else {
+      // a throw keeps turning and slows back to the steady turn; a hand held still drops it
+      const H = rDrag.hist, a = H[0], b = H[H.length - 1], held = e.timeStamp - rDrag.t > 150;
+      rVel = held || b[0] - a[0] < 8 ? 0 : THREE.MathUtils.clamp((b[1] - a[1]) / ((b[0] - a[0]) / 1000), -5, 5);
+      rTheta = rDrag.to;
+    }
     rDrag = null;
   });
   hero.addEventListener("pointercancel", () => { rDrag = null; hero.classList.remove("drag"); });
@@ -1286,9 +1296,16 @@ async function main() {
     rScroll = h;
     const fig = 1 - ramp(h, 0.04, 0.4), pa = ramp(h, 0.03, 0.12) * (1 - ramp(h, 0.72, 0.9));
     ringG.visible = fig > 0.003;
-    if (!rDrag && !still) {
-      if (rTarget !== null) { rTheta += (rTarget - rTheta) * (1 - Math.exp(-dt * 3.2)); if (Math.abs(rTarget - rTheta) < 0.002) rTarget = null; }
-      else if (now > rHold) rTheta -= RSPEED * dt * (1 - ramp(h, 0, 0.1));
+    if (rDrag) rTheta += (rDrag.to - rTheta) * (1 - Math.exp(-dt * 22));   // follows the hand, smoothed
+    else if (!still) {
+      const steady = -RSPEED * (1 - ramp(h, 0, 0.1));
+      if (rTarget !== null) {
+        rTheta += (rTarget - rTheta) * (1 - Math.exp(-dt * 3.2)); rVel = 0;
+        if (Math.abs(rTarget - rTheta) < 0.002) rTarget = null;
+      } else {
+        rVel = (now > rHold ? steady : 0) + (rVel - (now > rHold ? steady : 0)) * Math.exp(-dt * 2.4);   // inertia: coasts v / 2.4 rad
+        rTheta += rVel * dt;
+      }
     }
     ringG.rotation.z = rTheta;
     caption(frontOf(rTheta));
