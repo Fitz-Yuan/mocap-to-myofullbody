@@ -128,10 +128,10 @@ h1, h2, h3, p, figure { margin: 0; }
 }
 .hero-copy { max-width: min(640px, 47vw); }
 @media (min-width: 900px) {
-  .hero { align-items: start; justify-items: center; text-align: center; padding-top: calc(var(--nav-h) + clamp(36px, 6.5vh, 76px)); }
-  .hero-copy { max-width: 860px; }
-  .hero .lede { margin-left: auto; margin-right: auto; max-width: 36em; }
-  .hero .actions { justify-content: center; }
+  .hero { align-items: start; justify-items: center; text-align: center; padding-top: calc(var(--nav-h) + clamp(22px, 4vh, 44px)); }
+  .hero-copy { max-width: 900px; }
+  .hero h1 { font-size: clamp(36px, 3.7vw, 60px); margin-bottom: 12px; }
+  .hero .lede { margin: 0 auto; max-width: 46em; font-size: clamp(15px, 1.1vw, 18px); }
 }
 .hero { cursor: grab; touch-action: pan-y; }
 .hero.drag { cursor: grabbing; }
@@ -387,11 +387,7 @@ footer a { color: var(--fg-2); }
   <section class="hero" id="hero">
     <div class="hero-copy" data-reveal>
       <h1>Mocap to <span class="nowrap">MSK.</span></h1>
-      <p class="lede">Optical motion capture in, musculoskeletal motion and joint loads out. OptiTrack takes, C3D or TRC, onto eight MuJoCo models; MyoFullBody, <span data-fact="muscles"></span> muscles, by default. <span class="more">Half the marker error of OpenSim on the same data.</span></p>
-      <div class="actions">
-        <a class="btn" href="documentation/">Read the documentation</a>
-        <a class="tlink" href="viewer/">Open the viewer <span class="arr" aria-hidden="true">→</span></a>
-      </div>
+      <p class="lede">Optical motion capture in, musculoskeletal motion and joint loads out, on eight MuJoCo models. <span class="more">MyoFullBody by default; half the marker error of OpenSim on the same data.</span></p>
     </div>
     <div class="hero-fallback" id="heroFallback" aria-hidden="true"></div>
     <div class="hero-foot">
@@ -1310,6 +1306,7 @@ async function main() {
     ringG.rotation.z = rTheta;
     caption(frontOf(rTheta));
     scene.fog = fig > 0.003 ? ringFog : null;
+    const cd = camera.position.length(); ringFog.near = cd - 0.6; ringFog.far = cd + 6.5;   // the far side of the ring dims, at any distance
     let best = null, bestC = -2;
     for (const sl of rslots) {
       const u = sl.userData.fig?.userData; if (!u) continue;
@@ -1373,8 +1370,8 @@ async function main() {
       lift: ramp(u, 3.08, 3.5) * (1 - ramp(u, 3.72, 4.12)),
       yaw: keys(YAW, u),
       // the cover frames the whole ring from further out and higher, below the centred title
-      el: lerp(11, keys(EL, u), hb), dmul: lerp(2.25, keys(DM, u), hb), zt: lerp(0.8, keys(ZT, u), hb),
-      sx: lerp(0, -0.17, hb), sy: lerp(-0.16, 0, hb),
+      el: lerp(9, keys(EL, u), hb), dmul: lerp(1.78, keys(DM, u), hb), zt: lerp(0.86, keys(ZT, u), hb),
+      sx: lerp(0, -0.17, hb), sy: lerp(-0.075, 0, hb), ringW: 4.4 * (1 - hb),
       hb,
     };
     S.twinkle = 1 - S.labelMix;
@@ -1394,6 +1391,8 @@ async function main() {
     let dist = visH / (2 * Math.tan(fov / 2));
     if (!square && !wide) { const visW = (visH * VW) / VH; if (visW < 1.15) dist *= 1.15 / visW; }
     dist *= wide || square ? S.dmul : Math.max(1, S.dmul);
+    // the cover: far enough for the whole ring to fit across (phones in portrait)
+    if (!square && S.ringW > 0.01) dist = Math.max(dist, S.ringW / (2 * Math.tan(fov / 2) * (VW / VH)));
     camera.position.set(0, -dist * Math.cos(S.el * DEG), S.zt + dist * Math.sin(S.el * DEG));
     camera.lookAt(0, 0, S.zt);
     if (square) camera.clearViewOffset();
