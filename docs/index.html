@@ -1280,16 +1280,18 @@ import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { FontLoader } from "three/addons/loaders/FontLoader.js";
+import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
 
 const MODELS = [
-  { k: "myofullbody", name: "MyoFullBody", spec: "416 muscles · 31 joints solved", src: "MuscleMimic · whole body · the default · fit 6.5 mm", repo: "https://github.com/amathislab/musclemimic_models" },
-  { k: "ms_human_700", name: "MS-Human-700", spec: "700 muscles · 37 joints solved", src: "Whole body · fit 8.0 mm", repo: "https://github.com/LNSGroup/MS-Human-700" },
-  { k: "mass", name: "MASS", spec: "284 muscles · 46 joints solved", src: "Lee et al. 2019 · converted from DART · fit 4.0 mm", repo: "https://github.com/lsw9021/MASS" },
-  { k: "rajagopal2016", name: "Rajagopal 2016", spec: "80 muscles · 23 joints solved", src: "OpenSim full body · via MyoConverter · fit 5.4 mm", repo: "https://github.com/opensim-org/opensim-models" },
-  { k: "lai_uhlrich2022", name: "Lai–Uhlrich 2022", spec: "80 muscles · 27 joints solved", src: "OpenCap · via MyoConverter · fit 5.4 mm", repo: "https://github.com/stanfordnmbl/opencap-core" },
-  { k: "gait2354", name: "Gait2354", spec: "54 muscles · 17 joints solved", src: "OpenSim · legs and trunk · via MyoConverter · fit 4.9 mm", repo: "https://github.com/opensim-org/opensim-models" },
-  { k: "myoleg", name: "MyoLeg", spec: "80 muscles · 14 joints solved", src: "MyoSuite · legs on a passive torso · fit 5.8 mm", repo: "https://github.com/MyoHub/myo_sim" },
-  { k: "ms_human_700_locomotion", name: "MS-Human-700 legs", spec: "100 muscles · 14 joints solved", src: "Legs on a rigid upper body · fit 7.9 mm", repo: "https://github.com/LNSGroup/MS-Human-700" },
+  { k: "myofullbody", label: "MyoFullBody", muscles: 416, name: "MyoFullBody", spec: "416 muscles · 31 joints solved", src: "MuscleMimic · whole body · the default · fit 6.5 mm", repo: "https://github.com/amathislab/musclemimic_models" },
+  { k: "ms_human_700", label: "MS-Human-700", muscles: 700, name: "MS-Human-700", spec: "700 muscles · 37 joints solved", src: "Whole body · fit 8.0 mm", repo: "https://github.com/LNSGroup/MS-Human-700" },
+  { k: "mass", label: "MASS", muscles: 284, name: "MASS", spec: "284 muscles · 46 joints solved", src: "Lee et al. 2019 · converted from DART · fit 4.0 mm", repo: "https://github.com/lsw9021/MASS" },
+  { k: "rajagopal2016", label: "Rajagopal 2016", muscles: 80, name: "Rajagopal 2016", spec: "80 muscles · 23 joints solved", src: "OpenSim full body · via MyoConverter · fit 5.4 mm", repo: "https://github.com/opensim-org/opensim-models" },
+  { k: "lai_uhlrich2022", label: "Lai-Uhlrich 2022", muscles: 80, name: "Lai–Uhlrich 2022", spec: "80 muscles · 27 joints solved", src: "OpenCap · via MyoConverter · fit 5.4 mm", repo: "https://github.com/stanfordnmbl/opencap-core" },
+  { k: "gait2354", label: "Gait2354", muscles: 54, name: "Gait2354", spec: "54 muscles · 17 joints solved", src: "OpenSim · legs and trunk · via MyoConverter · fit 4.9 mm", repo: "https://github.com/opensim-org/opensim-models" },
+  { k: "myoleg", label: "MyoLeg", muscles: 80, name: "MyoLeg", spec: "80 muscles · 14 joints solved", src: "MyoSuite · legs on a passive torso · fit 5.8 mm", repo: "https://github.com/MyoHub/myo_sim" },
+  { k: "ms_human_700_locomotion", label: "MS-Human-700 legs", muscles: 100, name: "MS-Human-700 legs", spec: "100 muscles · 14 joints solved", src: "Legs on a rigid upper body · fit 7.9 mm", repo: "https://github.com/LNSGroup/MS-Human-700" },
 ];
 const N = MODELS.length, STEP = (2 * Math.PI) / N, R = 2.15, DWELL = 3.2;
 const $ = (id) => document.getElementById(id);
@@ -1419,7 +1421,7 @@ function start() {
     const hold = new THREE.Group(); hold.add(canon); hold.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(bones), c = box.getCenter(new THREE.Vector3());
     canon.position.set(-c.x, -c.y, -box.min.z);
-    hold.userData = { mat, lm, glow: 0 };
+    hold.userData = { mat, lm, glow: 0, top: box.max.z - box.min.z };
     return hold;
   }
 
@@ -1439,12 +1441,36 @@ function start() {
     s.userData.i = i; ring.add(s);
     return s;
   });
+  // name above each head: extruded type (bevelled face, darker sides), the muscle count below
+  const FONT = "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/fonts/helvetiker_bold.typeface.json";
+  const ACCENT = new THREE.Color("#ff7a62");
+  let font = null; const waiting = [];
+  function label(i) {
+    const s = slots[i], top = s.userData.fig?.userData.top;
+    if (!font || top == null) { if (top != null) waiting.push(i); return; }
+    const face = new THREE.MeshStandardMaterial({ color: 0xf3ede2, roughness: 0.32, metalness: 0.15, envMapIntensity: 0.9, transparent: true });
+    const side = new THREE.MeshStandardMaterial({ color: 0x9a9286, roughness: 0.5, metalness: 0.1, transparent: true });
+    const small = new THREE.MeshStandardMaterial({ color: 0xa9a297, roughness: 0.5, metalness: 0, transparent: true });
+    const text = (str, size, depth, bevel) => {
+      const g = new TextGeometry(str, { font, size, height: depth, curveSegments: 6, bevelEnabled: bevel, bevelThickness: 0.004, bevelSize: 0.0026, bevelSegments: 2 });
+      g.computeBoundingBox(); const b = g.boundingBox;
+      g.translate(-(b.max.x + b.min.x) / 2, 0, -depth / 2); g.rotateX(Math.PI / 2);  // upright, facing -y like the model
+      return g;
+    };
+    const grp = new THREE.Group();
+    grp.add(new THREE.Mesh(text(MODELS[i].label, 0.1, 0.016, true), [face, side]));
+    const sub = new THREE.Mesh(text(`${MODELS[i].muscles} muscles`, 0.046, 0.006, false), small); sub.position.z = -0.085; grp.add(sub);
+    grp.position.set(0, 0, top + 0.15);
+    face.userData.k = 0.55; side.userData.k = 0.2; small.userData.k = 0.5;   // translucent; the selected name a little more solid
+    s.add(grp); s.userData.label = { grp, mats: [face, side, small], face, z: top + 0.15 };
+  }
+  new FontLoader().load(FONT, (f) => { font = f; slots.forEach((_, i) => label(i)); });
   let loaded = 0;
   MODELS.forEach((d, i) => {
     const url = d.k === "myofullbody" ? "viewer/myofullbody_model.elvw" : `viewer/models/${d.k}_model.elvw`;
     fetch(url).then((r) => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then((buf) => {
       const f = figure(parseELVW(buf)); f.traverse((o) => { o.userData.slot = i; });
-      slots[i].add(f); slots[i].userData.fig = f; loaded++;
+      slots[i].add(f); slots[i].userData.fig = f; loaded++; label(i);
       if (loaded === N) $("ringHint").textContent = "Drag to turn · click the model in front";
       else $("ringHint").textContent = `Loading the models, ${loaded} of ${N}`;
     }).catch(() => {});
@@ -1503,8 +1529,8 @@ function start() {
     const w = stage.clientWidth, h = stage.clientHeight, narrow = w / h < 1;
     renderer.setSize(w, h, false); camera.aspect = w / h;
     const D = narrow ? 7.6 : 6.2;
-    camera.position.set(0, -R - D, narrow ? 2.0 : 1.75);
-    camera.lookAt(0, -R * 0.45, narrow ? 0.62 : 0.88);
+    camera.position.set(0, -R - D, narrow ? 2.1 : 1.85);
+    camera.lookAt(0, -R * 0.45, narrow ? 0.75 : 1.0);
     camera.updateProjectionMatrix();
     for (const m of musMats) m.resolution.set(w, h);
   }
@@ -1531,6 +1557,15 @@ function start() {
       u.mat.userData.glow.value = u.glow * (0.75 + 0.25 * Math.sin(now / 700));
       u.lm.opacity = 0.55 + 0.4 * u.glow;
       s.userData.halo.material.opacity = 0.55 * u.glow * (0.85 + 0.15 * Math.sin(now / 700));
+      const L = s.userData.label;
+      if (L) {
+        const facing = Math.cos(s.userData.i * STEP + theta);          // 1: towards the camera
+        const a = THREE.MathUtils.smoothstep(facing, 0.45, 0.8);   // edge-on names would be slivers
+        for (const m of L.mats) m.opacity = a * Math.min(1, m.userData.k + 0.25 * u.glow);
+        L.grp.visible = a > 0.01;
+        L.face.emissive.copy(ACCENT).multiplyScalar(0.28 * u.glow);
+        L.grp.position.z = L.z + 0.018 * u.glow * Math.sin(now / 900);
+      }
     }
     renderer.render(scene, camera);
   }
