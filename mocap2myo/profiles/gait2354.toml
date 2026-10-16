@@ -1,0 +1,92 @@
+title = "OpenSim Gait2354 (23 DoF, 54 muscles), MyoConverter's pre-converted model (cvt3)"
+license = "the OpenSim gait2354 model: CC BY 3.0 (models/osim/Gait2354Simbody/notes.txt); the conversion: Apache-2.0 (MyoConverter)"
+sources = ["myoconverter"]
+
+[model]
+xml = "myoconverter/src/models/mjc/Gait2354Simbody/gait2354_cvt3.xml"
+patch = [[' collision="predefined"', '']]   # MuJoCo 2.3 option, rejected by 3.x
+
+[root]
+body = "pelvis"
+replace = ["pelvis_tx", "pelvis_ty", "pelvis_tz", "pelvis_tilt", "pelvis_list", "pelvis_rotation"]
+
+[frame]
+up = "+z"
+forward = "+x"          # MyoConverter turns OpenSim's y-up ground into a z-up world, facing +x
+
+[neutral]
+keyframe = "default-pose"   # meets the knee couplings and the moving path points
+
+[ik]
+include = ["*"]         # 17: legs (with subtalar, mtp) and lumbar; path-point slides and knee
+                        # translations follow by joint equalities
+
+[segments]
+pelvis = ["pelvis"]     # pelvis + sacrum meshes
+# one trunk body (spine, ribs, skull, jaw), split by mesh: no neck joint
+torso = { bodies = ["torso"], geoms = ["*hat_spine*", "*hat_ribs*"] }
+head = { bodies = ["torso"], geoms = ["*hat_skull*", "*hat_jaw*"] }
+femur_l = ["femur_l"]
+femur_r = ["femur_r"]
+tibia_l = ["tibia_l"]
+tibia_r = ["tibia_r"]
+foot_l = ["calcn_l"]
+foot_r = ["calcn_r"]
+toes_l = ["toes_l"]
+toes_r = ["toes_r"]
+
+[joint_centres]
+hip_l = "jnt:hip_flexion_l"
+hip_r = "jnt:hip_flexion_r"
+knee_l = "jnt:knee_angle_l"
+knee_r = "jnt:knee_angle_r"
+ankle_l = "jnt:ankle_angle_l"
+ankle_r = "jnt:ankle_angle_r"
+mtp_l = "jnt:mtp_angle_l"
+mtp_r = "jnt:mtp_angle_r"
+lumbar = "jnt:lumbar_extension"
+
+[landmarks]
+c7 = { geoms = ["*hat_spine*"] }
+t10 = { geoms = ["*hat_spine*"] }
+
+[kinetics.L5S1]
+distal = "torso"
+point = "jnt:lumbar_extension"
+frame = "torso"
+comps = [["ext", "anat:right", 1], ["latbend", "anat:anterior", 1], ["twist", "anat:superior", 1]]
+[kinetics.hip_r]
+distal = "femur_r"
+point = "jnt:hip_flexion_r"
+frame = "pelvis"
+comps = [["ext", "jnt:hip_flexion_r", -1], ["abd", "jnt:hip_adduction_r", -1]]
+[kinetics.hip_l]
+distal = "femur_l"
+point = "jnt:hip_flexion_l"
+frame = "pelvis"
+comps = [["ext", "jnt:hip_flexion_l", -1], ["abd", "jnt:hip_adduction_l", -1]]
+[kinetics.knee_r]       # Gait2354: knee_angle < 0 is flexion
+distal = "tibia_r"
+point = "jnt:knee_angle_r"
+frame = "tibia_r"
+comps = [["ext", "jnt:knee_angle_r", 1]]
+[kinetics.knee_l]
+distal = "tibia_l"
+point = "jnt:knee_angle_l"
+frame = "tibia_l"
+comps = [["ext", "jnt:knee_angle_l", 1]]
+[kinetics.ankle_r]
+distal = "talus_r"
+point = "jnt:ankle_angle_r"
+frame = "tibia_r"
+comps = [["plantar", "jnt:ankle_angle_r", -1]]
+[kinetics.ankle_l]
+distal = "talus_l"
+point = "jnt:ankle_angle_l"
+frame = "tibia_l"
+comps = [["plantar", "jnt:ankle_angle_l", -1]]
+
+[contact]
+# no foot contact geoms: sole points from the foot bones
+sole_bodies = { l = ["calcn_l", "toes_l"], r = ["calcn_r", "toes_r"] }
+sole_geoms = "mesh"

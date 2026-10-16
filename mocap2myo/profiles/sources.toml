@@ -1,0 +1,45 @@
+# Upstream sources of the model files that are not part of this repository.
+#
+# models/fetch.py clones each one at the pinned commit (sparse: only `paths`) into
+# $M2M_MODELS_DIR/<key>/src and writes $M2M_MODELS_DIR/<key>/SOURCE.json (URL, commit,
+# licence, paths, date). The profiles (<model>.toml) name the files they need as
+# "<key>/src/<path>". Nothing from these sources is redistributed here.
+
+[myo_sim]
+repo = "https://github.com/MyoHub/myo_sim"
+commit = "93b0ca8f4ec90c9899ee7f05fee561e9911da91b"  # v0.2.3 release, 2026-09-15
+license = "Apache-2.0 (LICENSE)"
+paths = ["LICENSE", "README.md", "pyproject.toml", "myo_sim/"]
+
+[ms_human_700]
+repo = "https://github.com/LNSGroup/MS-Human-700"
+commit = "2d686957aefd5739cf4d2859a6acfd94c8f84400"  # 2026-02-28
+license = "Apache-2.0 (LICENSE)"
+paths = ["LICENSE", "README.md", "MS-Human-700.xml", "MS-Human-700-Locomotion.xml",
+         "Asset/", "Body_Primary/", "Body_Locomotion/", "Contact/", "Equality/",
+         "Geometry/", "Muscle/", "Tendon/"]
+
+[mass]
+repo = "https://github.com/lsw9021/MASS"
+commit = "e44c2ef184cb55d45afd16b000414c84092ae18e"  # 2021-12-08
+license = "Apache-2.0 (LICENSE)"
+paths = ["LICENSE", "README.md", "data/human.xml", "data/muscle284.xml", "data/OBJ/"]
+
+[myoconverter]
+repo = "https://github.com/MyoHub/myoconverter"
+commit = "cadf38059367a51239e6dc28c9fbe8b8fbd5149f"  # 2023-09-28 (main)
+license = "Apache-2.0 (LICENSE; code and converted models; the OpenSim models keep their own terms)"
+paths = ["LICENSE", "README.md", "conda_env.yml", "myoconverter/",
+         "models/mjc/Gait2354Simbody/", "models/osim/Gait2354Simbody/"]
+
+[opensim_models]
+repo = "https://github.com/opensim-org/opensim-models"
+commit = "d9b05d470b1a481c222372c85b75772faf8f7792"  # 2025-11-05
+license = "no repository-wide LICENSE file; the Rajagopal et al. 2016 full-body model is under the MIT Use Agreement (simtk.org/projects/full_body)"
+paths = ["README.md", "Models/Rajagopal/", "Geometry/"]
+
+[opencap_core]
+repo = "https://github.com/stanfordnmbl/opencap-core"
+commit = "e5d29f12e725a2e14e6e4e85617834685f738753"  # 2026-10-06
+license = "Apache-2.0 (repository LICENSE); LaiUhlrich2022.osim has no licence of its own (Rajagopal 2016, MIT, with the Lai 2017 / Uhlrich 2022 changes)"
+paths = ["LICENSE", "README.md", "opensimPipeline/Models/LaiUhlrich2022.osim"]

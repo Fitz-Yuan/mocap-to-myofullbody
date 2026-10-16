@@ -1,0 +1,114 @@
+title = "MS-Human-700 Locomotion: 100 leg muscles, upper body rigid"
+license = "Apache-2.0 (MS-Human-700 repository LICENSE)"
+sources = ["ms_human_700"]
+
+[model]
+xml = "ms_human_700/src/MS-Human-700-Locomotion.xml"
+
+[root]
+body = "pelvis"         # pelvis_tx ... pelvis_rotation (3 slides, 3 hinges) -> one free joint "root"
+replace = ["pelvis_tz", "pelvis_ty", "pelvis_tx", "pelvis_tilt", "pelvis_list", "pelvis_rotation"]
+
+[frame]
+up = "+z"
+forward = "+x"          # the pelvis body is turned +90 deg about x (OpenSim y-up frames in a z-up world)
+
+[neutral]
+keyframe = "init"
+
+[ik]
+include = ["*"]         # every joint not driven by an equality (shoulder rhythm, knee, patella, wrist)
+
+[segments]
+pelvis = ["pelvis", "sacrum"]
+torso = ["thoracic12", "thoracic11", "thoracic10", "thoracic9", "thoracic8", "thoracic7", "thoracic6",
+         "thoracic5", "thoracic4", "thoracic3", "thoracic2", "thoracic1", "sternum",
+         "rib1_L", "rib1_R", "rib2_L", "rib2_R", "rib3_L", "rib3_R", "rib4_L", "rib4_R", "rib5_L", "rib5_R",
+         "rib6_L", "rib6_R", "rib7_L", "rib7_R", "rib8_L", "rib8_R", "rib9_L", "rib9_R", "rib10_L", "rib10_R",
+         "rib11_L", "rib11_R", "rib12_L", "rib12_R"]
+neck = { bodies = ["head_neck"], geoms = ["*cerv*"] }
+head = { bodies = ["head_neck"], exclude_geoms = ["*cerv*"] }
+femur_l = ["femur_l"]
+femur_r = ["femur_r"]
+tibia_l = ["tibia_l"]
+tibia_r = ["tibia_r"]
+foot_l = ["calcn_l"]
+foot_r = ["calcn_r"]
+toes_l = ["toes_l"]
+toes_r = ["toes_r"]
+# the arms are present but rigid (no joints) in this model
+clavicle_l = ["clavicle_l"]
+clavicle_r = ["clavicle_r"]
+scapula_l = ["scapula_l"]
+scapula_r = ["scapula_r"]
+humerus_l = ["humerus_l"]
+humerus_r = ["humerus_r"]
+ulna_l = ["ulna_l"]
+ulna_r = ["ulna_r"]
+radius_l = ["radius_l"]
+radius_r = ["radius_r"]
+hand_l = ["hand_l"]
+hand_r = ["hand_r"]
+
+[joint_centres]
+hip_l = "jnt:hip_flexion_l"
+hip_r = "jnt:hip_flexion_r"
+knee_l = "jnt:knee_angle_l"
+knee_r = "jnt:knee_angle_r"
+ankle_l = "jnt:ankle_angle_l"
+ankle_r = "jnt:ankle_angle_r"
+mtp_l = "jnt:mtp_angle_l"
+mtp_r = "jnt:mtp_angle_r"
+# no arm joints: the joint centres are the body origins (where the full model's joints sit)
+shoulder_l = "body:humerus_l"
+shoulder_r = "body:humerus_r"
+elbow_l = "body:ulna_l"
+elbow_r = "body:ulna_r"
+wrist_l = "body:proximal_row_l"
+wrist_r = "body:proximal_row_r"
+
+[landmarks]
+c7 = { bodies = ["head_neck"], geoms = ["rotatedcerv7*"], band = false }
+t10 = { bodies = ["thoracic10"], band = false }
+mc3_head = { geoms = ["*_3mc*"] }
+
+[kinetics.L5S1]           # no lumbar joint here: the load the pelvis carries at L5/S1 (rigid trunk)
+distal = "lumbar5"
+point = "body:lumbar5"
+frame = "lumbar5"
+comps = [["ext", "anat:right", 1], ["latbend", "anat:anterior", 1], ["twist", "anat:superior", 1]]
+[kinetics.hip_r]
+distal = "femur_r"
+point = "jnt:hip_flexion_r"
+frame = "pelvis"
+comps = [["ext", "jnt:hip_flexion_r", -1], ["abd", "jnt:hip_adduction_r", -1]]
+[kinetics.hip_l]
+distal = "femur_l"
+point = "jnt:hip_flexion_l"
+frame = "pelvis"
+comps = [["ext", "jnt:hip_flexion_l", -1], ["abd", "jnt:hip_adduction_l", -1]]
+[kinetics.knee_r]
+distal = "tibia_r"
+point = "jnt:knee_angle_r"
+frame = "tibia_r"
+comps = [["ext", "jnt:knee_angle_r", -1]]
+[kinetics.knee_l]
+distal = "tibia_l"
+point = "jnt:knee_angle_l"
+frame = "tibia_l"
+comps = [["ext", "jnt:knee_angle_l", -1]]
+[kinetics.ankle_r]
+distal = "talus_r"
+point = "jnt:ankle_angle_r"
+frame = "tibia_r"
+comps = [["plantar", "jnt:ankle_angle_r", -1]]
+[kinetics.ankle_l]
+distal = "talus_l"
+point = "jnt:ankle_angle_l"
+frame = "tibia_l"
+comps = [["plantar", "jnt:ankle_angle_l", -1]]
+
+[contact]
+sole_bodies = { l = ["calcn_l", "toes_l"], r = ["calcn_r", "toes_r"] }
+sole_geoms = "collision"
+sole_geom_types = ["capsule"]

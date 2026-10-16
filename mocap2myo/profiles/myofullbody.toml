@@ -1,0 +1,152 @@
+title = "MyoFullBody (MuscleMimic models 1.0.5), vendored"
+license = "Apache-2.0 with the third-party terms in assets/myofullbody/NOTICE (arm and hand parts from MoBL-ARMS: non-commercial use only)"
+
+[model]
+# vendored in this repository (mocap2myo/assets/myofullbody, see its LICENSE / NOTICE);
+# the same variants and environment variable as mocap2myo.model
+variants = { kneefix = "pkg:assets/myofullbody/body/myofullbody_clean_kneefix.xml", original = "pkg:assets/myofullbody/body/myofullbody_clean.xml" }
+variant_env = "MYOFULLBODY_MODEL"
+default_variant = "kneefix"
+
+[root]
+joint = "root"          # the model's own free joint (body "Full Body")
+
+[frame]
+up = "+z"
+forward = "-y"          # the repository's canonical frame is MyoFullBody's world
+
+[neutral]
+root_pos = [0.0, 0.0, 0.99]   # markerset.py: anatomical guesses with the root here
+
+[height]
+soft_tissue = 0.031     # ik.MODEL_HEIGHT 1.72 = bone height 1.689 + 0.031
+
+[ik]
+# exactly ik.FREE (37 unknowns with the root's 6)
+joints = [
+  "hip_flexion_r", "hip_adduction_r", "hip_rotation_r", "knee_angle_r", "ankle_angle_r",
+  "subtalar_angle_r", "mtp_angle_r",
+  "hip_flexion_l", "hip_adduction_l", "hip_rotation_l", "knee_angle_l", "ankle_angle_l",
+  "subtalar_angle_l", "mtp_angle_l",
+  "flex_extension", "lat_bending", "axial_rotation",
+  "elv_angle_r", "shoulder_elv_r", "shoulder_rot_r", "elbow_flex_r", "pro_sup_r", "deviation_r", "flexion_r",
+  "elv_angle_l", "shoulder_elv_l", "shoulder_rot_l", "elbow_flex_l", "pro_sup_l", "deviation_l", "flexion_l",
+]
+
+[segments]
+# first body = the one markers attach to (markerset.py), the rest add geometry
+pelvis = ["pelvis", "sacrum"]
+torso = ["thorax", "torso"]           # thorax (arm model, massless) is welded to torso (ribs, T1-T12)
+neck = ["neck"]                       # cervical spine (one mesh), rigid on the torso: no neck joint
+head = ["head"]
+femur_l = ["femur_l"]
+femur_r = ["femur_r"]
+tibia_l = ["tibia_l"]
+tibia_r = ["tibia_r"]
+foot_l = ["calcn_l"]
+foot_r = ["calcn_r"]
+toes_l = ["toes_l"]
+toes_r = ["toes_r"]
+clavicle_l = ["clavicle_l"]
+clavicle_r = ["clavicle_r"]
+scapula_l = ["scapula_l"]
+scapula_r = ["scapula_r"]
+humerus_l = ["humerus_l"]
+humerus_r = ["humerus_r"]
+ulna_l = ["ulna_l"]
+ulna_r = ["ulna_r"]
+radius_l = ["radius_l"]
+radius_r = ["radius_r"]
+# carpals + metacarpals are one rigid group (wrist joints at the lunate); fingers excluded
+hand_l = ["thirdmc_l", "lunate_l", "scaphoid_l", "pisiform_l", "triquetrum_l", "capitate_l",
+          "trapezium_l", "trapezoid_l", "hamate_l", "secondmc_l", "fourthmc_l", "fifthmc_l"]
+hand_r = ["thirdmc_r", "lunate_r", "scaphoid_r", "pisiform_r", "triquetrum_r", "capitate_r",
+          "trapezium_r", "trapezoid_r", "hamate_r", "secondmc_r", "fourthmc_r", "fifthmc_r"]
+
+[joint_centres]
+hip_l = "jnt:hip_flexion_l"
+hip_r = "jnt:hip_flexion_r"
+knee_l = "jnt:knee_angle_l"
+knee_r = "jnt:knee_angle_r"
+ankle_l = "jnt:ankle_angle_l"
+ankle_r = "jnt:ankle_angle_r"
+mtp_l = "jnt:mtp_angle_l"
+mtp_r = "jnt:mtp_angle_r"
+shoulder_l = "jnt:shoulder_rot_l"
+shoulder_r = "jnt:shoulder_rot_r"
+elbow_l = "jnt:elbow_flex_l"
+elbow_r = "jnt:elbow_flex_r"
+wrist_l = "jnt:flexion_l"
+wrist_r = "jnt:flexion_r"
+lumbar = "jnt:flex_extension"
+
+[landmarks]
+c7 = { geoms = ["hat_cervical"] }
+t10 = { geoms = ["*thoracic10*"], band = false }
+mc3_head = { geoms = ["3mc_{s}"] }
+
+# Inverse dynamics joints: exactly mocap2myo.kinetics.JOINTS
+# distal body, point, frame body, components [name, axis, sign]
+[kinetics.L5S1]
+distal = "lumbar5"
+point = "jnt:flex_extension"
+frame = "lumbar5"
+comps = [["ext", "z", 1], ["latbend", "x", 1], ["twist", "y", 1]]
+[kinetics.shoulder_r]
+distal = "humerus_r"
+point = "body:humerus_r"
+frame = "thorax"
+comps = [["flex", "z", 1], ["abd", "x", -1]]
+[kinetics.shoulder_l]
+distal = "humerus_l"
+point = "body:humerus_l"
+frame = "thorax"
+comps = [["flex", "z", 1], ["abd", "x", 1]]
+[kinetics.elbow_r]
+distal = "ulna_r"
+point = "jnt:elbow_flex_r"
+frame = "ulna_r"
+comps = [["flex", "jnt:elbow_flex_r", 1]]
+[kinetics.elbow_l]
+distal = "ulna_l"
+point = "jnt:elbow_flex_l"
+frame = "ulna_l"
+comps = [["flex", "jnt:elbow_flex_l", 1]]
+[kinetics.hip_r]
+distal = "femur_r"
+point = "jnt:hip_flexion_r"
+frame = "pelvis"
+comps = [["ext", "jnt:hip_flexion_r", -1], ["abd", "jnt:hip_adduction_r", -1]]
+[kinetics.hip_l]
+distal = "femur_l"
+point = "jnt:hip_flexion_l"
+frame = "pelvis"
+comps = [["ext", "jnt:hip_flexion_l", -1], ["abd", "jnt:hip_adduction_l", -1]]
+[kinetics.knee_r]
+distal = "tibia_r"
+point = "jnt:knee_angle_r"
+frame = "tibia_r"
+comps = [["ext", "jnt:knee_angle_r", -1]]
+[kinetics.knee_l]
+distal = "tibia_l"
+point = "jnt:knee_angle_l"
+frame = "tibia_l"
+comps = [["ext", "jnt:knee_angle_l", -1]]
+[kinetics.ankle_r]
+distal = "talus_r"
+point = "jnt:ankle_angle_r"
+frame = "tibia_r"
+comps = [["plantar", "jnt:ankle_angle_r", -1]]
+[kinetics.ankle_l]
+distal = "talus_l"
+point = "jnt:ankle_angle_l"
+frame = "tibia_l"
+comps = [["plantar", "jnt:ankle_angle_l", -1]]
+
+[contact]
+# sole points: both ends of every foot collision capsule (ik.MarkerModel._foot_points)
+sole_bodies = { l = ["calcn_l", "toes_l"], r = ["calcn_r", "toes_r"] }
+sole_geoms = "collision"
+sole_geom_types = ["capsule"]   # ik.py uses the capsules only
+# palm: hand sphere in the thirdmc frame (objects.py)
+palm_body = { l = "thirdmc_l", r = "thirdmc_r" }

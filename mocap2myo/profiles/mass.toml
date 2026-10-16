@@ -1,0 +1,138 @@
+title = "MASS (Lee et al. 2019): 284 muscles on box bodies, converted from its DART files"
+license = "Apache-2.0 (MASS repository LICENSE)"
+sources = ["mass"]
+
+[build]
+kind = "mass"           # models/mass_to_mjcf.py (bodies, Ball -> 3 hinges, muscles as spatial tendons)
+source = "mass"
+
+[model]
+xml = "mass/mass.xml"
+
+[root]
+joint = "root"
+
+[frame]
+up = "+y"
+forward = "+z"          # DART world: y up, facing +z, left = +x
+
+[neutral]
+# MASS's rest pose is a T-pose: arms down by the upper-arm hinge about the forward axis
+qpos = { ArmL_z = -1.65, ArmR_z = 1.65 }   # upper arms vertical (the T-pose arms point ~5 deg up)
+
+[ik]
+include = ["*"]
+exclude = ["FootThumb*", "FootPinky*"]   # the two toe segments: no markers on them
+
+[segments]
+pelvis = ["Pelvis"]
+torso = ["Torso"]       # thorax; the lumbar spine is its own segment ("Spine")
+neck = ["Neck"]
+head = ["Head"]
+femur_l = ["FemurL"]
+femur_r = ["FemurR"]
+tibia_l = ["TibiaL"]
+tibia_r = ["TibiaR"]
+foot_l = ["TalusL"]     # the whole foot behind the toes (talus, calcaneus, metatarsals)
+foot_r = ["TalusR"]
+# two toe segments per foot (not solved by the IK, so rigid on the foot). On the LEFT foot
+# MASS's names are swapped: FootThumbL has the lateral box and joint but the hallux mesh,
+# FootPinkyL the medial box and joint but the lateral-toes mesh (right foot as named)
+toes_l = ["FootThumbL", "FootPinkyL"]
+toes_r = ["FootThumbR", "FootPinkyR"]
+scapula_l = ["ShoulderL"]   # clavicle + scapula
+scapula_r = ["ShoulderR"]
+humerus_l = ["ArmL"]
+humerus_r = ["ArmR"]
+ulna_l = ["ForeArmL"]   # one forearm body (radius + ulna)
+ulna_r = ["ForeArmR"]
+radius_l = ["ForeArmL"]
+radius_r = ["ForeArmR"]
+hand_l = ["HandL"]
+hand_r = ["HandR"]
+
+[joint_centres]
+# body frames sit at the joint centres
+hip_l = "body:FemurL"
+hip_r = "body:FemurR"
+knee_l = "jnt:TibiaL"
+knee_r = "jnt:TibiaR"
+ankle_l = "body:TalusL"
+ankle_r = "body:TalusR"
+mtp_l = "jnt:FootPinkyL"   # the medial (hallux) toe joint; see toes_l
+mtp_r = "jnt:FootThumbR"
+shoulder_l = "body:ArmL"
+shoulder_r = "body:ArmR"
+elbow_l = "jnt:ForeArmL"
+elbow_r = "jnt:ForeArmR"
+wrist_l = "body:HandL"
+wrist_r = "body:HandR"
+lumbar = "body:Spine"
+
+[landmarks]
+styloid_rad = { dir = "anterior" }    # thumb forward with the arms down (neutral forearm)
+styloid_uln = { dir = "posterior" }
+mc3_head = { fraction = 0.5 }         # one hand mesh with fingers: half-way wrist -> fingertips
+
+[kinetics.L5S1]
+distal = "Spine"
+point = "body:Spine"
+frame = "Spine"
+comps = [["ext", "anat:right", 1], ["latbend", "anat:anterior", 1], ["twist", "anat:superior", 1]]
+[kinetics.shoulder_r]
+distal = "ArmR"
+point = "body:ArmR"
+frame = "Torso"
+comps = [["flex", "anat:right", 1], ["abd", "anat:anterior", -1]]
+[kinetics.shoulder_l]
+distal = "ArmL"
+point = "body:ArmL"
+frame = "Torso"
+comps = [["flex", "anat:right", 1], ["abd", "anat:anterior", 1]]
+[kinetics.elbow_r]
+distal = "ForeArmR"
+point = "jnt:ForeArmR"
+frame = "ForeArmR"
+comps = [["flex", "jnt:ForeArmR", 1]]
+[kinetics.elbow_l]      # left forearm: range -2.3..0, flexion negative
+distal = "ForeArmL"
+point = "jnt:ForeArmL"
+frame = "ForeArmL"
+comps = [["flex", "jnt:ForeArmL", -1]]
+[kinetics.hip_r]        # hinge axes are the world axes at rest: +x (left) = extension on both sides
+distal = "FemurR"
+point = "body:FemurR"
+frame = "Pelvis"
+comps = [["ext", "jnt:FemurR_x", 1], ["abd", "jnt:FemurR_z", -1]]
+[kinetics.hip_l]
+distal = "FemurL"
+point = "body:FemurL"
+frame = "Pelvis"
+comps = [["ext", "jnt:FemurL_x", 1], ["abd", "jnt:FemurL_z", 1]]
+[kinetics.knee_r]
+distal = "TibiaR"
+point = "jnt:TibiaR"
+frame = "TibiaR"
+comps = [["ext", "jnt:TibiaR", -1]]
+[kinetics.knee_l]
+distal = "TibiaL"
+point = "jnt:TibiaL"
+frame = "TibiaL"
+comps = [["ext", "jnt:TibiaL", -1]]
+[kinetics.ankle_r]
+distal = "TalusR"
+point = "body:TalusR"
+frame = "TibiaR"
+comps = [["plantar", "jnt:TalusR_x", 1]]
+[kinetics.ankle_l]
+distal = "TalusL"
+point = "body:TalusL"
+frame = "TibiaL"
+comps = [["plantar", "jnt:TalusL_x", 1]]
+
+[contact]
+# the foot boxes collide in MASS (contact="On"): their lowest corners
+sole_bodies = { l = ["TalusL", "FootPinkyL", "FootThumbL"], r = ["TalusR", "FootPinkyR", "FootThumbR"] }
+sole_geoms = "collision"
+sole_geom_types = ["box"]
+palm_body = { l = "HandL", r = "HandR" }

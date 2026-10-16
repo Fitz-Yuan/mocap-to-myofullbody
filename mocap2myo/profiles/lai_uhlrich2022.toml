@@ -1,0 +1,133 @@
+title = "LaiUhlrich2022 (OpenCap), converted by MyoConverter"
+license = "opencap-core: Apache-2.0; the model builds on Rajagopal et al. 2016 (MIT Use Agreement); the conversion: Apache-2.0 (MyoConverter)"
+sources = ["myoconverter", "opensim_models", "opencap_core"]
+
+[build]
+kind = "myoconverter"
+osim = "opencap_core/src/opensimPipeline/Models/LaiUhlrich2022.osim"
+geometry = "opensim_models/src/Geometry"
+steps = [1]
+
+[model]
+xml = "lai_uhlrich2022/LaiUhlrich2022_cvt1_m2m.xml"   # MyoConverter output + joint-frame fix (models/osim_to_mjcf.py)
+patch = [[' collision="predefined"', '']]
+
+[root]
+body = "pelvis"
+replace = ["pelvis_tx", "pelvis_ty", "pelvis_tz", "pelvis_tilt", "pelvis_list", "pelvis_rotation"]
+
+[frame]
+up = "+z"
+forward = "+x"          # MyoConverter turns OpenSim's y-up ground into a z-up world, facing +x
+
+[neutral]
+keyframe = "default-pose"
+
+[ik]
+include = ["*"]         # coordinates locked in the .osim (Rajagopal: subtalar, mtp, wrists) follow
+                        # by constant joint equalities and are not solved
+
+[segments]
+pelvis = ["pelvis"]     # r_pelvis, l_pelvis, sacrum meshes
+# one trunk body (spine, ribs + scapulae + clavicles, skull, jaw), split by mesh; no neck joint, no scapula DoF
+torso = { bodies = ["torso"], geoms = ["*hat_spine*", "*hat_ribs*"] }
+head = { bodies = ["torso"], geoms = ["*hat_skull*", "*hat_jaw*"] }
+femur_l = ["femur_l"]
+femur_r = ["femur_r"]
+tibia_l = ["tibia_l"]
+tibia_r = ["tibia_r"]
+foot_l = ["calcn_l"]
+foot_r = ["calcn_r"]
+toes_l = ["toes_l"]
+toes_r = ["toes_r"]
+humerus_l = ["humerus_l"]
+humerus_r = ["humerus_r"]
+ulna_l = ["ulna_l"]
+ulna_r = ["ulna_r"]
+radius_l = ["radius_l"]
+radius_r = ["radius_r"]
+hand_l = { bodies = ["hand_l"], exclude_geoms = ["*proximal*", "*medial*", "*distal*"] }   # fingers out
+hand_r = { bodies = ["hand_r"], exclude_geoms = ["*proximal*", "*medial*", "*distal*"] }
+
+[landmarks]
+c7 = { geoms = ["*hat_spine*"] }
+t10 = { geoms = ["*hat_spine*"] }
+mc3_head = { geoms = ["*metacarpal3*"] }
+
+[joint_centres]
+hip_l = "jnt:hip_flexion_l"
+hip_r = "jnt:hip_flexion_r"
+knee_l = "jnt:knee_angle_l"
+knee_r = "jnt:knee_angle_r"
+ankle_l = "jnt:ankle_angle_l"
+ankle_r = "jnt:ankle_angle_r"
+mtp_l = "jnt:mtp_angle_l"
+mtp_r = "jnt:mtp_angle_r"
+shoulder_l = "jnt:arm_flex_l"
+shoulder_r = "jnt:arm_flex_r"
+elbow_l = "jnt:elbow_flex_l"
+elbow_r = "jnt:elbow_flex_r"
+wrist_l = "body:hand_l"   # hand welded to the radius in this model
+wrist_r = "body:hand_r"
+lumbar = "jnt:lumbar_extension"
+
+[kinetics.L5S1]
+distal = "torso"
+point = "jnt:lumbar_extension"
+frame = "torso"
+comps = [["ext", "anat:right", 1], ["latbend", "anat:anterior", 1], ["twist", "anat:superior", 1]]
+[kinetics.shoulder_r]
+distal = "humerus_r"
+point = "jnt:arm_flex_r"
+frame = "torso"
+comps = [["flex", "anat:right", 1], ["abd", "anat:anterior", -1]]
+[kinetics.shoulder_l]
+distal = "humerus_l"
+point = "jnt:arm_flex_l"
+frame = "torso"
+comps = [["flex", "anat:right", 1], ["abd", "anat:anterior", 1]]
+[kinetics.elbow_r]
+distal = "ulna_r"
+point = "jnt:elbow_flex_r"
+frame = "ulna_r"
+comps = [["flex", "jnt:elbow_flex_r", 1]]
+[kinetics.elbow_l]
+distal = "ulna_l"
+point = "jnt:elbow_flex_l"
+frame = "ulna_l"
+comps = [["flex", "jnt:elbow_flex_l", 1]]
+[kinetics.hip_r]
+distal = "femur_r"
+point = "jnt:hip_flexion_r"
+frame = "pelvis"
+comps = [["ext", "jnt:hip_flexion_r", -1], ["abd", "jnt:hip_adduction_r", -1]]
+[kinetics.hip_l]
+distal = "femur_l"
+point = "jnt:hip_flexion_l"
+frame = "pelvis"
+comps = [["ext", "jnt:hip_flexion_l", -1], ["abd", "jnt:hip_adduction_l", -1]]
+[kinetics.knee_r]
+distal = "tibia_r"
+point = "jnt:knee_angle_r"
+frame = "tibia_r"
+comps = [["ext", "jnt:knee_angle_r", -1]]
+[kinetics.knee_l]
+distal = "tibia_l"
+point = "jnt:knee_angle_l"
+frame = "tibia_l"
+comps = [["ext", "jnt:knee_angle_l", -1]]
+[kinetics.ankle_r]
+distal = "talus_r"
+point = "jnt:ankle_angle_r"
+frame = "tibia_r"
+comps = [["plantar", "jnt:ankle_angle_r", -1]]
+[kinetics.ankle_l]
+distal = "talus_l"
+point = "jnt:ankle_angle_l"
+frame = "tibia_l"
+comps = [["plantar", "jnt:ankle_angle_l", -1]]
+
+[contact]
+sole_bodies = { l = ["calcn_l", "toes_l"], r = ["calcn_r", "toes_r"] }
+sole_geoms = "mesh"
+palm_body = { l = "hand_l", r = "hand_r" }

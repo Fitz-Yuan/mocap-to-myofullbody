@@ -1,0 +1,91 @@
+title = "MyoLeg (MyoSim v0.2.3): legs with 80 muscles on a passive anatomical torso"
+license = "Apache-2.0 (MyoSim); the legs derive from the Rajagopal et al. 2016 model (MIT Use Agreement)"
+sources = ["myo_sim"]
+
+[build]
+kind = "myo_sim"        # composed by myo_sim's own builder: build_spec("myolegs")
+source = "myo_sim"
+model = "myolegs"
+
+[model]
+xml = "myoleg/myolegs.xml"
+
+[root]
+joint = "root"          # the model's own free joint (body "Full Body")
+
+[frame]
+up = "+z"
+forward = "-y"          # the same world as MyoFullBody
+
+[ik]
+# 14 leg joints; the passive torso (lumbar spine, ribs, neck, head) is rigid on the pelvis
+include = ["*"]
+
+[segments]
+pelvis = ["pelvis", "sacrum"]
+torso = ["torso"]       # rigid on the pelvis in this model (no lumbar joints)
+neck = ["neck"]
+head = ["head"]
+femur_l = ["femur_l"]
+femur_r = ["femur_r"]
+tibia_l = ["tibia_l"]
+tibia_r = ["tibia_r"]
+foot_l = ["calcn_l"]
+foot_r = ["calcn_r"]
+toes_l = ["toes_l"]
+toes_r = ["toes_r"]
+
+[joint_centres]
+hip_l = "jnt:hip_flexion_l"
+hip_r = "jnt:hip_flexion_r"
+knee_l = "jnt:knee_angle_l"
+knee_r = "jnt:knee_angle_r"
+ankle_l = "jnt:ankle_angle_l"
+ankle_r = "jnt:ankle_angle_r"
+mtp_l = "jnt:mtp_angle_l"
+mtp_r = "jnt:mtp_angle_r"
+
+[landmarks]
+c7 = { geoms = ["hat_cervical"] }
+t10 = { geoms = ["*thoracic10*"], band = false }
+
+[kinetics.L5S1]           # no lumbar joint: the load the pelvis carries at L5 (rigid trunk)
+distal = "lumbar5"
+point = "body:lumbar5"
+frame = "lumbar5"
+comps = [["ext", "z", 1], ["latbend", "x", 1], ["twist", "y", 1]]
+[kinetics.hip_r]
+distal = "femur_r"
+point = "jnt:hip_flexion_r"
+frame = "pelvis"
+comps = [["ext", "jnt:hip_flexion_r", -1], ["abd", "jnt:hip_adduction_r", -1]]
+[kinetics.hip_l]
+distal = "femur_l"
+point = "jnt:hip_flexion_l"
+frame = "pelvis"
+comps = [["ext", "jnt:hip_flexion_l", -1], ["abd", "jnt:hip_adduction_l", -1]]
+[kinetics.knee_r]
+distal = "tibia_r"
+point = "jnt:knee_angle_r"
+frame = "tibia_r"
+comps = [["ext", "jnt:knee_angle_r", -1]]
+[kinetics.knee_l]
+distal = "tibia_l"
+point = "jnt:knee_angle_l"
+frame = "tibia_l"
+comps = [["ext", "jnt:knee_angle_l", -1]]
+[kinetics.ankle_r]
+distal = "talus_r"
+point = "jnt:ankle_angle_r"
+frame = "tibia_r"
+comps = [["plantar", "jnt:ankle_angle_r", -1]]
+[kinetics.ankle_l]
+distal = "talus_l"
+point = "jnt:ankle_angle_l"
+frame = "tibia_l"
+comps = [["plantar", "jnt:ankle_angle_l", -1]]
+
+[contact]
+sole_bodies = { l = ["calcn_l", "toes_l"], r = ["calcn_r", "toes_r"] }
+sole_geoms = "collision"
+sole_geom_types = ["capsule"]
