@@ -53,18 +53,19 @@ def compare(trial):
   ik = np.load(os.path.join(config.IK_DIR, f"{trial}.npz"))
   names = list(ik["joint_names"])
   import mujoco  # noqa: F401  (the model's qpos layout comes from the IK file's joint names)
-  from mocap2myo import ik as mk
-  mm = mk.MarkerModel()
+  mm = config.marker_model()
   m = mm.m
+  angle = {"hip_flexion": "hip_flex", "hip_adduction": "hip_add", "knee_angle": "knee_flex",
+           "ankle_angle": "ankle_dorsi", "elbow_flex": "elbow_flex"}  # -> the profile's [angles]
   Q = ik["qpos"].astype(np.float64)
   out = {}
   for side, S in (("l", "L"), ("r", "R")):
     for name, lab, ax, j in ANGLES:
       v = vicon(cache, f"{S}{lab}", ax)
-      jn = f"{j}_{side}"
-      if v is None or jn not in names:
+      a = mm.profile.angle(f"{angle[j]}_{side}")
+      if v is None or a is None or a[0] not in names:
         continue
-      ours = np.degrees(Q[:, m.jnt_qposadr[m.joint(jn).id]])
+      ours = np.degrees(a[1] * Q[:, m.jnt_qposadr[m.joint(a[0]).id]])
       n = min(len(v), len(ours))
       out[f"{name} {S}"] = stats(ours[:n], v[:n])
   kp = os.path.join(config.KIN_DIR, f"{trial}.npz")

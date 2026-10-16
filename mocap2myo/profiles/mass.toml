@@ -23,6 +23,22 @@ qpos = { ArmL_z = -1.65, ArmR_z = 1.65 }   # upper arms vertical (the T-pose arm
 [ik]
 include = ["*"]
 exclude = ["FootThumb*", "FootPinky*"]   # the two toe segments: no markers on them
+static_neutral = ["FemurR_x", "FemurR_z", "FemurR_y", "TibiaR", "TalusR_x", "TalusR_z", "TalusR_y",
+                  "FemurL_x", "FemurL_z", "FemurL_y", "TibiaL", "TalusL_x", "TalusL_z", "TalusL_y"]
+smooth_heavy = ["Talus*"]          # smoothed harder (ik_trial ankle_smooth)
+
+[angles]   # name -> [joint, sign]: positive = the named motion (hinge axes = world axes at rest)
+knee_flex_r = ["TibiaR", 1]
+hip_flex_r = ["FemurR_x", -1]
+hip_add_r = ["FemurR_z", 1]
+ankle_dorsi_r = ["TalusR_x", -1]
+elbow_flex_r = ["ForeArmR", 1]
+knee_flex_l = ["TibiaL", 1]
+hip_flex_l = ["FemurL_x", -1]
+hip_add_l = ["FemurL_z", -1]
+ankle_dorsi_l = ["TalusL_x", -1]
+elbow_flex_l = ["ForeArmL", -1]
+lumbar_ext = ["Spine_x", -1]
 
 [segments]
 pelvis = ["Pelvis"]
@@ -79,6 +95,9 @@ distal = "Spine"
 point = "body:Spine"
 frame = "Spine"
 comps = [["ext", "anat:right", 1], ["latbend", "anat:anterior", 1], ["twist", "anat:superior", 1]]
+# the trunk axes of the compression / shear (default y / x): Spine's local z is anterior
+superior = "anat:superior"
+anterior = "anat:anterior"
 [kinetics.shoulder_r]
 distal = "ArmR"
 point = "body:ArmR"

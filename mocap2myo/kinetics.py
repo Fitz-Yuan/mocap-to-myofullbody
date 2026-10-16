@@ -1,4 +1,4 @@
-"""Joint loads (net forces and moments) from IK on MyoFullBody: inverse dynamics.
+"""Joint loads (net forces and moments) from the IK: inverse dynamics.
 
 Newton-Euler on subtrees, in the subject's own size and mass. For a joint with point P,
 the force and moment the parent segment exerts on everything distal to it:
@@ -14,8 +14,14 @@ the lever rule along the line between the two feet's contact centres (an estimat
 split is not determined by kinematics), each foot's share applied under that foot.
 
 Conventions: moments are internal (net muscle) moments in N m, reported with the sign
-named in the key (e.g. knee_r_ext > 0 = net extensor moment). Anatomical frames follow
-the model / OpenSim: x anterior, y superior, z to the right.
+named in the key (e.g. knee_r_ext > 0 = net extensor moment). Which joints, at which
+point, about which axes: the model profile's [kinetics] (mocap2myo/profiles/; MyoFullBody's
+are JOINTS below), an axis being "x" / "y" / "z" of the frame body (MyoFullBody's frames
+follow OpenSim: x anterior, y superior, z to the right), "jnt:<joint>" (that joint's axis)
+or "anat:<direction>" (anterior, posterior, superior, inferior, left, right: the direction
+of the canonical frame, fixed in the frame body at the model's neutral pose). The L5/S1
+compression and anterior shear take the force along the L5S1 joint's superior / anterior
+axes (its profile entry's superior / anterior; default "y" / "x").
 """
 
 import mujoco
@@ -73,22 +79,56 @@ JOINTS = {
 TOP_DOWN = ("L5S1", "shoulder_r", "shoulder_l", "elbow_r", "elbow_l")
 
 
+def profile_joints(profile):
+  """The profile's [kinetics] in the JOINTS format, and the L5S1 entry's (superior,
+  anterior) axes."""
+  J = {k: (v["distal"], v["point"], v["frame"], [tuple(c) for c in v["comps"]])
+       for k, v in profile.kinetics.items()}
+  t = profile.kinetics.get("L5S1", {})
+  return J, (t.get("superior", "y"), t.get("anterior", "x"))
+
+
+def anat_axes(mm, joints, trunk_axes):
+  """Local axis (in its frame body) of every "anat:<direction>" the joints use:
+  {(frame body, direction): unit vector}, from the model at its neutral pose in the
+  canonical frame (mocap2myo.landmarks.Neutral)."""
+  need = {(v[2], a[1][5:]) for v in joints.values() for a in v[3] if a[1].startswith("anat:")}
+  need |= {(joints["L5S1"][2], a[5:]) for a in trunk_axes if a.startswith("anat:")} if "L5S1" in joints else set()
+  if not need:
+    return {}
+  from mocap2myo import landmarks as L
+  nt = L.Neutral(mm.profile, "floor", mm.m)
+  out = {}
+  for fr, dn in need:
+    R = nt.d.xmat[mm.m.body(fr).id].reshape(3, 3)
+    out[(fr, dn)] = R.T @ np.asarray(L.DIRS[dn], float)
+  return out
+
+
 class Kinetics:
-  """mm: an ik.MarkerModel (MyoFullBody with marker sites, palms and sole points)."""
+  """mm: an ik.MarkerModel (the model profile with marker sites, palms and sole points)."""
 
   def __init__(self, mm):
     self.mm, self.m, self.d = mm, mm.m, mm.d
     m = self.m
-    self.sets = {j: subtree(m, m.body(v[0]).id) for j, v in JOINTS.items()}
-    self.all = subtree(m, m.body("Full Body").id)
-    self.hand_b = [m.body("thirdmc_l").id, m.body("thirdmc_r").id]
-    self.foot_b = {s: m.body(f"calcn_{s}").id for s in "lr"}
+    prof = getattr(mm, "profile", None)
+    if prof is None or prof.name.startswith("myofullbody"):
+      self.joints, self.trunk_axes = JOINTS, ("y", "x")
+    else:
+      self.joints, self.trunk_axes = profile_joints(prof)
+    self.anat = anat_axes(mm, self.joints, self.trunk_axes)
+    self.sets = {j: subtree(m, m.body(v[0]).id) for j, v in self.joints.items()}
+    self.all = subtree(m, mm.root_bid)
+    self.hand_b = list(mm.hand_b)
+    sb = prof.contact.get("sole_bodies", {}) if prof is not None else {}
+    self.foot_b = {s: m.body(sb[s][0] if s in sb else f"calcn_{s}").id for s in "lr"}
     self.sole = {s: np.array([i for i, k in enumerate(mm.fp_kind) if k[0] == s]) for s in "lr"}
 
   def kinematics(self, Q):
     m, d = self.m, self.d
     T = len(Q)
     C, R = np.zeros((T, m.nbody, 3)), np.zeros((T, m.nbody, 3, 3))
+    JOINTS = self.joints
     P, Fr, Ax = {}, {}, {}
     for j in JOINTS:
       P[j], Fr[j] = np.zeros((T, 3)), np.zeros((T, 3, 3))
@@ -179,22 +219,31 @@ class Kinetics:
         ext.append(dict(body=self.foot_b[s], point=np.nan_to_num(foot_cop[:, i]),
                         force=foot_F[:, i],
                         torque=foot_free[:, i, None] * np.array([0.0, 0.0, 1.0])))
-    for j, (_, _, _, comps) in JOINTS.items():
+    def axis_of(j, axis, Rj):
+      if axis.startswith("jnt:"):
+        return K["Ax"][axis]
+      if axis.startswith("anat:"):
+        return np.einsum("tij,j->ti", Rj, self.anat[(self.joints[j][2], axis[5:])])
+      return Rj[:, :, "xyz".index(axis)]
+
+    for j, (_, _, _, comps) in self.joints.items():
       if not legs and j not in TOP_DOWN:
         continue
       Fj, Mj = wrench(self.sets[j], P[j], ext)
       Rj = K["Fr"][j]
       out[f"{j}_force"] = np.einsum("tji,tj->ti", Rj, Fj)  # in the frame body's axes
+      if j == "L5S1":
+        Fw = Fj
       for name, axis, sign in comps:
-        if axis.startswith("jnt:"):
-          u = K["Ax"][axis]
-        else:
-          u = Rj[:, :, "xyz".index(axis)]
-        out[f"{j}_{name}"] = sign * np.einsum("ti,ti->t", Mj, u)
-    e = out["L5S1_ext"]
-    out["L5S1_compression"] = (out["L5S1_force"][:, 1] + np.maximum(e, 0) / D_EXT
-                               + np.maximum(-e, 0) / D_FLEX)
-    out["L5S1_shear_ap"] = out["L5S1_force"][:, 0]
+        out[f"{j}_{name}"] = sign * np.einsum("ti,ti->t", Mj, axis_of(j, axis, Rj))
+    if "L5S1_ext" in out:
+      e = out["L5S1_ext"]
+      sup, ant = self.trunk_axes
+      along = (lambda a: out["L5S1_force"][:, "xyz".index(a)]) if not sup.startswith("anat:") else \
+        (lambda a: np.einsum("ti,ti->t", Fw, axis_of("L5S1", a, K["Fr"]["L5S1"])))
+      out["L5S1_compression"] = (along(sup) + np.maximum(e, 0) / D_EXT
+                                 + np.maximum(-e, 0) / D_FLEX)
+      out["L5S1_shear_ap"] = along(ant)
     return out
 
   def split_feet(self, sole, cop, rate, floor_z, dz=0.025, v_max=0.6):

@@ -4,13 +4,14 @@ Input:
   <M2M_CACHE_DIR>/<trial>.npz  the raw files as arrays (read_raw.py; tak_cache/ for
           OptiTrack takes, raw_cache/ for C3D / TRC). Body labels are the
           recording's labels (a take: Motive's live skeleton labels): the marker set's
-          own labels or one of its alias sets (mocap2myo.markerset; case study, S01:
-          ISB names). Labels the marker set does not know are not body markers.
+          own labels or one of its alias sets (M2M_MARKER_SET, M2M_MARKER_ALIASES,
+          mocap2myo/markersets/; case study, S01: ISB names onto Plug-in-Gait). Labels the
+          marker set does not know are not body markers.
   meta/anthropometrics.csv  height (cm), mass (kg) per subject (config.ANTHRO_*; with
           M2M_ANTHRO=c3d the one read_raw.py collected from the C3D files)
 Output: <M2M_NPZ_DIR>/<trial>.npz, Z-up, metres, unscaled, at the recording's rate,
   readable by mocap2myo.ik.load_trial: markers [T, n, 3] (marker set order),
-  marker_labels, marker_rate, height_m, mass_kg, pelvis_fixed [T, 4] (rigid refill
+  marker_labels, marker_set (its name), marker_rate, height_m, mass_kg, pelvis_fixed [T, 4] (rigid refill
   flags), mislabel_rejected [T, n], source ("tak", "c3d", "trc"), plus the task's
   fields (M2M_TASK; box_lift: the box pose, shelf, platform and floor,
   tasks/box_lift/box_fit.py), and from a C3D the force plates in the markers' world
@@ -21,7 +22,8 @@ Output: <M2M_NPZ_DIR>/<trial>.npz, Z-up, metres, unscaled, at the recording's ra
   only, same layout, plates too), read by solve_ik.py with M2M_STATIC=1.
 
 Per trial: labels mapped onto the marker set (alias sets, head markers by
-position), mislabelled samples rejected, pelvis markers refilled as a rigid body.
+position, if the set has head markers), mislabelled samples rejected, pelvis markers
+refilled as a rigid body.
 
 Pelvis: each frame's 4 pelvis markers are fitted to the subject's rigid pelvis
 template; a marker off by > PELVIS_TOL whose removal makes the other 3 consistent
@@ -45,9 +47,10 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from mocap2myo import markerset as ms  # noqa: E402
+from pipeline import config  # noqa: E402  (first: it selects the marker set)
 from mocap2myo.kinematics import kabsch  # noqa: E402
-from pipeline import config  # noqa: E402
+
+ms = config.marker_set()  # the dataset's marker set (M2M_MARKER_SET)
 
 OUT = config.NPZ_DIR
 SOURCE = "tak"  # written into each npz ("source"): the input is a raw take (or the cache's)
@@ -124,9 +127,22 @@ def reject_mislabels(P, tol=0.04, n_partners=3):
   return P, bad
 
 
+def choose_alias(names):
+  """The alias set (take label -> marker label) the take's labels use, or None (the set's
+  own labels): the allowed alias set (M2M_MARKER_ALIASES) that covers most of the labels,
+  if it covers more than the set's own labels do."""
+  own = sum(n in ms.markers for n in names)
+  best, nbest = None, own
+  for a in config.marker_aliases(ms).values():
+    k = sum(n in a for n in names)
+    if k > nbest:
+      best, nbest = a, k
+  return best
+
+
 def body_markers(names, A):
   """[T, n, 3] in marker set order from the take's labels (the set's own
-  labels, or one of its alias sets, ms.ALIASES). Two labels on one model marker
+  labels, or one of its alias sets, choose_alias). Two labels on one model marker
   (case study: the ISB elbow): per frame the one seen; both seen -> the one in
   ms.PREFER (the lateral epicondyle). Returns P, the head columns [T, h, 3] (in
   ms.HEAD_LABELS order for takes with the set's own labels; reordered by position
@@ -134,7 +150,7 @@ def body_markers(names, A):
   T = len(A)
   cand = {l: [] for l in ms.LABELS}
   head, renamed = [], {}
-  alias = next((a for a in ms.ALIASES.values() if any(n in a for n in names)), None)
+  alias = choose_alias(names)
   for i, n in enumerate(names):
     l = alias.get(n) if alias is not None else n
     if l == "HEAD" or (alias is None and l in ms.HEAD_LABELS):
@@ -148,15 +164,15 @@ def body_markers(names, A):
     for i in sorted(cand[l], key=lambda i: names[i] not in ms.PREFER):  # preferred first
       new = np.isnan(P[:, k, 0]) & ~np.isnan(A[:, i, 0])
       P[new, k] = A[new, i]
-  H = (np.stack([A[:, i] for _, i in sorted(head)], 1) if len(head) == len(ms.HEAD_LABELS)
-       else None)
+  H = (np.stack([A[:, i] for _, i in sorted(head)], 1)
+       if head and len(head) == len(ms.HEAD_LABELS) else None)
   return P, H, renamed
 
 
 def assign_head(P, H):
   """Head markers by position: front / back and left / right of the head centre in
   the pelvis heading (ASIS - PSIS, left = left - right ASIS), best of all orders
-  (layout: ms.MARKER_SET["head"]). Returns the [T, h, 3] columns in ms.HEAD_LABELS
+  (layout: the marker set's head role). Returns the [T, h, 3] columns in ms.HEAD_LABELS
   order and that order."""
   lasi, rasi, lpsi, rpsi = (P[:, k] for k in ms.PELVIS)
   fwd = (lasi + rasi - lpsi - rpsi)[:, :2]
@@ -167,11 +183,24 @@ def assign_head(P, H):
   rel = (H[ok] - H[ok].mean(1, keepdims=True))[..., :2]
   pf = np.median(np.einsum("tki,ti->tk", rel, fw), 0)
   pl = np.median(np.einsum("tki,ti->tk", rel, lf), 0)
-  want = np.array([ms.MARKER_SET["head"][l] for l in ms.HEAD_LABELS])  # (front, left) signs
+  want = np.array([ms.head[l] for l in ms.HEAD_LABELS])  # (front, left) signs
   nh = len(ms.HEAD_LABELS)
   order = max(itertools.permutations(range(nh)),
               key=lambda o: sum(want[s] @ (pf[o[s]], pl[o[s]]) for s in range(nh)))
   return H[:, list(order)], order
+
+
+def place_head(P, H):
+  """Head columns of P by position (assign_head), in place; returns the order (() for a
+  marker set without head markers). H None (not every head marker found): the columns
+  stay as labelled."""
+  if not ms.HEAD_LABELS:
+    return ()
+  hk = [ms.LABELS.index(l) for l in ms.HEAD_LABELS]
+  if H is None:
+    return tuple(range(len(hk)))
+  P[:, hk], order = assign_head(P, H)
+  return order
 
 
 def fix_pelvis(P):
@@ -215,8 +244,7 @@ def convert(name, anthro, task=None, task_state=None):
   T = len(A)
   rel_note = ""
   P, H, renamed = body_markers(names, A)
-  hk = [ms.LABELS.index(l) for l in ms.HEAD_LABELS]
-  P[:, hk], order = assign_head(P, H)
+  order = place_head(P, H)
   missing = [l for k, l in enumerate(ms.LABELS) if np.isnan(P[:, k, 0]).all()]
   if renamed:
     rel_note += f"alias labels renamed {renamed}, head by geometry {order}; "
@@ -234,7 +262,7 @@ def convert(name, anthro, task=None, task_state=None):
   out = os.path.join(OUT, f"{name}.npz")
   np.savez_compressed(
     out[:-4] + ".part.npz", markers=P.astype(np.float32), marker_labels=np.array(ms.LABELS),
-    marker_rate=rate, height_m=a["height_cm"] / 100, mass_kg=a["mass_kg"], **fields,
+    marker_set=ms.key, marker_rate=rate, height_m=a["height_cm"] / 100, mass_kg=a["mass_kg"], **fields,
     pelvis_fixed=pel_fixed, mislabel_rejected=mislabel, source=source, **extra)
   os.replace(out[:-4] + ".part.npz", out)
   gaps = np.isnan(P[..., 0]).mean(0)
@@ -251,15 +279,14 @@ def convert_static(subj, anthro):
   name = f"static/{config.static_name(subj)}"
   names, A, rate = read_take(name)
   P, H, renamed = body_markers(names, A)
-  hk = [ms.LABELS.index(l) for l in ms.HEAD_LABELS]
-  P[:, hk], order = assign_head(P, H)
+  order = place_head(P, H)
   P, mislabel = reject_mislabels(P)
   a = subject_size(anthro, subj)
   extra, source = cache_extras(name)
   os.makedirs(os.path.join(OUT, "static"), exist_ok=True)
   out = os.path.join(OUT, "static", f"{subj}.npz")
   np.savez_compressed(out[:-4] + ".part.npz", markers=P.astype(np.float32),
-                      marker_labels=np.array(ms.LABELS), marker_rate=rate,
+                      marker_labels=np.array(ms.LABELS), marker_set=ms.key, marker_rate=rate,
                       height_m=a["height_cm"] / 100, mass_kg=a["mass_kg"], source=source,
                       **extra)
   os.replace(out[:-4] + ".part.npz", out)
@@ -270,7 +297,6 @@ def convert_static(subj, anthro):
 
 def main():
   config.usage(__doc__)
-  config.marker_set()  # stops if the dataset's marker set is not the selected one
   anthro = config.anthropometrics()
   task = config.task()
   task_state = task.prepare_setup(read_take) if task is not None else None

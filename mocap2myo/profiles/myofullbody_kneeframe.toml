@@ -1,0 +1,10 @@
+title = "MyoFullBody with the tibia joints at the walker knee's joint frame (opt-in variant)"
+extends = "myofullbody"
+# MyoFullBody's knee is MyoConverter's conversion of Rajagopal et al.'s walker knee, which
+# puts the knee's rotation axes through the tibia's origin. OpenSim rotates about the
+# joint's child frame, 8.9 mm away from it (tibia frame): there the shank follows
+# OpenSim's model (models/osim_to_mjcf.py, the same fix for the converted Rajagopal model).
+# Nothing else differs (at a straight knee the two models are the same).
+
+[model]
+joint_pos = { tibia_r = [-0.00808954, -0.0035348, -0.00148474], tibia_l = [-0.00808954, -0.0035348, 0.00148474] }

@@ -18,6 +18,26 @@ keyframe = "init"
 
 [ik]
 include = ["*"]         # every joint not driven by an equality (shoulder rhythm, knee, patella, wrist)
+mtp = ["mtp_angle_r", "mtp_angle_l"]          # pulled toward neutral (M2M_MTP_PRIOR): no marker on the toes
+static_neutral = ["hip_flexion_r", "hip_adduction_r", "hip_rotation_r", "knee_angle_r", "ankle_angle_r", "subtalar_angle_r",
+                  "hip_flexion_l", "hip_adduction_l", "hip_rotation_l", "knee_angle_l", "ankle_angle_l", "subtalar_angle_l"]
+smooth_heavy = ["ankle_angle*", "subtalar*"]          # smoothed harder (ik_trial ankle_smooth)
+smooth_gated = { elv_angle_r = "shoulder_elv_r", elv_angle_l = "shoulder_elv_l" }
+
+[angles]   # name -> [joint, sign]: positive = the named motion
+knee_flex_r = ["knee_angle_r", 1]
+hip_flex_r = ["hip_flexion_r", 1]
+hip_add_r = ["hip_adduction_r", 1]
+ankle_dorsi_r = ["ankle_angle_r", 1]
+knee_flex_l = ["knee_angle_l", 1]
+hip_flex_l = ["hip_flexion_l", 1]
+hip_add_l = ["hip_adduction_l", 1]
+ankle_dorsi_l = ["ankle_angle_l", 1]
+lumbar_ext = ["L5_S1_FE", 1]
+shoulder_elv_r = ["shoulder_elv_r", 1]
+shoulder_elv_l = ["shoulder_elv_l", 1]
+elbow_flex_r = ["elbow_flexion_r", 1]
+elbow_flex_l = ["elbow_flexion_l", 1]
 
 [segments]
 pelvis = ["pelvis", "sacrum"]
@@ -72,6 +92,8 @@ lumbar = "jnt:L5_S1_FE"
 c7 = { bodies = ["head_neck"], geoms = ["rotatedcerv7*"], band = false }
 t10 = { bodies = ["thoracic10"], band = false }
 mc3_head = { geoms = ["*_3mc*"] }
+mc2_head = { geoms = ["*_2mc*"] }
+mc5_head = { geoms = ["*_5mc*"] }
 
 # "anat:<direction>": a direction of the canonical frame (anterior, posterior, superior, inferior,
 # left, right) fixed in the frame body at the neutral pose (phase 2: kinetics reads it so)
@@ -80,6 +102,9 @@ distal = "lumbar5"
 point = "jnt:L5_S1_FE"
 frame = "lumbar5"
 comps = [["ext", "anat:right", 1], ["latbend", "anat:anterior", 1], ["twist", "anat:superior", 1]]
+# the trunk axes of the compression / shear (default y / x): lumbar5 is tilted ~21 deg at neutral
+superior = "anat:superior"
+anterior = "anat:anterior"
 [kinetics.shoulder_r]
 distal = "humerus_r"
 point = "jnt:shoulder_rot_r"

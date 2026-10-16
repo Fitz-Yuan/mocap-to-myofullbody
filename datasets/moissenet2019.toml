@@ -3,8 +3,7 @@
 #   M2M_DATASET=datasets/moissenet2019.toml python pipeline/read_raw.py
 # Layout under root: raw/ = the figshare archive extracted (<subject>/<subject>_C<k>_<nn>.c3d,
 # <subject>/<subject>_ST.c3d). Height and mass are in the trials' C3D parameters.
-# The marker set (52 ISB markers) is not defined in mocap2myo/markerset.py yet: reading
-# works, prepare_markers.py and the IK stop until it is.
+# Marker set: the 52 ISB / Dumas markers, mocap2myo/markersets/isb_dumas.toml (marker_set below).
 name = "moissenet2019"
 description = """50 subjects walking overground at five speeds (C1-C5); Qualisys, 52 \
 ISB-style markers (Dumas), 100 Hz; two AMTI plates at floor level; eight right-leg EMG \

@@ -55,12 +55,15 @@ M2M_STATIC_NAME. Defaults, as the case study:
                                                  (optional OpenSim comparison)
   and the motion dataset in data/<M2M_DATA>/ of the repository.
 
-Read elsewhere (they belong to the library, not to the stages): MYOFULLBODY_MODEL
-(mocap2myo/model.py). The marker set is chosen in mocap2myo/markerset.py (MARKER_SET,
-a source constant, not an environment variable); M2M_MARKER_SET names the one the
-dataset needs, and the stages that use it stop when it is not the selected one.
-run_all.sh also reads PY and OSIM_PY (the Python interpreters it runs the stages
-with). IK_WORKERS is not a dataset setting (no profile key).
+Model and marker set: M2M_MODEL names the model profile (mocap2myo/profiles/<name>.toml,
+default myofullbody; the others need models/fetch.py first, M2M_MODELS_DIR), and
+M2M_MARKER_SET the marker set (mocap2myo/markersets/<name>.toml, default plug_in_gait),
+M2M_MARKER_ALIASES which of its alias label sets apply. Both are written back to the
+environment, where the library reads them (mocap2myo.profile.selected,
+mocap2myo.markerset.selected). Read elsewhere (they belong to the library, not to the
+stages): MYOFULLBODY_MODEL (mocap2myo/model.py, the MyoFullBody profile's variants),
+M2M_MODELS_DIR (mocap2myo/profile.py). run_all.sh also reads PY and OSIM_PY (the Python
+interpreters it runs the stages with). IK_WORKERS is not a dataset setting (no profile key).
 
 Settings with a fixed set of values fail at import on anything else (a typo would
 otherwise quietly fall back to another behaviour).
@@ -230,8 +233,21 @@ ANALOG = _regex("M2M_ANALOG", ".*")  # "" = none
 # pressure
 FP_SIGN = _choice("M2M_FP_SIGN", "auto", ("auto", "1", "-1"))
 FP_MIN_FZ = float(_env("M2M_FP_MIN_FZ", 20.0))
-# the marker set the dataset uses (a name of mocap2myo/markerset.py; see marker_set())
-MARKER_SET = _env("M2M_MARKER_SET", "plug_in_gait")
+# the marker set the dataset uses (mocap2myo/markersets/<name>.toml; see marker_set()) and
+# which of its alias label sets a recording may use ("auto": the one that matches its labels
+# best, if it beats the set's own labels; "none"; or names, comma separated)
+_SETS = sorted(f[:-5] for f in os.listdir(os.path.join(REPO, "mocap2myo", "markersets"))
+               if f.endswith(".toml"))
+MARKER_SET = _choice("M2M_MARKER_SET", "plug_in_gait", _SETS)
+MARKER_ALIASES = _env("M2M_MARKER_ALIASES", "auto")
+# the model (mocap2myo/profiles/<name>.toml; see model_profile())
+_MODELS = sorted(f[:-5] for f in os.listdir(os.path.join(REPO, "mocap2myo", "profiles"))
+                 if f.endswith(".toml") and f != "sources.toml")
+MODEL = _choice("M2M_MODEL", "myofullbody", _MODELS)
+# the library reads the same two (mocap2myo.markerset.selected, mocap2myo.profile.selected;
+# also in the stages' worker processes)
+os.environ["M2M_MARKER_SET"] = MARKER_SET
+os.environ["M2M_MODEL"] = MODEL
 # subject heights and masses: "csv" (ANTHRO_CSV) or "c3d" (C3D parameters, "GROUP:NAME":
 # the entry NAME of the group's LABELS / VALUES / UNITS, or a parameter NAME; collected by
 # read_raw.py into <M2M_CACHE_DIR>/anthropometrics.csv, which is then ANTHRO_CSV)
@@ -484,15 +500,37 @@ OSIM_COMPARE_DIR = os.path.join(ROOT, "compare_osim")  # validate/opensim_compar
 
 
 def marker_set():
-  """mocap2myo.markerset, after checking that the marker set it selects is the one the
-  dataset needs (M2M_MARKER_SET; names compared in lower case, - and spaces as _)."""
+  """The dataset's marker set (M2M_MARKER_SET; a mocap2myo.markerset.MarkerSet), with
+  M2M_MARKER_ALIASES checked against its alias sets."""
   from mocap2myo import markerset as ms
-  norm = lambda n: re.sub(r"[^a-z0-9]+", "_", n.lower()).strip("_")
-  if norm(ms.MARKER_SET["name"]) != norm(MARKER_SET):
-    raise SystemExit(f"M2M_MARKER_SET={MARKER_SET!r}: mocap2myo/markerset.py selects "
-                     f"{ms.MARKER_SET['name']!r} (MARKER_SET); that marker set is not "
-                     "defined / selected there")
-  return ms
+  s = ms.load(MARKER_SET)
+  if MARKER_ALIASES not in ("auto", "none"):
+    bad = [a for a in MARKER_ALIASES.split(",") if a.strip() not in s.ALIASES]
+    if bad:
+      raise SystemExit(f"M2M_MARKER_ALIASES={MARKER_ALIASES!r}: {MARKER_SET} has no alias set(s) {bad} "
+                       f"(it has {sorted(s.ALIASES) or 'none'})")
+  return s
+
+
+def marker_aliases(s):
+  """{name: alias map} of the marker set's alias sets a recording may use."""
+  if MARKER_ALIASES == "none":
+    return {}
+  if MARKER_ALIASES == "auto":
+    return dict(s.ALIASES)
+  return {a.strip(): s.ALIASES[a.strip()] for a in MARKER_ALIASES.split(",")}
+
+
+def model_profile():
+  """The model (M2M_MODEL; a mocap2myo.profile.Profile)."""
+  from mocap2myo import profile
+  return profile.load(MODEL)
+
+
+def marker_model(neck=False):
+  """ik.MarkerModel of the dataset's model and marker set."""
+  from mocap2myo import ik
+  return ik.MarkerModel(model_profile(), marker_set(), neck=neck)
 
 
 # a profile key that is no setting (a typo would otherwise be ignored quietly)

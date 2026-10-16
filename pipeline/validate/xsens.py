@@ -26,7 +26,6 @@ import mujoco
 import numpy as np
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from mocap2myo import ik as mk  # noqa: E402
 from pipeline import config  # noqa: E402
 
 TRIAL = config.XSENS_TRIAL
@@ -87,14 +86,20 @@ def xsens_angles(path):
 def ik_angles(ik_dir):
   K = np.load(os.path.join(ik_dir, f"{TRIAL}.npz"))
   Q = K["qpos"].astype(np.float64)
-  mm = mk.MarkerModel()
+  mm = config.marker_model()
   mm.set_offsets(np.load(os.path.join(ik_dir, f"{config.subject_of(TRIAL)}_offsets.npz"))["offsets"])
-  m, d = mm.m, mm.d
-  bodies = ["femur_r", "tibia_r", "talus_r", "humerus_r", "ulna_r", "lunate_r",
-            "femur_l", "tibia_l", "talus_l", "humerus_l", "ulna_l", "lunate_l"]
+  m, d, p = mm.m, mm.d, mm.profile
+  # hip, knee, ankle, shoulder, elbow, wrist: the origins of the femur, tibia, ankle-joint
+  # body, humerus, ulna and wrist-joint body (MyoFullBody: talus, lunate)
+  jb = lambda n: m.body(int(m.jnt_bodyid[m.joint(p.joint_centres[n][4:]).id])).name \
+    if p.joint_centres[n].startswith("jnt:") else p.joint_centres[n][5:]
+  bodies = [b for s in "rl" for b in (p.segments[f"femur_{s}"].body, p.segments[f"tibia_{s}"].body,
+                                       jb(f"ankle_{s}"), p.segments[f"humerus_{s}"].body,
+                                       p.segments[f"ulna_{s}"].body, jb(f"wrist_{s}"))]
+  names = [f"{n}_{s}" for s in "rl" for n in ("femur", "tibia", "talus", "humerus", "ulna", "lunate")]
   bid = [m.body(b).id for b in bodies]
-  L = mk.LABELS
-  pk = mk.PELVIS
+  L = mm.ms.LABELS
+  pk = mm.ms.PELVIS
   B = np.full((len(Q), len(bodies), 3), np.nan)
   M = np.full((len(Q), len(L), 3), np.nan)
   for t in range(len(Q)):
@@ -104,7 +109,7 @@ def ik_angles(ik_dir):
     mujoco.mj_kinematics(m, d)
     B[t] = d.xpos[bid]
     M[t] = d.site_xpos[mm.sid]
-  b = {n: B[:, i] for i, n in enumerate(bodies)}
+  b = {n: B[:, i] for i, n in enumerate(names)}
   a = {}
   for s in "rl":
     a[f"knee_{s}"] = flex(b[f"femur_{s}"], b[f"tibia_{s}"], b[f"talus_{s}"])

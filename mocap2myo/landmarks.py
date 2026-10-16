@@ -67,6 +67,11 @@ LANDMARKS = (
   + [f"{j}_{s}" for j in ("forehead", "back_head") for s in "lr"]
   + [f"{j}_{s}" for j in ("shoulder", "acromion", "elbow", "epicondyle_lat", "epicondyle_med",
                           "wrist", "styloid_rad", "styloid_uln", "mc3_head") for s in "lr"])
+# further landmarks for skin-marker sets (e.g. the ISB / Dumas set of Moissenet & Schreiber 2019)
+LANDMARKS_EXTRA = [f"{j}_{s}" for j in (
+  "trochanter", "fibula_head", "tibial_tuberosity", "mt1_head", "mt2_head", "mt5_head",
+  "scap_inf_angle", "scap_spine_root", "acromial_angle", "acromion_tip", "olecranon",
+  "mc2_head", "mc5_head") for s in "lr"]
 JOINT_CENTRES = ("hip", "knee", "ankle", "mtp", "shoulder", "elbow", "wrist")
 
 
@@ -574,9 +579,121 @@ def compute(profile: Profile | str, place: str = "floor", m: mujoco.MjModel | No
             b = np.bincount(B[sel]).argmax()
             out[name] = nt.landmark(name, c, b, "centre of the hand's distal 1 cm along wrist -> hand")
 
+  _extra_landmarks(nt, p, out, put, explicit, hint, s, x0)
+
   bone = head_top - sole_z if head_top is not None else None
   return Result(p.name, out, sole_z, head_top, bone,
                 bone + p.soft_tissue if bone is not None else None, nt.qpos.copy(), missing)
+
+
+def _extra_landmarks(nt, p, out, put, explicit, hint, s, x0):
+  """LANDMARKS_EXTRA: trochanter, fibula head, tibial tuberosity, metatarsal heads 1 / 2 / 5,
+  scapula (inferior angle, root of the spine, acromial angle, acromion tip), olecranon,
+  metacarpal heads 2 / 5. Rules as in compute (canonical frame, neutral pose)."""
+  def unit(v):
+    return v / np.linalg.norm(v)
+  for sd in "lr":
+    sg = SIDE_SIGN[sd]
+    lat = lambda P: sg * (P[:, 0] - x0)
+    hp, kn, mtp = (out.get(f"{j}_{sd}") for j in ("hip", "knee", "mtp"))
+    # thigh / shank
+    if hp is not None and not explicit(f"trochanter_{sd}", sd):
+      g = nt.segment_points([f"femur_{sd}"], sd, hint(f"trochanter_{sd}"))
+      if g is not None:
+        P, B = g
+        msk = (P[:, 2] > hp.pos[2] - 0.10 * s) & (P[:, 2] < hp.pos[2] + 0.03 * s)
+        put(f"trochanter_{sd}", _pick(P, B, lat(P), msk),
+            "most lateral femur vertex from 10 cm below to 3 cm above the hip centre")
+    if kn is not None:
+      g = nt.segment_points([f"tibia_{sd}"], sd, None)
+      if g is not None:
+        P, B = g
+        band = (P[:, 2] > kn.pos[2] - 0.10 * s) & (P[:, 2] < kn.pos[2] - 0.03 * s)
+        if not explicit(f"tibial_tuberosity_{sd}", sd):
+          put(f"tibial_tuberosity_{sd}", _pick(P, B, -P[:, 1], band),
+              "most anterior shank vertex 3-10 cm below the knee centre")
+        if not explicit(f"fibula_head_{sd}", sd):
+          band2 = (P[:, 2] > kn.pos[2] - 0.09 * s) & (P[:, 2] < kn.pos[2] - 0.02 * s)
+          put(f"fibula_head_{sd}", _pick(P, B, lat(P) + 0.7 * P[:, 1], band2),
+              "shank support point lateral-posterior (1 : 0.7), 2-9 cm below the knee centre")
+    # forefoot
+    if mtp is not None:
+      g = nt.segment_points([f"foot_{sd}"], sd, None)
+      if g is not None:
+        P, B = g
+        dy = P[:, 1] - mtp.pos[1]
+        if not explicit(f"mt1_head_{sd}", sd):
+          put(f"mt1_head_{sd}", _pick(P, B, -lat(P), np.abs(dy) < 0.02 * s),
+              "most medial foot vertex within 2 cm (front-back) of the mtp centre")
+        if not explicit(f"mt5_head_{sd}", sd):
+          put(f"mt5_head_{sd}", _pick(P, B, lat(P), (dy > -0.005 * s) & (dy < 0.05 * s)),
+              "most lateral foot vertex 0.5 cm in front of to 5 cm behind the mtp centre")
+        if not explicit(f"mt2_head_{sd}", sd):
+          msk = (np.abs(dy) < 0.015 * s) & (np.abs(lat(P) - sg * (mtp.pos[0] - x0)) < 0.012 * s)
+          put(f"mt2_head_{sd}", _pick(P, B, P[:, 2], msk),
+              "highest foot vertex over the mtp centre (+-1.5 cm front-back, +-1.2 cm sideways)")
+    # scapula
+    sh, acr = out.get(f"shoulder_{sd}"), out.get(f"acromion_{sd}")
+    if sh is not None and acr is not None:
+      on_scap = f"scapula_{sd}" in p.segments
+      g = nt.segment_points([f"scapula_{sd}"] if on_scap else ["torso"], sd, None)
+      if g is not None:
+        P, B = g
+        L = lat(P)
+        za = acr.pos[2]
+        if not explicit(f"scap_inf_angle_{sd}", sd):
+          if on_scap:
+            put(f"scap_inf_angle_{sd}", _pick(P, B, -P[:, 2]), "lowest scapula vertex")
+          else:
+            zx = out["xiphoid"].pos[2] if "xiphoid" in out else za - 0.25 * s
+            msk = (L > 0.05 * s) & (L < 0.13 * s) & (P[:, 2] > zx) & (P[:, 2] < za)
+            put(f"scap_inf_angle_{sd}", _pick(P, B, P[:, 1] - 0.3 * P[:, 2], msk),
+                "trunk support point posterior-inferior (1 : 0.3), 5-13 cm lateral (no scapula body)")
+        if not explicit(f"scap_spine_root_{sd}", sd):
+          band = (P[:, 2] > za - 0.07 * s) & (P[:, 2] < za - 0.02 * s)
+          if on_scap:  # behind the shoulder centre: the scapula, not a clavicle in the same mesh
+            put(f"scap_spine_root_{sd}", _pick(P, B, -L, band & (P[:, 1] > sh.pos[1])),
+                "most medial scapula vertex 2-7 cm below the acromion, behind the shoulder centre")
+          else:
+            put(f"scap_spine_root_{sd}", _pick(P, B, P[:, 1], band & (L > 0.05 * s) & (L < 0.10 * s)),
+                "most posterior trunk vertex 5-10 cm lateral, 2-7 cm below the acromion (no scapula body)")
+        top = (P[:, 2] > za - 0.03 * s) & (L > sg * (sh.pos[0] - x0) - 0.04 * s)
+        if not explicit(f"acromial_angle_{sd}", sd):
+          put(f"acromial_angle_{sd}", _pick(P, B, P[:, 1] + L, top),
+              "support point posterior-lateral of the acromion region (within 3 cm of its top)")
+        if not explicit(f"acromion_tip_{sd}", sd):
+          put(f"acromion_tip_{sd}", _pick(P, B, L, top), "most lateral vertex of the acromion region")
+    # elbow / hand
+    el, wr = out.get(f"elbow_{sd}"), out.get(f"wrist_{sd}")
+    if sh is not None and el is not None and not explicit(f"olecranon_{sd}", sd):
+      u = unit(el.pos - sh.pos)
+      g = nt.segment_points([f"ulna_{sd}"], sd, hint(f"olecranon_{sd}"))
+      if g is not None:
+        P, B = g
+        msk = np.abs((P - el.pos) @ u) < 0.04 * s
+        put(f"olecranon_{sd}", _pick(P, B, P[:, 1] - 0.5 * ((P - el.pos) @ u), msk),
+            "ulna support point posterior-proximal (1 : 0.5) within 4 cm of the elbow centre")
+    mc3 = out.get(f"mc3_head_{sd}")
+    if wr is not None and mc3 is not None:
+      rad, uln = out.get(f"styloid_rad_{sd}"), out.get(f"styloid_uln_{sd}")
+      for name, sgn, gap in ((f"mc2_head_{sd}", 1.0, 0.02), (f"mc5_head_{sd}", -1.0, 0.025)):
+        if explicit(name, sd):
+          continue
+        h = hint(name)
+        if h.get("geoms"):
+          g = nt.segment_points([f"hand_{sd}"], sd, h)
+          if g is not None:
+            P, B = g
+            put(name, _pick(P, B, P @ unit(mc3.pos - wr.pos)),
+                f"most distal vertex of {h['geoms']} along wrist -> hand")
+            continue
+        if rad is not None and uln is not None:  # one-piece hand: beside the 3rd metacarpal head
+          across = rad.pos - uln.pos
+          across -= (across @ unit(mc3.pos - wr.pos)) * unit(mc3.pos - wr.pos)
+          c = mc3.pos + sgn * gap * s * unit(across)
+          out[name] = nt.landmark(name, c, nt.m.body(mc3.body).id,
+                                  f"{gap * 100:g} cm to the {'radial' if sgn > 0 else 'ulnar'} side of "
+                                  "the 3rd metacarpal head (one-piece hand)")
 
 
 # --- contact points ---------------------------------------------------------------

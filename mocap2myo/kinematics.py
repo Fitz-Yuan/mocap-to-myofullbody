@@ -1,4 +1,4 @@
-"""MyoFullBody kinematic helpers: joint couplings, sole height, rigid fits."""
+"""Kinematic helpers: joint couplings, sole height, rigid fits."""
 
 from __future__ import annotations
 
@@ -28,12 +28,18 @@ def apply_joint_equalities(m: mujoco.MjModel, q: np.ndarray) -> None:
 
 # --- foot soles ------------------------------------------------------------
 
-FOOT_BODIES = ("calcn_l", "calcn_r", "toes_l", "toes_r")
+FOOT_BODIES = ("calcn_l", "calcn_r", "toes_l", "toes_r")  # MyoFullBody's
 
 
-def foot_collision_geoms(m: mujoco.MjModel, prefix: str = "") -> list[int]:
-  """Collision geoms of the four foot bodies (heels, toes)."""
-  names = {prefix + b for b in FOOT_BODIES}
+def foot_bodies(profile) -> tuple[str, ...]:
+  """The sole bodies of a model profile ([contact] sole_bodies), left then right."""
+  sb = profile.contact.get("sole_bodies", {})
+  return tuple(b for s in ("l", "r") for b in sb.get(s, ()))
+
+
+def foot_collision_geoms(m: mujoco.MjModel, prefix: str = "", bodies=FOOT_BODIES) -> list[int]:
+  """Collision geoms of the foot bodies (MyoFullBody's heels and toes by default)."""
+  names = {prefix + b for b in bodies}
   return [g for g in range(m.ngeom)
           if m.geom_contype[g] and m.body(m.geom_bodyid[g]).name in names]
 

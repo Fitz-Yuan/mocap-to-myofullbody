@@ -1,0 +1,6 @@
+title = "MyoLeg with the tibia joints at the walker knee's joint frame (opt-in variant)"
+extends = "myoleg"
+# see myofullbody_kneeframe.toml
+
+[model]
+joint_pos = { tibia_r = [-0.00808954, -0.0035348, -0.00148474], tibia_l = [-0.00808954, -0.0035348, 0.00148474] }

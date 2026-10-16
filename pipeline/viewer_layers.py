@@ -3,8 +3,9 @@ and the OpenSim comparison (stick figure, markers, dashed curves). Positions go 
 clip's frame: the reference's model space (subject x scale) raised by the reference's
 human shift.
 
-layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_markers=None)
+layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_markers=None, profile=None)
   m: MuJoCo model (joint names), Q: reference qpos for the clip frames [n, nq],
+  profile: the model profile (its [angles]; default MyoFullBody),
   idx: clip frame indices into the trial, scale: subject scale of the IK, human_dz: the
   reference's vertical shift of the body, q16 / ps: export_viewer's int16 position
   encoder and its metres per unit, kin / osim: npz of our kinetics and of the OpenSim
@@ -15,12 +16,13 @@ layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_markers=No
 
 import numpy as np
 
-ANGLES = [  # id, title, [(our joint, OpenSim coordinate or None)], note
-  ("ang_knee", "Knee flexion", [("knee_angle_r", "knee_angle_r"), ("knee_angle_l", "knee_angle_l")], ""),
-  ("ang_hipf", "Hip flexion", [("hip_flexion_r", "hip_flexion_r"), ("hip_flexion_l", "hip_flexion_l")], ""),
-  ("ang_hipa", "Hip adduction", [("hip_adduction_r", "hip_adduction_r"), ("hip_adduction_l", "hip_adduction_l")], ""),
-  ("ang_ankle", "Ankle dorsiflexion", [("ankle_angle_r", "ankle_angle_r"), ("ankle_angle_l", "ankle_angle_l")], ""),
-  ("ang_lumbar", "Lumbar extension", [("flex_extension", "lumbar_extension")],
+ANGLES = [  # id, title, [(our anatomical angle, OpenSim coordinate or None)], note
+  # (the model profile's [angles]: angle -> joint and sign; MyoFullBody: knee_flex_r = knee_angle_r)
+  ("ang_knee", "Knee flexion", [("knee_flex_r", "knee_angle_r"), ("knee_flex_l", "knee_angle_l")], ""),
+  ("ang_hipf", "Hip flexion", [("hip_flex_r", "hip_flexion_r"), ("hip_flex_l", "hip_flexion_l")], ""),
+  ("ang_hipa", "Hip adduction", [("hip_add_r", "hip_adduction_r"), ("hip_add_l", "hip_adduction_l")], ""),
+  ("ang_ankle", "Ankle dorsiflexion", [("ankle_dorsi_r", "ankle_angle_r"), ("ankle_dorsi_l", "ankle_angle_l")], ""),
+  ("ang_lumbar", "Lumbar extension", [("lumbar_ext", "lumbar_extension")],
    "Negative = flexion (bending forward). MyoFullBody spreads it over five lumbar joints; OpenSim's Rajagopal model has one."),
   ("ang_shoulder", "Shoulder elevation", [("shoulder_elv_r", None), ("shoulder_elv_l", None)],
    "Elevation angle of the humerus (no OpenSim equivalent: Rajagopal uses flexion / adduction / rotation)."),
@@ -47,23 +49,41 @@ LOADS = [  # id, title, unit, [(label, our key, side)], shade, refs, note
 ]
 
 
-def layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_markers=None):
+def angles(profile):
+  """ANGLES with the model's joints: [(id, title, [(angle, joint, sign, OpenSim)], note)];
+  angles the model has not are left out (and plots with none)."""
+  out = []
+  for pid, title, pairs, note in ANGLES:
+    got = [(a, *profile.angle(a), o) for a, o in pairs if profile.angle(a) is not None]
+    if got:
+      out.append((pid, title, got, note))
+  return out
+
+
+def layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_markers=None, profile=None):
   arrays, plots = {}, []
   to_clip = lambda P: P * scale + np.array([0.0, 0.0, human_dz])  # lab (subject) -> clip frame
+  if profile is None:
+    from mocap2myo import profile as _p
+    profile = _p.load("myofullbody")
   # angles: ours from the reference qpos; OpenSim from its IK
-  cols, ocols = [], []
-  for _, _, pairs, _ in ANGLES:
-    for j, o in pairs:
+  angs = angles(profile)
+  cols, sgn, ocols = [], [], []
+  for _, _, pairs, _ in angs:
+    for a, j, sg, o in pairs:
       cols.append(j)
+      sgn.append(sg)
       if o and osim is not None and f"angle_{o}" in osim.files:
         ocols.append(o)
-  ang = np.degrees(np.stack([Q[:, m.jnt_qposadr[m.joint(j).id]] for j in cols], 1)).astype(np.float32)
+  ang = np.degrees(np.stack([sg * Q[:, m.jnt_qposadr[m.joint(j).id]] if sg != 1 else
+                             Q[:, m.jnt_qposadr[m.joint(j).id]] for j, sg in zip(cols, sgn)], 1)).astype(np.float32)
   arrays["ang"] = ang
   if ocols:
     n = len(osim[f"angle_{ocols[0]}"])
     ii = np.minimum(idx, n - 1)
     arrays["osim_ang"] = np.stack([osim[f"angle_{o}"][ii] for o in ocols], 1).astype(np.float32)
-  for pid, title, pairs, note in ANGLES:
+  for pid, title, pairs4, note in angs:
+    pairs = [(j, o) for _, j, _, o in pairs4]
     two = len(pairs) > 1
     ser = [dict(label=("Right", "Left")[k] if two else title, array="ang", col=cols.index(j),
                 side=("r", "l")[k] if two else "") for k, (j, _) in enumerate(pairs)]
@@ -72,7 +92,11 @@ def layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_marker
     plots.append(dict(id=pid, group="Joint angles", title=title, unit="°", series=ser, cmp=cmp or None, note=note))
   arrows, compare = [], None
   if kin is not None:
-    keys = [k for _, _, _, ser, _, _, _ in LOADS for _, k, _ in ser]
+    # the model's joint loads (a model without arms has no shoulder / elbow loads)
+    loads = [(pid, t, u, [x for x in ser if x[1] in kin.files], sh, r, n)
+             for pid, t, u, ser, sh, r, n in LOADS]
+    loads = [x for x in loads if x[3]]
+    keys = [k for _, _, _, ser, _, _, _ in loads for _, k, _ in ser]
     T = len(kin["grf"])
     ii = np.minimum(idx, T - 1)
     arrays["kin"] = np.stack([kin[k][ii] for k in keys], 1).astype(np.float32)
@@ -91,7 +115,7 @@ def layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_marker
         n = len(osim[f"moment_{okeys[0]}"])
         jj = np.minimum(idx, n - 1)
         arrays["osim_kin"] = np.stack([osim[f"moment_{k}"][jj] for k in okeys], 1).astype(np.float32)
-    for pid, title, unit, ser, shade, refs, note in LOADS:
+    for pid, title, unit, ser, shade, refs, note in loads:
       plots.append(dict(
         id=pid, group="Joint loads", title=title, unit=unit,
         series=[dict(label=lab, array="kin", col=keys.index(k), side=sd) for lab, k, sd in ser],

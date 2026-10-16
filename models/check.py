@@ -41,7 +41,7 @@ from mocap2myo.kinematics import apply_joint_equalities  # noqa: E402
 PIG_LANDMARK = {
   "FHD": "forehead", "BHD": "back_head", "SHO": "acromion", "ELB": "epicondyle_lat",
   "WRA": "styloid_rad", "WRB": "styloid_uln", "FIN": "mc3_head", "ASI": "asis", "PSI": "psis",
-  "KNE": "femur_epi_lat", "ANK": "malleolus_lat", "HEE": "heel", "TOE": "mtp",
+  "KNE": "femur_epi_lat", "ANK": "malleolus_lat", "HEE": "heel", "TOE": "mt2_head",
   "C7": "c7", "T10": "t10", "CLAV": "jugular", "STRN": "xiphoid"}
 
 
@@ -351,7 +351,7 @@ def render(p, res, sole, out_dir, px=1000):
 def compare_myofullbody(p, lines):
   from mocap2myo import markerset as MS
   r = L.compute(p, place="root")
-  lines.append("  vs markerset.py anatomical guesses (root at (0, 0, 0.99)):")
+  lines.append("  vs Plug-in-Gait's MyoFullBody guesses (markersets/plug_in_gait.toml [override]; root at (0, 0, 0.99)):")
   ref = {"hip": (0.077, 0.056, 0.911), "shoulder": (0.17, 0.10, 1.464), "elbow": (0.158, 0.093, 1.174),
          "wrist": (0.203, 0.075, 0.92)}
   for j, v in ref.items():
@@ -361,13 +361,15 @@ def compare_myofullbody(p, lines):
     lines.append(f"    joint centre {j:8s} z {r.landmarks[f'{j}_l'].pos[2]:.4f} vs comment z {z}: "
                  f"{1e3 * abs(r.landmarks[f'{j}_l'].pos[2] - z):.1f} mm")
   rows = []
+  pig = MS.load("plug_in_gait")
+  left = pig.data["override"]["left"]
   for mk, lm in PIG_LANDMARK.items():
-    for sd in ("L", "R") if mk in MS._PIG_ANAT_L else ("",):
+    for sd in ("L", "R") if mk in left else ("",):
       label = sd + mk
       lname = lm + (f"_{sd.lower()}" if sd else "")
       if lname not in r.landmarks:
         continue
-      g = MS.anat_world(label)
+      g = pig.anat_world(label)
       v = g - r.landmarks[lname].pos
       rows.append((label, lname, v, np.linalg.norm(v)))
   for label, lname, v, n in rows:
@@ -457,7 +459,7 @@ def main():
     lines.append(f"height: bone (head top - foot-bone sole) {res.bone_height and round(res.bone_height, 4)} m, "
                  f"model height (+ soft tissue {p.soft_tissue} m) {res.model_height and round(res.model_height, 4)} m")
     lines.append("landmarks (canonical frame, neutral pose, feet on z = 0; m):")
-    for n in L.LANDMARKS + ["lumbar"]:
+    for n in L.LANDMARKS + L.LANDMARKS_EXTRA + ["lumbar"]:
       if n in lm:
         l = lm[n]
         lines.append(f"  {n:17s} {l.pos[0]:+.3f} {l.pos[1]:+.3f} {l.pos[2]:+.3f}  {l.body:14s} "

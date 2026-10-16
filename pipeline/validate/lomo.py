@@ -37,11 +37,11 @@ EVERY_S = E.LOMO_EVERY_S
 def trial(name):
   from mocap2myo import ik as mk
   K = np.load(os.path.join(IKD, f"{name}.npz"))
-  P, rate, _ = mk.load_trial(os.path.join(NPZ, f"{name}.npz"), lowpass_hz=E.LOWPASS_HZ or None)
+  mm = E.marker_model()
+  P, rate, _ = mk.load_trial(os.path.join(NPZ, f"{name}.npz"), lowpass_hz=E.LOWPASS_HZ or None, mm=mm)
   Q = K["qpos"].astype(np.float64)
-  mm = mk.MarkerModel()
   mm.set_offsets(np.load(os.path.join(IKD, f"{E.subject_of(name)}_offsets.npz"))["offsets"])
-  body = [k for k, l in enumerate(mk.LABELS) if not mk.HEAD[k]]
+  body = [k for k, l in enumerate(mm.ms.LABELS) if not mm.ms.HEAD[k] and mm.active[k]]
   frames = np.arange(0, min(len(P), len(Q)), int(EVERY_S * rate))
   pred = {k: [] for k in body}
   resid = {k: [] for k in body}
@@ -65,7 +65,7 @@ def trial(name):
   for k in body:
     if pred[k]:
       e, r = 1e3 * np.array(pred[k]), 1e3 * np.array(resid[k])
-      out[mk.LABELS[k]] = dict(n=len(e), pred_med=round(float(np.median(e)), 1),
+      out[mm.ms.LABELS[k]] = dict(n=len(e), pred_med=round(float(np.median(e)), 1),
                                pred_p95=round(float(np.percentile(e, 95)), 1),
                                resid_med=round(float(np.median(r)), 1))
   return name, out

@@ -1,0 +1,84 @@
+# ISB / Dumas full-body marker set as used by Moissenet & Schreiber 2019 (Scientific Data,
+# doi:10.1038/s41597-019-0124-4; their Table 1): 52 markers on bony landmarks, no head
+# markers. Format: mocap2myo/markerset.py. Offsets (mm, anterior / superior / lateral in the
+# segment's anatomical axes) are the marker's distance from the bone: ~10 mm (marker radius
+# + skin), more over the trochanter.
+#
+# Label meanings follow the ISB / Dumas convention, which the recorded data confirm (median
+# heights in their static trials); the paper's Table 1 swaps two pairs of descriptions:
+# SJN is the jugular (suprasternal) notch and SXS the xiphisternal joint (SJN sits 15-16 cm
+# above SXS), and SIA is the scapula's inferior angle (the lowest scapula marker, ~14 cm
+# below the acromion markers), not the "acromial tip".
+#   pelvis   IAS / IPS anterior / posterior superior iliac spine
+#   femur    FTC greater trochanter, FLE / FME lateral / medial femoral epicondyle
+#   tibia    FAX fibula head, TTC tibial tuberosity, FAL / TAM lateral / medial malleolus
+#   foot     FCC posterior calcaneus, FM1 / FM2 / FM5 1st / 2nd / 5th metatarsal head
+#   trunk    CV7, TV10 spinous processes, SJN jugular notch, SXS xiphisternal joint
+#   scapula  SIA inferior angle, SRS root of the spine, SAA acromial angle, SAE acromion edge
+#   arm      HLE / HME lateral / medial humeral epicondyle, UOA olecranon apex, RSP radial
+#            styloid, UHE ulnar styloid (head), HM2 / HM5 2nd / 5th metacarpal head
+# Their static trial: upright, limbs outstretched, palms forward (one frame per file).
+name = "ISB Dumas"
+description = "ISB / Dumas 52-marker full-body set (Moissenet & Schreiber 2019): bony landmarks, no head markers"
+sides = { l = "L_", r = "R_" }
+
+[markers]
+L_IAS = { segment = "pelvis", landmark = "asis_l", offset_mm = [10, 0, 0], weight = 1.0 }
+L_IPS = { segment = "pelvis", landmark = "psis_l", offset_mm = [-10, 0, 0], weight = 1.0 }
+R_IPS = { segment = "pelvis", landmark = "psis_r", offset_mm = [-10, 0, 0], weight = 1.0 }
+R_IAS = { segment = "pelvis", landmark = "asis_r", offset_mm = [10, 0, 0], weight = 1.0 }
+L_FTC = { segment = "femur_l", landmark = "trochanter_l", offset_mm = [0, 0, 15], weight = 0.5, group = "loose" }
+L_FLE = { segment = "femur_l", landmark = "femur_epi_lat_l", offset_mm = [0, 0, 10], weight = 1.0 }
+L_FME = { segment = "femur_l", landmark = "femur_epi_med_l", offset_mm = [0, 0, -10], weight = 1.0 }
+L_FAX = { segment = "tibia_l", landmark = "fibula_head_l", offset_mm = [0, 0, 10], weight = 0.5 }
+L_TTC = { segment = "tibia_l", landmark = "tibial_tuberosity_l", offset_mm = [10, 0, 0], weight = 1.0 }
+L_FAL = { segment = "tibia_l", landmark = "malleolus_lat_l", offset_mm = [0, 0, 10], weight = 1.0, group = "foot" }
+L_TAM = { segment = "tibia_l", landmark = "malleolus_med_l", offset_mm = [0, 0, -10], weight = 1.0, group = "foot" }
+L_FCC = { segment = "foot_l", landmark = "heel_l", offset_mm = [-10, 0, 0], weight = 1.0, group = "foot" }
+L_FM1 = { segment = "foot_l", landmark = "mt1_head_l", offset_mm = [0, 0, -10], weight = 1.0, group = "foot" }
+L_FM2 = { segment = "foot_l", landmark = "mt2_head_l", offset_mm = [0, 10, 0], weight = 1.0, group = "foot" }
+L_FM5 = { segment = "foot_l", landmark = "mt5_head_l", offset_mm = [0, 0, 10], weight = 1.0, group = "foot" }
+R_FTC = { segment = "femur_r", landmark = "trochanter_r", offset_mm = [0, 0, 15], weight = 0.5, group = "loose" }
+R_FLE = { segment = "femur_r", landmark = "femur_epi_lat_r", offset_mm = [0, 0, 10], weight = 1.0 }
+R_FME = { segment = "femur_r", landmark = "femur_epi_med_r", offset_mm = [0, 0, -10], weight = 1.0 }
+R_FAX = { segment = "tibia_r", landmark = "fibula_head_r", offset_mm = [0, 0, 10], weight = 0.5 }
+R_TTC = { segment = "tibia_r", landmark = "tibial_tuberosity_r", offset_mm = [10, 0, 0], weight = 1.0 }
+R_FAL = { segment = "tibia_r", landmark = "malleolus_lat_r", offset_mm = [0, 0, 10], weight = 1.0, group = "foot" }
+R_TAM = { segment = "tibia_r", landmark = "malleolus_med_r", offset_mm = [0, 0, -10], weight = 1.0, group = "foot" }
+R_FCC = { segment = "foot_r", landmark = "heel_r", offset_mm = [-10, 0, 0], weight = 1.0, group = "foot" }
+R_FM1 = { segment = "foot_r", landmark = "mt1_head_r", offset_mm = [0, 0, -10], weight = 1.0, group = "foot" }
+R_FM2 = { segment = "foot_r", landmark = "mt2_head_r", offset_mm = [0, 10, 0], weight = 1.0, group = "foot" }
+R_FM5 = { segment = "foot_r", landmark = "mt5_head_r", offset_mm = [0, 0, 10], weight = 1.0, group = "foot" }
+CV7 = { segment = "torso", landmark = "c7", offset_mm = [-10, 0, 0], weight = 1.0 }
+TV10 = { segment = "torso", landmark = "t10", offset_mm = [-10, 0, 0], weight = 1.0, group = "loose" }
+SXS = { segment = "torso", landmark = "xiphoid", offset_mm = [10, 0, 0], weight = 1.0, group = "loose" }
+SJN = { segment = "torso", landmark = "jugular", offset_mm = [10, 0, 0], weight = 1.0 }
+L_SIA = { segment = "scapula_l", landmark = "scap_inf_angle_l", offset_mm = [-10, 0, 0], weight = 0.3, group = "loose" }
+L_SRS = { segment = "scapula_l", landmark = "scap_spine_root_l", offset_mm = [-10, 0, 0], weight = 0.5, group = "loose" }
+L_SAA = { segment = "scapula_l", landmark = "acromial_angle_l", offset_mm = [-7, 5, 5], weight = 0.5, group = "loose" }
+L_SAE = { segment = "scapula_l", landmark = "acromion_tip_l", offset_mm = [0, 5, 9], weight = 1.0 }
+L_HLE = { segment = "humerus_l", landmark = "epicondyle_lat_l", offset_mm = [0, 0, 10], weight = 1.0 }
+L_HME = { segment = "humerus_l", landmark = "epicondyle_med_l", offset_mm = [0, 0, -10], weight = 1.0 }
+L_UOA = { segment = "ulna_l", landmark = "olecranon_l", offset_mm = [-10, 0, 0], weight = 0.5 }
+L_RSP = { segment = "radius_l", landmark = "styloid_rad_l", offset_mm = [7, 0, 7], weight = 1.0 }
+L_UHE = { segment = "ulna_l", landmark = "styloid_uln_l", offset_mm = [-10, 0, 0], weight = 1.0 }
+L_HM2 = { segment = "hand_l", landmark = "mc2_head_l", offset_mm = [0, 0, 10], weight = 1.0 }
+L_HM5 = { segment = "hand_l", landmark = "mc5_head_l", offset_mm = [-5, 0, 8], weight = 1.0 }
+R_SIA = { segment = "scapula_r", landmark = "scap_inf_angle_r", offset_mm = [-10, 0, 0], weight = 0.3, group = "loose" }
+R_SRS = { segment = "scapula_r", landmark = "scap_spine_root_r", offset_mm = [-10, 0, 0], weight = 0.5, group = "loose" }
+R_SAA = { segment = "scapula_r", landmark = "acromial_angle_r", offset_mm = [-7, 5, 5], weight = 0.5, group = "loose" }
+R_SAE = { segment = "scapula_r", landmark = "acromion_tip_r", offset_mm = [0, 5, 9], weight = 1.0 }
+R_HLE = { segment = "humerus_r", landmark = "epicondyle_lat_r", offset_mm = [0, 0, 10], weight = 1.0 }
+R_HME = { segment = "humerus_r", landmark = "epicondyle_med_r", offset_mm = [0, 0, -10], weight = 1.0 }
+R_UOA = { segment = "ulna_r", landmark = "olecranon_r", offset_mm = [-10, 0, 0], weight = 0.5 }
+R_RSP = { segment = "radius_r", landmark = "styloid_rad_r", offset_mm = [7, 0, 7], weight = 1.0 }
+R_UHE = { segment = "ulna_r", landmark = "styloid_uln_r", offset_mm = [-10, 0, 0], weight = 1.0 }
+R_HM2 = { segment = "hand_r", landmark = "mc2_head_r", offset_mm = [0, 0, 10], weight = 1.0 }
+R_HM5 = { segment = "hand_r", landmark = "mc5_head_r", offset_mm = [-5, 0, 8], weight = 1.0 }
+
+[roles]
+head = {}                                   # no head markers
+pelvis = ["L_IAS", "R_IAS", "L_IPS", "R_IPS"]
+heel = { l = "L_FCC", r = "R_FCC" }
+toe = { l = "L_FM2", r = "R_FM2" }
+ankles = ["L_FAL", "R_FAL"]

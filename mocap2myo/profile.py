@@ -28,15 +28,25 @@ A profile is a TOML file, mocap2myo/profiles/<name>.toml. It says
               point ("jnt:" / "body:"), frame body, components [name, axis, sign] with axis
               "x" / "y" / "z" of the frame body, "jnt:<joint>" (its axis) or, new here,
               "anat:<anterior|posterior|superior|inferior|left|right>": that canonical
-              direction fixed in the frame body at the neutral pose (model independent;
-              kinetics.py does not read it yet);
+              direction fixed in the frame body at the neutral pose (model independent);
+              the L5S1 entry may set superior / anterior (default "y" / "x"), the trunk
+              axes of its compression and anterior shear;
   [contact]   sole_bodies {l = [heel body, ..., toe body], r = [...]}, sole_geoms
               "collision" (the bodies' collision geoms, sole_geom_types) or "mesh" (from the
               foot bones), palm_body {l, r} (mocap2myo.landmarks.sole_points);
   [height]    soft_tissue added to the bone height (head top - foot-bone sole) for the
               model's standing height (MyoFullBody: 1.72 = 1.689 + 0.031, ik.MODEL_HEIGHT);
   [landmarks] per-landmark hints for mocap2myo.landmarks (geometry subsets, directions,
-              or an explicit body point).
+              or an explicit body point);
+  [ik]        besides the joints: mtp (toe joints pulled toward neutral by the IK's
+              mtp_prior), static_neutral (joints a static standing trial holds near
+              neutral), smooth_heavy (globs; joints smoothed with ik_trial's ankle_smooth),
+              smooth_gated {joint = gate joint} (held while the gate joint is small: the
+              shoulder's plane of elevation), neck {body, pivot, axes, ranges} (the optional
+              3-hinge neck, M2M_NECK, for a model without one);
+  [angles]    anatomical angles for reports and plots: name -> [joint, sign] (knee_flex_l,
+              hip_flex_l, ...; positive = the named motion);
+  extends     a variant: another profile's tables with this file's on top.
 
 load(name) returns a Profile; Profile.spec() / compile() give the model with the free
 root, neutral_qpos() the neutral pose in the canonical frame. mocap2myo.landmarks
@@ -96,12 +106,41 @@ def sources() -> dict:
     return tomllib.load(f)
 
 
-def load(name: str) -> Profile:
+def _merge(base: dict, over: dict) -> dict:
+  """Tables merged key by key (recursively); anything else in `over` replaces."""
+  out = dict(base)
+  for k, v in over.items():
+    out[k] = _merge(out[k], v) if isinstance(v, dict) and isinstance(out.get(k), dict) else v
+  return out
+
+
+def _read(name: str) -> dict:
   path = PROFILE_DIR / f"{name}.toml"
   if not path.exists():
     raise ValueError(f"no model profile {name!r}; known: {', '.join(profile_names())}")
   with open(path, "rb") as f:
-    return Profile(name, tomllib.load(f))
+    data = tomllib.load(f)
+  if "extends" in data:  # a variant of another profile: its tables, with these on top
+    data = _merge(_read(data.pop("extends")), data)
+  return data
+
+
+def load(name: str) -> Profile:
+  """The profile mocap2myo/profiles/<name>.toml (a Profile passes through)."""
+  if isinstance(name, Profile):
+    return name
+  return Profile(name, _read(name))
+
+
+def selected() -> Profile:
+  """The profile named by M2M_MODEL (default myofullbody)."""
+  return load(os.environ.get("M2M_MODEL", "myofullbody"))
+
+
+# where a marker set's segment goes when the model does not have it (in this order)
+SEGMENT_FALLBACK = {"scapula": ("clavicle", "torso"), "clavicle": ("torso",), "neck": ("torso",),
+                    "head": ("neck", "torso"), "radius": ("ulna",), "ulna": ("radius",),
+                    "toes": ("foot",)}
 
 
 def resolve_path(p: str) -> Path:
@@ -207,6 +246,14 @@ class Profile:
         spec.delete(k)
     for k in self.model_cfg.get("delete_keys", []):
       spec.delete(spec.key(k))
+    # [model] joint_pos = {body = [x, y, z]}: move every joint of that body to that point of
+    # its frame (myofullbody_kneeframe: the tibia joints to the walker knee's joint frame)
+    for bn, pos in self.model_cfg.get("joint_pos", {}).items():
+      body = spec.body(bn)
+      if body is None:
+        raise ValueError(f"{self.name}: joint_pos: no body {bn!r}")
+      for j in body.joints:
+        j.pos = list(pos)
     return spec
 
   def _load_spec(self) -> mujoco.MjSpec:
@@ -321,6 +368,44 @@ class Profile:
         continue
       out.append(n)
     return out
+
+  # --- what the IK, the kinetics and the reports need ------------------------------
+  def reference_qpos(self, m: mujoco.MjModel) -> np.ndarray:
+    """The pose the IK starts from and keeps for the joints it does not solve: the
+    neutral pose, or the file's qpos0 as it is ([neutral] reference = "qpos0", MyoFullBody:
+    the frame of its foot points and anatomical guesses)."""
+    if self.neutral_cfg.get("reference") == "qpos0":
+      return m.qpos0.copy()
+    return self.neutral_qpos(m)
+
+  def segment_body(self, seg: str) -> str | None:
+    """Body a marker on canonical segment `seg` attaches to (SEGMENT_FALLBACK when the
+    model lacks the segment, e.g. scapula -> torso), or None."""
+    if seg in self.segments:
+      return self.segments[seg].body
+    base, side = (seg[:-2], seg[-2:]) if seg[-2:] in ("_l", "_r") else (seg, "")
+    for alt in SEGMENT_FALLBACK.get(base, ()):
+      name = alt + side if alt not in ("torso", "neck", "head", "pelvis") else alt
+      if name in self.segments:
+        return self.segments[name].body
+    return None
+
+  @property
+  def model_height(self) -> float | None:
+    """Standing height the IK scales the subject to: [height] model_height, else the bone
+    height (mocap2myo.landmarks) + soft_tissue."""
+    h = self.data.get("height", {}).get("model_height")
+    if h is not None:
+      return float(h)
+    from mocap2myo import landmarks
+    r = landmarks.compute(self)
+    return r.model_height
+
+  def angle(self, name: str) -> tuple[str, float] | None:
+    """[angles] name -> (joint, sign): anatomical angles for reports and plots, e.g.
+    knee_flex_l = ["knee_angle_l", 1] (positive = flexion)."""
+    v = self.data.get("angles", {}).get(name)
+    return None if v is None else (str(v[0]), float(v[1]))
 
   def __repr__(self):
     return f"Profile({self.name}: {self.xml})"

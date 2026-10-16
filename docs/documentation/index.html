@@ -724,7 +724,9 @@ python pipeline/export_viewer.py clip S01_Solid_NE OUT_DIR --clip 1 --public "De
         <tr><td><code>pipeline/config.py</code>, <code>datasets/*.toml</code></td><td>Folders, file naming (trials, subjects, static trials, anthropometrics) and every setting / environment variable; a dataset's settings as a profile</td></tr>
         <tr><td><code>pipeline/read_raw.py</code></td><td>Raw recordings (.tak, C3D, TRC; trials and static trials) to the cache the cleaning step reads</td></tr>
         <tr><td><code>pipeline/prepare_markers.py</code></td><td>Marker conditioning: label maps, head by position, mislabel rejection, pelvis refill (the task adds box and scene)</td></tr>
-        <tr><td><code>mocap2myo/markerset.py</code></td><td>The marker set (Plug-in-Gait): body, weight and anatomical guess per marker, label aliases</td></tr>
+        <tr><td><code>mocap2myo/markerset.py</code>, <code>mocap2myo/markersets/*.toml</code></td><td>Marker sets as data (Plug-in-Gait, ISB / Dumas): segment, landmark, offset and weight per marker, roles, label aliases</td></tr>
+        <tr><td><code>mocap2myo/profile.py</code>, <code>mocap2myo/profiles/*.toml</code>, <code>mocap2myo/landmarks.py</code></td><td>Model profiles (file, root, facing, IK joints, canonical segments, kinetics joints, feet and hands) and the anatomical landmarks computed from a model's bones</td></tr>
+        <tr><td><code>models/</code>: <code>fetch.py</code>, <code>mass_to_mjcf.py</code>, <code>osim_to_mjcf.py</code>, <code>check.py</code></td><td>The models that are not in the repository, fetched at pinned commits and built (MASS, MyoConverter); landmarks and counts of every profile</td></tr>
         <tr><td><code>mocap2myo/ik.py</code></td><td>The IK solver: marker model, per-frame least squares, subject calibration (with the static-trial option)</td></tr>
         <tr><td><code>pipeline/solve_ik.py</code></td><td>Calibration and IK for all trials in parallel</td></tr>
         <tr><td><code>pipeline/qa.py</code></td><td>QA of an IK run (with the task's checks)</td></tr>
@@ -760,7 +762,7 @@ python pipeline/export_viewer.py clip S01_Solid_NE OUT_DIR --clip 1 --public "De
   <ol class="read">
     <li><code>mocap2myo/tak.py</code>: the format notes at the top explain what a raw file contains.</li>
     <li><code>pipeline/prepare_markers.py</code>: read <code>convert()</code> from top to bottom; each helper is one bullet of stage 2 (the box and scene part is <code>tasks/box_lift/box_fit.py</code>).</li>
-    <li><code>mocap2myo/markerset.py</code> (which segment each marker is on), then the core, <code>mocap2myo/ik.py</code>: <code>MarkerModel.solve</code> (one frame), <code>calibrate</code> (calibration) and <code>ik_trial</code> (a whole trial, including foot locking).</li>
+    <li><code>mocap2myo/markerset.py</code> and <code>mocap2myo/markersets/plug_in_gait.toml</code> (which segment and landmark each marker is on; the model side is <code>mocap2myo/profile.py</code>), then the core, <code>mocap2myo/ik.py</code>: <code>MarkerModel.solve</code> (one frame), <code>calibrate</code> (calibration) and <code>ik_trial</code> (a whole trial, including foot locking).</li>
     <li><code>pipeline/solve_ik.py</code>: runs the functions above in parallel with the current settings (<code>pipeline/config.py</code>).</li>
     <li><code>tasks/box_lift/build_reference.py</code>, <code>pipeline/qa.py</code>, <code>tasks/box_lift/build_dataset.py</code>: scene, checks, clips.</li>
     <li><code>pipeline/report.py</code>, <code>pipeline/validate/lomo.py</code>, <code>pipeline/validate/xsens.py</code>: the validation.</li>

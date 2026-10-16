@@ -62,7 +62,7 @@ def ours(trial, ikd, mm, P, st, rate):
   K = np.load(os.path.join(ikd, f"{trial}.npz"))
   Q, s = K["qpos"].astype(np.float64), float(K["scale"])
   mm.set_offsets(np.load(os.path.join(ikd, f"{config.subject_of(trial)}_offsets.npz"))["offsets"])
-  M = np.full((len(Q), len(mk.LABELS), 3), np.nan)
+  M = np.full((len(Q), len(mm.ms.LABELS), 3), np.nan)
   for t, q in enumerate(Q):
     if not np.isnan(q).any():
       M[t] = mm.markers(q)
@@ -122,14 +122,14 @@ def main():
   OURS = {label: os.path.expanduser(d) for label, d in runs}
   last = list(OURS)[-1]  # compared frame by frame with OpenSim
   os.makedirs(OUT, exist_ok=True)
-  mm = mk.MarkerModel()
+  mm = config.marker_model()
   trials = config.trials(NPZ)
   rows, diffs = {}, {j: [] for j in ANGLES}
   xs = {}
   for trial in trials:
     D = np.load(os.path.join(NPZ, f"{trial}.npz"))
     P, rate = D["markers"].astype(np.float64), float(D["marker_rate"])
-    st = mk.standing(P, rate)
+    st = mk.standing(P, rate, ms=mm.ms)
     r = {name: ours(trial, ikd, mm, P, st, rate) for name, ikd in OURS.items()}
     r["OpenSim"] = osim(trial, P, st, rate)
     a, b = r[last]["angles"], r["OpenSim"]["angles"]

@@ -1,4 +1,7 @@
-"""Marker IK of every trial onto MyoFullBody: subject calibration, then per-frame IK.
+"""Marker IK of every trial onto the model: subject calibration, then per-frame IK.
+
+The model is M2M_MODEL (mocap2myo/profiles/, default MyoFullBody), the markers the
+dataset's marker set (M2M_MARKER_SET, mocap2myo/markersets/).
 
 Input: <M2M_NPZ_DIR>/<trial>.npz (prepare_markers.py), and with M2M_STATIC=1 the
   static standing trials <M2M_NPZ_DIR>/static/<subject>.npz.
@@ -12,8 +15,9 @@ Output: <M2M_IK_DIR>/<subject>_offsets.npz, <trial>.npz with
   marker_err [T, n] (m; NaN = marker missing or rejected), unsolved_frames [T] bool
   (frames the IK did not solve: before the first frame with all four pelvis markers,
   or no marker at all; their qpos repeats a solved pose and marker_err is all NaN),
-  unsolved (their count), scale, rate, labels, joint_names, model and the settings;
-  with M2M_NECK=1 also neck_qpos [T, 3] and neck_joints.
+  unsolved (their count), scale, rate, labels, joint_names, model (the model file),
+  model_profile, marker_set and the settings; with M2M_NECK=1 also neck_qpos [T, 3] and
+  neck_joints.
 Settings (env): see the IK section of config.py.
 
   python pipeline/solve_ik.py [--calib-only] [trial ...]
@@ -48,6 +52,14 @@ STATIC_W = config.STATIC_W
 STATIC_MARKERS = config.STATIC_MARKERS
 FOOT_CAP = config.FOOT_CAP
 FLAT_W = config.FLAT_W
+# Stage B on the GPU (mocap2myo/ik_gpu.py, needs torch with CUDA and warp): "gpu" solves
+# the same per-frame problem with the same frame-to-frame recursion, all frames of a
+# trial in parallel; the trials then run one after the other in this process. The
+# subject calibration (stage A) stays on the CPU. Default "cpu". (Read here for now;
+# its place is config.py's IK section.)
+IK_DEVICE = os.environ.get("M2M_IK_DEVICE", "cpu")
+if IK_DEVICE not in ("cpu", "gpu"):
+  raise SystemExit(f"M2M_IK_DEVICE={IK_DEVICE!r}: expected one of cpu, gpu")
 
 
 # Standing frames are calibrated with flat feet (ik.calibrate `stand`): the
@@ -56,20 +68,16 @@ FLAT_W = config.FLAT_W
 # Placement varies most for wand / mid-segment markers, the trunk markers (EMG
 # electrodes on the back and abdomen) and the head markers (K5 mask harness):
 # a 6 cm cap for every marker pinned them (case study: T10 62 mm median error), so
-# these may move up to 15 cm, foot markers FOOT_CAP (10 cm), the others 6 cm.
-# Label endings of the Plug-in-Gait markers (mocap2myo.markerset).
-LOOSE = ("THI", "TIB", "UPA", "FRM", "T10", "STRN", "RBAK", "FHD", "BHD")
-# Foot markers sit on thick-soled slides (TOE on the toe box): cap FOOT_CAP
-# (M2M_FOOT_CAP), see config.py.
-FOOT = ("HEE", "TOE", "ANK")
+# these may move up to 15 cm ("loose" in the marker set), foot markers (on thick-soled
+# slides, TOE on the toe box; "foot") FOOT_CAP (M2M_FOOT_CAP, 10 cm), the others 6 cm.
 
 
-def max_shift(labels):
-  return np.array([0.15 if l.endswith(LOOSE) else FOOT_CAP if l.endswith(FOOT) else 0.06
-                   for l in labels])
+def max_shift(ms):
+  """Calibration cap per marker (m) from the marker set's groups."""
+  return np.where(ms.LOOSE, 0.15, np.where(ms.FOOT, FOOT_CAP, 0.06))
 
 
-def standing_frames(loaded, per_trial=12, seed=0, min_s=0.3):
+def standing_frames(loaded, ms, per_trial=12, seed=0, min_s=0.3):
   """Flat-foot frames: all four sole markers (both heels and toes) slow and on
   the floor (ik.sole_stance) for >= min_s -- standing, turning on the spot,
   lifting. The whole body need not be still (quiet standing is only ~3 s per
@@ -78,7 +86,7 @@ def standing_frames(loaded, per_trial=12, seed=0, min_s=0.3):
   rng = np.random.default_rng(seed)
   out = []
   for P, rate in loaded:
-    ok = np.all(list(mk.sole_stance(P, rate).values()), 0)
+    ok = np.all(list(mk.sole_stance(P, rate, ms=ms).values()), 0)
     k = int(min_s * rate)
     ok = np.convolve(ok, np.ones(k), "same") >= k  # inside >= min_s runs
     idx = np.flatnonzero(ok)
@@ -88,18 +96,18 @@ def standing_frames(loaded, per_trial=12, seed=0, min_s=0.3):
   return np.array(out) if out else None
 
 
-def static_frames(subj, loaded, n=10):
+def static_frames(subj, loaded, mm, n=10):
   """[n, n_markers, 3] quietest frames of the subject's static trial (scaled like
   the trials), else quiet upright standing frames from its trials."""
   from mocap2myo import ik as mk
   f = os.path.join(NPZ, "static", f"{subj}.npz")
   if os.path.exists(f):
-    P, _, _ = mk.load_trial(f, lowpass_hz=LOWPASS_HZ or None)
+    P, _, _ = mk.load_trial(f, lowpass_hz=LOWPASS_HZ or None, mm=mm)
     sp = np.r_[np.inf, np.nanmax(np.linalg.norm(np.diff(P, axis=0), axis=-1), 1)]
     idx = np.sort(np.argsort(sp)[:max(5 * n, 50)])
     src = "static trial"
   else:
-    cand = [(P, np.flatnonzero(mk.standing(P, rate))) for P, rate in loaded]
+    cand = [(P, np.flatnonzero(mk.standing(P, rate, ms=mm.ms))) for P, rate in loaded]
     P = np.concatenate([P[i] for P, i in cand])
     idx = np.arange(len(P))
     src = "quiet standing in the trials (no static trial)"
@@ -113,13 +121,13 @@ def calib(subj):
   f = os.path.join(OUT, f"{subj}_offsets.npz")
   if os.path.exists(f):
     return subj, "cached"
-  loaded = [mk.load_trial(os.path.join(NPZ, f"{t}.npz"), lowpass_hz=LOWPASS_HZ or None)[:2]
+  mm = config.marker_model(neck=config.NECK)
+  loaded = [mk.load_trial(os.path.join(NPZ, f"{t}.npz"), lowpass_hz=LOWPASS_HZ or None, mm=mm)[:2]
             for t in config.trials(NPZ) if config.subject_of(t) == subj]
   trials = [P for P, _ in loaded]
-  mm = mk.MarkerModel(neck=config.NECK)
-  off = mk.calibrate(mm, trials, n_frames=40, iters=8, max_shift=max_shift(mk.LABELS),
-                     outlier=OUTLIER, stand=standing_frames(loaded), flat=FLAT_W,
-                     static=static_frames(subj, loaded) if STATIC else None,
+  off = mk.calibrate(mm, trials, n_frames=40, iters=8, max_shift=max_shift(mm.ms),
+                     outlier=OUTLIER, stand=standing_frames(loaded, mm.ms), flat=FLAT_W,
+                     static=static_frames(subj, loaded, mm) if STATIC else None,
                      static_share=STATIC_SHARE, static_w=STATIC_W,
                      static_segments={"legs": mk.STATIC_SEGMENTS_LEGS,
                                       "legs_only": mk.STATIC_SEGMENTS_LEGS_ONLY}.get(STATIC_MARKERS))
@@ -127,47 +135,60 @@ def calib(subj):
   # marker, then moved that marker's offset to where it was -- case study: offsets of
   # two subjects drifted 34-40 mm (median), tracking error +4-5 mm; robust is for
   # tracking only
-  np.savez(f[:-4] + ".part.npz", offsets=off, labels=np.array(mk.LABELS), static=STATIC,
+  np.savez(f[:-4] + ".part.npz", offsets=off, labels=np.array(mm.ms.LABELS), static=STATIC,
            static_share=STATIC_SHARE, static_w=STATIC_W, static_markers=STATIC_MARKERS,
-           neck=config.NECK)
+           neck=config.NECK, model_profile=mm.profile.name, marker_set=mm.ms.key,
+           active=mm.active)
   os.replace(f[:-4] + ".part.npz", f)
   return subj, "done"
 
 
 def ik(name):
   from mocap2myo import ik as mk
-  from mocap2myo.model import MYOFULLBODY_XML
   rng = config.IK_FRAMES
   f = os.path.join(OUT, f"{name}{'_' + rng.replace(':', '-') if rng else ''}.npz")
   if os.path.exists(f):
     return name, "cached", 0.0
   t0 = time.time()
-  P, rate, s = mk.load_trial(os.path.join(NPZ, f"{name}.npz"), lowpass_hz=LOWPASS_HZ or None)
+  mm = config.marker_model(neck=config.NECK)
+  P, rate, s = mk.load_trial(os.path.join(NPZ, f"{name}.npz"), lowpass_hz=LOWPASS_HZ or None, mm=mm)
   if rng:
     a, b = (int(x) for x in rng.split(":"))
     P = P[a:b]
-  mm = mk.MarkerModel(neck=config.NECK)
-  mm.set_offsets(np.load(os.path.join(OUT, f"{config.subject_of(name)}_offsets.npz"))["offsets"])
+  cal = np.load(os.path.join(OUT, f"{config.subject_of(name)}_offsets.npz"))
+  if "model_profile" in cal.files and str(cal["model_profile"]) != mm.profile.name:
+    raise SystemExit(f"{name}: the subject's calibration is for {cal['model_profile']}, "
+                     f"not M2M_MODEL={mm.profile.name}")
+  mm.set_offsets(cal["offsets"])
+  if "active" in cal.files:  # markers the calibration switched off (no landmark on the model)
+    mm.active &= cal["active"].astype(bool)
+    mm.w = np.where(mm.active, mm.w, 0.0)
   # 5 cm outlier rejection: label swaps (case study, a processed export: LWRB / C7
   # jump onto other markers, p95 > 0.9 m) and a differently placed TIB
-  Q, E = mk.ik_trial(mm, P, rate=rate, contact=True, outlier=TRACK_OUTLIER or None,
-                     mtp_prior=MTP_PRIOR,
-                     anchor_centroid=ANCHOR_CENTROID, pelvis_gap=PELVIS_GAP,
-                     robust=ROBUST or None, root_init=ROOT_INIT)
+  solver = mk.ik_trial
+  if IK_DEVICE == "gpu":
+    from mocap2myo.ik_gpu import ik_trial_gpu as solver
+  Q, E = solver(mm, P, rate=rate, contact=True, outlier=TRACK_OUTLIER or None,
+                mtp_prior=MTP_PRIOR,
+                anchor_centroid=ANCHOR_CENTROID, pelvis_gap=PELVIS_GAP,
+                robust=ROBUST or None, root_init=ROOT_INIT)
   tmp = f[:-4] + ".part.npz"
   Q, neck = mm.split_qpos(Q)  # the plain model's layout; the neck angles apart
   extra = dict(neck_qpos=neck.astype(np.float32), neck_joints=np.array(mk.NECK)) if mm.neck else {}
+  if IK_DEVICE == "gpu":
+    extra["ik_device"] = "gpu"
   solved = ~np.isnan(E).all(1)  # ik_trial leaves the error of unsolved frames all NaN
-  rejected = np.isnan(E) & ~np.isnan(P[..., 0]) & solved[:, None]
+  rejected = np.isnan(E) & ~np.isnan(P[..., 0]) & solved[:, None] & mm.active
   np.savez_compressed(tmp, qpos=Q.astype(np.float32), marker_err=E.astype(np.float32),
                       rejected=rejected, outlier=TRACK_OUTLIER, mtp_prior=MTP_PRIOR,
                       anchor_centroid=ANCHOR_CENTROID, pelvis_gap=PELVIS_GAP,
                       robust=ROBUST, robust_pelvis=False, root_init=ROOT_INIT,
                       lowpass_hz=LOWPASS_HZ,
                       unsolved=int((~solved).sum()), unsolved_frames=~solved,
-                      scale=s, rate=rate, labels=np.array(mk.LABELS),
+                      scale=s, rate=rate, labels=np.array(mm.ms.LABELS),
                       frame0=int(rng.split(":")[0]) if rng else 0,
-                      model=str(MYOFULLBODY_XML),
+                      model=str(mm.profile.xml), model_profile=mm.profile.name,
+                      marker_set=mm.ms.key, active=mm.active,
                       joint_names=np.array([mm.m.joint(j).name for j in range(mm.m.njnt)
                                             if mm.m.joint(j).name not in mk.NECK]), **extra)
   os.replace(tmp, f)
@@ -190,6 +211,10 @@ def main():
     for r in pool.imap_unordered(calib, subjects):
       print("calib", *r, flush=True)
   if calib_only:
+    return
+  if IK_DEVICE == "gpu":  # one process, one trial after the other on the GPU
+    for name, msg, dt in map(ik, names):
+      print("ik", name, msg, f"{dt:.0f}s", flush=True)
     return
   with ctx.Pool(min(len(names), workers)) as pool:
     for name, msg, dt in pool.imap_unordered(ik, names):

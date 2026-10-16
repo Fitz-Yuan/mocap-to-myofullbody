@@ -27,13 +27,11 @@ import json
 import os
 import sys
 
-import mujoco
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pipeline import config  # noqa: E402  (first: it selects the model and marker set)
 from mocap2myo import ik as mk  # noqa: E402
-from mocap2myo.model import MYOFULLBODY_XML  # noqa: E402
-from pipeline import config  # noqa: E402
 
 NPZ = config.NPZ_DIR
 IKD = config.IK_DIR
@@ -57,9 +55,11 @@ def grade(value, key):
 
 def main():
   config.usage(__doc__)
-  m = mujoco.MjModel.from_xml_path(str(MYOFULLBODY_XML))
-  adr = {j: m.jnt_qposadr[m.joint(j).id] for j in
-         ("knee_angle_r", "knee_angle_l", "hip_flexion_r", "hip_flexion_l")}
+  profile, ms = config.model_profile(), config.marker_set()
+  m = profile.compile()
+  # quiet-standing posture: the profile's knee / hip flexion angles (joint, sign)
+  adr = {a: (m.jnt_qposadr[m.joint(profile.angle(a)[0]).id], profile.angle(a)[1])
+         for a in ("knee_flex_r", "knee_flex_l", "hip_flex_r", "hip_flex_l")}
   qa = json.load(open(os.path.join(IKD, "qa.json")))
   lomo_p = os.path.join(IKD, "lomo.json")
   lomo = json.load(open(lomo_p)) if os.path.exists(lomo_p) else {}
@@ -70,22 +70,23 @@ def main():
     clips = collections.defaultdict(list)
     for c in json.load(open(idx_p))["clips"]:
       clips[c["file"].rsplit("_c", 1)[0]].append(c)
-  head = mk.HEAD
+  head = ms.HEAD
   rows = {}
   for n in config.trials(IKD):
     p = os.path.join(IKD, f"{n}.npz")
     D, K = np.load(os.path.join(NPZ, f"{n}.npz")), np.load(p)
     Pall = D["markers"].astype(np.float64)
     P = Pall[:, ~head]
-    body = [l for l, h in zip(mk.LABELS, head) if not h]
+    body = [l for l, h in zip(ms.LABELS, head) if not h]
     gaps = np.isnan(P[..., 0]).mean(0)
     absent = [l for l, g in zip(body, gaps) if g == 1.0]
     gaps[gaps == 1.0] = 0.0
     Q = K["qpos"].astype(np.float64)
-    st = mk.standing(Pall, float(D["marker_rate"]))[:len(Q)]
-    med = lambda j: float(np.degrees(np.nanmedian(Q[:len(st)][st, adr[j]])))
-    knee = max(med(f"knee_angle_{s}") for s in "rl")
-    hip = max(abs(med(f"hip_flexion_{s}")) for s in "rl")
+    st = mk.standing(Pall, float(D["marker_rate"]), ms=ms)[:len(Q)]
+    med = lambda a: float(np.degrees(adr[a][1] * np.nanmedian(Q[:len(st)][st, adr[a][0]])) if adr[a][1] != 1
+                          else np.degrees(np.nanmedian(Q[:len(st)][st, adr[a][0]])))
+    knee = max(med(f"knee_flex_{s}") for s in "rl")
+    hip = max(abs(med(f"hip_flex_{s}")) for s in "rl")
     r = dict(
       gap_max=float(gaps.max()),
       gap_worst=body[int(gaps.argmax())], absent=absent, stand_frames=int(st.sum()),

@@ -16,10 +16,12 @@ up = "+z"
 forward = "-y"          # the repository's canonical frame is MyoFullBody's world
 
 [neutral]
-root_pos = [0.0, 0.0, 0.99]   # markerset.py: anatomical guesses with the root here
+root_pos = [0.0, 0.0, 0.99]   # Plug-in-Gait's explicit anatomical guesses have the root here
+reference = "qpos0"           # the IK starts from the file's qpos0 (feet flat, arms hanging)
 
 [height]
-soft_tissue = 0.031     # ik.MODEL_HEIGHT 1.72 = bone height 1.689 + 0.031
+soft_tissue = 0.031     # bone height 1.689 + 0.031
+model_height = 1.72     # what the IK scales subjects to (ik.MODEL_HEIGHT)
 
 [ik]
 # exactly ik.FREE (37 unknowns with the root's 6)
@@ -32,6 +34,27 @@ joints = [
   "elv_angle_r", "shoulder_elv_r", "shoulder_rot_r", "elbow_flex_r", "pro_sup_r", "deviation_r", "flexion_r",
   "elv_angle_l", "shoulder_elv_l", "shoulder_rot_l", "elbow_flex_l", "pro_sup_l", "deviation_l", "flexion_l",
 ]
+mtp = ["mtp_angle_r", "mtp_angle_l"]          # pulled toward neutral (M2M_MTP_PRIOR): no marker on the toes
+static_neutral = ["hip_flexion_r", "hip_adduction_r", "hip_rotation_r", "knee_angle_r", "ankle_angle_r", "subtalar_angle_r",
+                  "hip_flexion_l", "hip_adduction_l", "hip_rotation_l", "knee_angle_l", "ankle_angle_l", "subtalar_angle_l"]
+smooth_heavy = ["ankle_angle*", "subtalar*"]          # smoothed harder (ik_trial ankle_smooth)
+smooth_gated = { elv_angle_r = "shoulder_elv_r", elv_angle_l = "shoulder_elv_l" }   # plane of elevation, undefined with the arm hanging
+neck = { body = "neck", pivot = [0.0, 0.39, 0.0], axes = [[0, 0, 1], [1, 0, 0], [0, 1, 0]], ranges = [[-1.2, 1.0], [-0.8, 0.8], [-1.4, 1.4]] }   # optional (M2M_NECK): pivot at about C7/T1, ~1.49 m at qpos0
+
+[angles]   # name -> [joint, sign]: positive = the named motion
+knee_flex_r = ["knee_angle_r", 1]
+hip_flex_r = ["hip_flexion_r", 1]
+hip_add_r = ["hip_adduction_r", 1]
+ankle_dorsi_r = ["ankle_angle_r", 1]
+knee_flex_l = ["knee_angle_l", 1]
+hip_flex_l = ["hip_flexion_l", 1]
+hip_add_l = ["hip_adduction_l", 1]
+ankle_dorsi_l = ["ankle_angle_l", 1]
+lumbar_ext = ["flex_extension", 1]
+shoulder_elv_r = ["shoulder_elv_r", 1]
+shoulder_elv_l = ["shoulder_elv_l", 1]
+elbow_flex_r = ["elbow_flex_r", 1]
+elbow_flex_l = ["elbow_flex_l", 1]
 
 [segments]
 # first body = the one markers attach to (markerset.py), the rest add geometry
@@ -84,6 +107,8 @@ lumbar = "jnt:flex_extension"
 c7 = { geoms = ["hat_cervical"] }
 t10 = { geoms = ["*thoracic10*"], band = false }
 mc3_head = { geoms = ["3mc_{s}"] }
+mc2_head = { geoms = ["2mc_{s}"] }
+mc5_head = { geoms = ["5mc_{s}"] }
 
 # Inverse dynamics joints: exactly mocap2myo.kinetics.JOINTS
 # distal body, point, frame body, components [name, axis, sign]

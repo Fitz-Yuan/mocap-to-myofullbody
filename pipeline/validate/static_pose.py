@@ -22,9 +22,8 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from pipeline import config  # noqa: E402  (first: it selects the model and marker set)
 from mocap2myo import ik as mk  # noqa: E402
-from mocap2myo import markerset as ms  # noqa: E402
-from pipeline import config  # noqa: E402
 from pipeline import prepare_markers as C  # noqa: E402
 
 STATIC = os.path.join(config.CACHE_DIR, "static")  # <static name>.npz (read_raw.py)
@@ -42,31 +41,32 @@ PAIRS = {
   "hand": [("LWRA", "LFIN"), ("RWRA", "RFIN")],
 }
 JOINTS = ["knee_angle_r", "knee_angle_l", "hip_flexion_r", "hip_flexion_l",
-          "ankle_angle_r", "ankle_angle_l", "flex_extension"]
+          "ankle_angle_r", "ankle_angle_l", "flex_extension"]  # MyoFullBody (Plug-in-Gait PAIRS)
+MM = config.marker_model()
 
 
 def static_markers(subj, anthro):
   """Mean static pose [n, 3] in the IK's scaled-subject frame (Z up)."""
   names, A, _ = C.read_take(f"static/{config.static_name(subj)}")
   P, H, _ = C.body_markers(names, A)
-  hk = [mk.LABELS.index(l) for l in ms.HEAD_LABELS]
-  P[:, hk], _ = C.assign_head(P, H)
-  scale = mk.MODEL_HEIGHT / (anthro[subj] / 100)
+  C.place_head(P, H)
+  scale = MM.model_height / (anthro[subj] / 100)
   return np.nanmedian(P, 0) * scale
 
 
 def main():
   config.usage(__doc__)
   anthro = {s: a["height_cm"] for s, a in config.anthropometrics().items()}
-  anat = np.array([mk.anat_world(l) for l in mk.LABELS])
-  L = mk.LABELS
+  mm = MM
+  mm.set_offsets(mk.anat_offsets(mm))  # the marker set's anatomical placement on the model
+  anat = mm.markers(mm.qref)
+  L = mm.ms.LABELS
 
   def seg(P):
     return {k: np.mean([np.linalg.norm(P[L.index(a)] - P[L.index(b)]) for a, b in v])
             for k, v in PAIRS.items()}
 
   model_len = seg(anat)
-  mm = mk.MarkerModel()
   adr = {j: mm.m.jnt_qposadr[mm.m.joint(j).id] for j in JOINTS}
   print("model segment lengths (m):", {k: round(v, 3) for k, v in model_len.items()})
   print(f"{'subj':5s} " + " ".join(f"{k[:9]:>9s}" for k in PAIRS) + " | static IK pose (deg): "
@@ -83,7 +83,7 @@ def main():
     if os.path.exists(off):
       mm.set_offsets(np.load(off)["offsets"])
       pos, q = mk.root_from_pelvis(mm, P)
-      x0 = np.r_[pos, np.zeros(3), mm.m.qpos0[mm.adr]]
+      x0 = np.r_[pos, np.zeros(3), mm.qref[mm.adr]]
       x, err = mm.solve(P, x0, q, mtp_prior=0.1, robust=0.025)
       qq = mm.pose(x, q)
       pose = " ".join(f"{np.degrees(qq[adr[j]]):6.1f}" for j in JOINTS) + f" | {1e3 * np.nanmedian(err):.1f}"

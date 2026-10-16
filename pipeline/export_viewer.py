@@ -1,12 +1,15 @@
-"""Export MyoFullBody motions to the browser viewer (docs/viewer/).
+"""Export motions of the model (M2M_MODEL, default MyoFullBody) to the browser viewer (docs/viewer/).
 
 Two kinds of file, both in the ELVW container (below):
-  model  (once)     bone meshes (int16 vertices, uint16 faces per mesh), the body
+  model  (once per model: <model>_model.elvw, meta "model" = the profile's name)
+                    bone meshes (int16 vertices, uint16 faces per mesh), the body
                     tree, every actuated muscle as its chain of attachment sites
                     (body + local position; drawn as straight lines, wrapping
-                    surfaces not exported), the contact capsules / ellipsoids
-                    (a rough body volume), and the body poses at qpos0 (shown
-                    before a clip is loaded).
+                    surfaces not exported), the solid primitive geoms as "volumes"
+                    (MyoFullBody: its contact capsules / ellipsoids, a rough body
+                    volume; MASS: its body boxes; types capsule / ellipsoid / sphere /
+                    box), and the body poses at the reference pose (MyoFullBody: qpos0;
+                    shown before a clip is loaded).
   clip   (per clip of the task's reference, or whole trial)   body poses per frame
                     (the viewer needs no kinematics of its own), measured and model
                     markers, joint-angle curves, per-frame marker residual, the trial's
@@ -25,6 +28,9 @@ Two kinds of file, both in the ELVW container (below):
                     OpenSim comparison (validate/opensim_ik.py, pipeline/opensim_id.py)
                     the OpenSim stick figure, markers and dashed curves
                     (pipeline/viewer_layers.py); both are included when their files exist.
+A clip's meta "model" names the model profile its body poses belong to (the viewer
+pairs it with that model file); its curves are the profile's anatomical angles
+([angles]; MyoFullBody: the joint names of CURVES, as before).
 No subject data goes into the model file; clips stay wherever they are written
 and are opened in the viewer from disk (nothing is uploaded).
 
@@ -34,7 +40,7 @@ multiple of 8, then the arrays (little endian, each 8-byte aligned). Positions a
 int16 with meta["pos_scale"] metres per unit, quaternions int16 / 32767 (w, x, y,
 z), missing markers -32768.
 
-  python pipeline/export_viewer.py model OUT_DIR
+  python pipeline/export_viewer.py model OUT_DIR          (M2M_MODEL picks the model)
   python pipeline/export_viewer.py clip TRIAL OUT_DIR [--clip K] [--fps 50]
       [--ik-dir DIR] [--ref-dir DIR] [--npz-dir DIR] [--run-label TEXT]
       [--ghost-ref-dir DIR [--ghost-label TEXT]]
@@ -64,15 +70,27 @@ import mujoco
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from pipeline import config  # noqa: E402  (first: it selects the model and marker set)
 from mocap2myo import ik as mk  # noqa: E402
-from mocap2myo.model import MYOFULLBODY_XML  # noqa: E402
-from pipeline import config  # noqa: E402
 from pipeline import viewer_layers  # noqa: E402
 
 MISSING = -32768
 CURVES = ["knee_angle_r", "knee_angle_l", "hip_flexion_r", "hip_flexion_l",
           "hip_adduction_r", "hip_adduction_l", "ankle_angle_r", "ankle_angle_l",
           "flex_extension", "shoulder_elv_r", "shoulder_elv_l", "elbow_flex_r", "elbow_flex_l"]
+# another model: its anatomical angles ([angles] of the profile), in this order
+CURVE_ANGLES = ["knee_flex_r", "knee_flex_l", "hip_flex_r", "hip_flex_l", "hip_add_r", "hip_add_l",
+                "ankle_dorsi_r", "ankle_dorsi_l", "lumbar_ext", "shoulder_elv_r", "shoulder_elv_l",
+                "shoulder_flex_r", "shoulder_flex_l", "elbow_flex_r", "elbow_flex_l"]
+
+
+def curve_spec(profile, m):
+  """(names, qpos addresses, signs) of the clip's curves."""
+  if profile.name.startswith("myofullbody"):
+    return CURVES, [m.jnt_qposadr[m.joint(j).id] for j in CURVES], [1.0] * len(CURVES)
+  got = [(a, profile.angle(a)) for a in CURVE_ANGLES if profile.angle(a) is not None]
+  return ([a for a, _ in got], [m.jnt_qposadr[m.joint(j).id] for _, (j, _) in got],
+          [sg for _, (_, sg) in got])
 
 
 def write_elvw(path, meta, arrays):
@@ -101,13 +119,22 @@ def q16(x, scale):
   return out
 
 
-def export_model(out_dir):
-  m = mujoco.MjModel.from_xml_path(str(MYOFULLBODY_XML))
+def export_model(out_dir, profile=None):
+  profile = profile or config.model_profile()
+  m = profile.compile()
+  mfb = profile.name.startswith("myofullbody")
+  root = int(m.jnt_bodyid[m.joint(profile.root_joint).id])
+
+  def in_body(b):  # the model's own bodies (not scenery attached to the world)
+    while b > 0 and b != root:
+      b = m.body_parentid[b]
+    return b == root
   bodies = [m.body(b).name for b in range(m.nbody)]
   parents = [int(m.body_parentid[b]) for b in range(m.nbody)]
   meshes, verts, faces = [], [], []
   vofs = fofs = 0
-  geoms = [g for g in range(m.ngeom) if m.geom_type[g] == mujoco.mjtGeom.mjGEOM_MESH]
+  geoms = [g for g in range(m.ngeom) if m.geom_type[g] == mujoco.mjtGeom.mjGEOM_MESH
+           and (mfb or in_body(m.geom_bodyid[g]))]
   items = [(m.geom(g).name, int(m.geom_bodyid[g]), int(m.geom_dataid[g]), m.geom_pos[g],
             m.geom_quat[g], m.geom_rgba[g]) for g in geoms]
   # the thorax (rib cage) mesh is in the model but no geom uses it: placed on the
@@ -135,6 +162,8 @@ def export_model(out_dir):
   muscles, site_body, site_pos = [], [], []
   site_index = {}
   for a in range(m.nu):
+    if m.actuator_trntype[a] != mujoco.mjtTrn.mjTRN_TENDON:
+      continue  # e.g. a converted OpenSim model's torque actuators
     t = int(m.actuator_trnid[a][0])
     chain = []
     for j in range(m.tendon_adr[t], m.tendon_adr[t] + m.tendon_num[t]):
@@ -146,22 +175,33 @@ def export_model(out_dir):
           site_pos.append(m.site_pos[s])
         chain.append(site_index[s])
     muscles.append(dict(name=m.actuator(a).name, sites=chain))
-  kinds = {mujoco.mjtGeom.mjGEOM_CAPSULE: "capsule", mujoco.mjtGeom.mjGEOM_ELLIPSOID: "ellipsoid"}
+  T = mujoco.mjtGeom
+  if mfb:  # MyoFullBody: its contact capsules / ellipsoids
+    kinds = {T.mjGEOM_CAPSULE: "capsule", T.mjGEOM_ELLIPSOID: "ellipsoid"}
+    vol = [g for g in range(m.ngeom)
+           if m.geom_type[g] in kinds and (m.geom_contype[g] or m.geom_conaffinity[g])]
+  else:  # solid primitives (no wrapping cylinders, group 3 or massless helper bodies)
+    kinds = {T.mjGEOM_CAPSULE: "capsule", T.mjGEOM_ELLIPSOID: "ellipsoid",
+             T.mjGEOM_SPHERE: "sphere", T.mjGEOM_BOX: "box"}
+    vol = [g for g in range(m.ngeom)
+           if m.geom_type[g] in kinds and in_body(m.geom_bodyid[g]) and m.geom_group[g] != 3
+           and m.body_mass[m.geom_bodyid[g]] > 1e-3 and m.geom_size[g][0] > 0.005
+           and (m.geom_contype[g] or m.geom_conaffinity[g] or m.geom_type[g] == T.mjGEOM_BOX)]
   volumes = [dict(type=kinds[m.geom_type[g]], body=int(m.geom_bodyid[g]),
                   pos=[float(x) for x in m.geom_pos[g]], quat=[float(x) for x in m.geom_quat[g]],
-                  size=[float(x) for x in m.geom_size[g]])
-             for g in range(m.ngeom)
-             if m.geom_type[g] in kinds and (m.geom_contype[g] or m.geom_conaffinity[g])]
+                  size=[float(x) for x in m.geom_size[g]]) for g in vol]
   d = mujoco.MjData(m)
+  d.qpos[:] = profile.reference_qpos(m)
   mujoco.mj_kinematics(m, d)
-  meta = dict(format="elvw-model-1", source=os.path.basename(str(MYOFULLBODY_XML)),
+  meta = dict(format="elvw-model-1", source=os.path.basename(str(profile.xml)),
               bodies=bodies, parents=parents, meshes=meshes, muscles=muscles,
               volumes=volumes, up="z")
+  meta.update(model=profile.name, title=profile.title)  # a clip names the model it needs
   arrays = dict(verts=np.concatenate(verts), faces=np.concatenate(faces),
                 site_body=np.array(site_body, np.uint16),
                 site_pos=np.array(site_pos, np.float32),
                 rest_pos=d.xpos.astype(np.float32), rest_quat=d.xquat.astype(np.float32))
-  path = os.path.join(out_dir, "myofullbody_model.elvw")
+  path = os.path.join(out_dir, f"{profile.name}_model.elvw")
   size = write_elvw(path, meta, arrays)
   print(f"{path}: {len(meshes)} meshes, {vofs} vertices, {fofs} faces, {len(muscles)} muscles, "
         f"{len(site_body)} sites, {len(volumes)} volumes, {size / 1e6:.2f} MB")
@@ -199,8 +239,10 @@ def export_clip(a):
   # an IK run with the optional neck stores its angles apart: draw the head with them
   ikf = np.load(os.path.join(a.ik_dir, f"{trial}.npz"))
   neck = ikf["neck_qpos"][idx].astype(np.float64) if "neck_qpos" in ikf.files else None
-  mm = mk.MarkerModel(neck=neck is not None)
+  mm = config.marker_model(neck=neck is not None)
   m, d = mm.m, mm.d
+  if "model_profile" in ikf.files and str(ikf["model_profile"]) != mm.profile.name:
+    raise SystemExit(f"{trial}: IK of {ikf['model_profile']}, not M2M_MODEL={mm.profile.name}")
   subj = config.subject_of(trial)
   mm.set_offsets(np.load(os.path.join(a.ik_dir, f"{subj}_offsets.npz"))["offsets"])
   Q = ref["qpos"][idx].astype(np.float64)
@@ -209,14 +251,14 @@ def export_clip(a):
   bp, bq = body_poses(m, d, Q)
   model_mk = np.stack([mm.markers(q) for q in Q])
   # measured markers in the reference frame: scaled like the IK, moved with the human
-  P, _, _ = mk.load_trial(os.path.join(a.npz_dir, f"{trial}.npz"))
+  P, _, _ = mk.load_trial(os.path.join(a.npz_dir, f"{trial}.npz"), mm=mm)
   dz = float(ref["human_dz"]) if "human_dz" in ref else 0.0
   meas = P[idx] + np.array([0.0, 0.0, dz])
-  head = mk.HEAD
+  head = mm.ms.HEAD | ~mm.active
   err = np.linalg.norm(model_mk - meas, axis=-1)
   resid = np.nanmedian(np.where(head, np.nan, err), axis=1)
-  adr = [m.jnt_qposadr[m.joint(j).id] for j in CURVES]
-  curves = np.degrees(Q[:, adr]).astype(np.float32)
+  cnames, adr, csign = curve_spec(mm.profile, m)
+  curves = np.degrees(Q[:, adr] * np.array(csign) if any(x != 1 for x in csign) else Q[:, adr]).astype(np.float32)
   # task arrays: {name: (kind, array)}, kind "pos" (m) / "quat" (wxyz) / "raw"
   objects, tracks, extra = task.viewer_scene(ref, idx) if task is not None else ([], [], {})
   extent = np.nanmax(np.abs(np.concatenate(
@@ -236,7 +278,7 @@ def export_clip(a):
       gQ = mm.full_qpos(gQ, np.zeros((len(gQ), len(mk.NECK))))
     gp, gq = body_poses(m, d, gQ)
     arrays["ghost_pos"], arrays["ghost_quat"] = q16(gp, ps), q16(gq, 1 / 32767)
-    arrays["ghost_curves"] = np.degrees(gQ[:, adr]).astype(np.float32)
+    arrays["ghost_curves"] = np.degrees(gQ[:, adr] * np.array(csign)).astype(np.float32)
     ghost = a.ghost_label or "second run"
   # inverse dynamics and the OpenSim comparison, when their files exist
   opt = lambda d, f: np.load(os.path.join(d, f)) if d and os.path.exists(os.path.join(d, f)) else None
@@ -244,7 +286,8 @@ def export_clip(a):
   osim = opt(a.osim_id_dir, f"{trial}.npz")
   omk = opt(a.osim_ik_dir, os.path.join(subj, f"{trial}_markers.npz"))
   la, lm = viewer_layers.layers(m, Q, idx, s, dz, q16, ps, kin=kin, osim=osim,
-                                osim_markers=None if omk is None else omk["markers"])
+                                osim_markers=None if omk is None else omk["markers"],
+                                profile=mm.profile)
   arrays.update(la)
   qa = {}
   rep = os.path.join(a.ik_dir, "report.json")
@@ -253,8 +296,8 @@ def export_clip(a):
   meta = dict(
     format="elvw-clip-3", trial=trial, clip=a.clip,
     clip_label=task.CLIP_LABEL if task is not None else "clip", frames=len(idx),
-    fps=fps, start_s=lo / rate, pos_scale=ps, subject_scale=s, labels=mk.LABELS,
-    curves=CURVES, objects=objects, tracks=tracks,
+    fps=fps, start_s=lo / rate, pos_scale=ps, subject_scale=s, labels=mm.ms.LABELS,
+    curves=cnames, objects=objects, tracks=tracks, model=mm.profile.name,
     run=a.run_label or os.path.basename(os.path.normpath(a.ik_dir)), ghost=ghost, **lm,
     qa={k: qa[k] for k in ("verdict", "resid_med_mm", "resid_p95_mm", "lomo_med_mm",
                            "stand_knee_deg", "stand_hip_deg", "gap_max", "gap_worst")

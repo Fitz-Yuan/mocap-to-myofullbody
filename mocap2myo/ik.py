@@ -1,22 +1,28 @@
-"""Marker-based IK onto MyoFullBody: marker model, per-frame solve, subject calibration.
+"""Marker-based IK onto a musculoskeletal model: marker model, per-frame solve, subject calibration.
+
+The model is a profile (mocap2myo.profile; default M2M_MODEL, MyoFullBody) and the markers a
+marker set (mocap2myo.markerset; default M2M_MARKER_SET, Plug-in-Gait): MarkerModel(profile,
+markerset).
 
 Input: marker npz files (pipeline/prepare_markers.py): markers [T, n, 3] in the
-order of the marker set's labels (mocap2myo.markerset), marker_rate, height_m;
-metres, Z-up.
+order of the marker set's labels, marker_rate, height_m; metres, Z-up.
 
 Pipeline per subject:
-  1. scale the marker cloud by MODEL_HEIGHT / subject height (the model is not
-     geometrically scaled; per-marker body offsets absorb what remains);
-  2. calibrate marker offsets on their bodies: initial offsets from a standing
-     frame with the model in its neutral pose, then alternate (IK on K diverse
+  1. scale the marker cloud by the model's height / the subject's height (the model is
+     not geometrically scaled; per-marker body offsets absorb what remains);
+  2. calibrate marker offsets on their bodies: initial offsets from the marker set's
+     anatomical placement on the model's neutral pose, then alternate (IK on K diverse
      frames) <-> (closed-form offset update with a prior toward the previous
      offsets), as in OpenSim/AddBiomechanics marker registration;
   3. per-frame IK, warm-started from the previous frame.
-Unknowns: root (3 + 3 rotvec), 14 leg, 3 lumbar, 2 x 7 arm DoF = 37. Every
-other joint follows through the model's joint equalities or stays neutral.
+Unknowns: root (3 + 3 rotvec) and the profile's IK joints (MyoFullBody: 14 leg, 3 lumbar,
+2 x 7 arm DoF, 37 in all). Every other joint follows through the model's joint equalities
+or stays at the reference pose.
 """
 
 from __future__ import annotations
+
+import fnmatch
 
 import numpy as np
 import mujoco
@@ -24,38 +30,45 @@ import scipy.optimize
 from scipy.signal import butter, filtfilt
 from scipy.spatial.transform import Rotation as sRot
 
+from mocap2myo import markerset as _ms
 from mocap2myo import objects as O
+from mocap2myo import profile as _prof
 from mocap2myo.kinematics import apply_joint_equalities
-from mocap2myo.markerset import (  # noqa: F401  (re-exported for the stage scripts)
-  ANKLES, HEAD, LABELS, MARKERS, PELVIS, PELVIS_LABELS, PELVIS_MASK, SOLE, anat_world)
-from mocap2myo.model import MYOFULLBODY_XML
 
-MODEL_HEIGHT = 1.72  # bone height 1.689 m + soft tissue
+MODEL_HEIGHT = 1.72  # MyoFullBody: bone height 1.689 m + soft tissue (its profile's model_height)
 FREE = [f"{j}_{s}" for s in ("r", "l") for j in
         ("hip_flexion", "hip_adduction", "hip_rotation", "knee_angle", "ankle_angle",
          "subtalar_angle", "mtp_angle")] + \
        ["flex_extension", "lat_bending", "axial_rotation"] + \
        [f"{j}_{s}" for s in ("r", "l") for j in
         ("elv_angle", "shoulder_elv", "shoulder_rot", "elbow_flex", "pro_sup",
-         "deviation", "flexion")]
+         "deviation", "flexion")]  # MyoFullBody's IK joints (its profile lists them)
+# temporal regularisation (ik_trial smooth, ankle_smooth, the gated joints) is given for
+# this rate and scaled to the data's (the same penalty on a joint velocity at any rate)
+SMOOTH_RATE = 100.0
 
 
 # Optional neck (MarkerModel(neck=True)): MyoFullBody has no neck joint, so the head is
 # rigid on the trunk and its markers miss by ~3 cm (9 cm in the worst frames) whenever
 # the subject nods or turns. Three hinges at the neck body, pivot at about C7/T1,
 # appended to the IK's free joints; the IK output keeps the model's own qpos layout
-# and stores these three angles separately (split_qpos / full_qpos).
+# and stores these three angles separately (split_qpos / full_qpos). Where they go is the
+# profile's [ik] neck (MyoFullBody, MyoLeg: these values).
 NECK = ("neck_extension", "neck_bending", "neck_rotation")
 _NECK_PIVOT = (0.0, 0.39, 0.0)  # in the neck body's frame (y up): ~1.49 m at qpos0
 _NECK_AXES = ((0, 0, 1), (1, 0, 0), (0, 1, 0))  # extension (+), bending to the right (+), rotation
 _NECK_RANGE = ((-1.2, 1.0), (-0.8, 0.8), (-1.4, 1.4))
 
 
-def load_trial(path, max_gap_s=0.25, lowpass_hz=None):
-  """Markers [T, n, 3] (LABELS order) scaled to the model; short gaps interpolated.
+def load_trial(path, max_gap_s=0.25, lowpass_hz=None, mm=None):
+  """Markers [T, n, 3] (the marker set's order) scaled to the model; short gaps interpolated.
+  mm: the MarkerModel (its marker set and model height; default the selected marker set
+  and MyoFullBody's MODEL_HEIGHT).
   lowpass_hz (optional, default off; the stages pass M2M_LOWPASS_HZ, 6 Hz): zero-phase
   2nd-order Butterworth (filtfilt) per marker coordinate over each gap-free run, the
   usual marker filtering before IK (Winter: ~6 Hz for whole-body motion)."""
+  LABELS = mm.ms.LABELS if mm is not None else _ms.LABELS
+  height = mm.model_height if mm is not None else MODEL_HEIGHT
   d = np.load(path)
   labs = list(d["marker_labels"])
   P = np.full((d["markers"].shape[0], len(LABELS), 3), np.nan, np.float64)
@@ -87,47 +100,125 @@ def load_trial(path, max_gap_s=0.25, lowpass_hz=None):
         for r in np.split(idx, np.flatnonzero(np.diff(idx) != 1) + 1):
           if len(r) > pad:
             P[r, k] = filtfilt(bb, aa, P[r, k], axis=0)
-  s = MODEL_HEIGHT / float(d["height_m"])
+  s = height / float(d["height_m"])
   return P * s, rate, s
 
 
 class MarkerModel:
-  def __init__(self, neck=False):
-    spec = mujoco.MjSpec.from_file(str(MYOFULLBODY_XML))
-    for l, (b, _) in MARKERS.items():
-      spec.body(b).add_site(name=f"mk_{l}", pos=[0, 0, 0], size=[0.01, 0, 0])
+  """A model profile with a marker set's markers as sites, the IK's free joints, sole points
+  and palms. profile / markerset: names or objects (default M2M_MODEL / M2M_MARKER_SET).
+  Markers on a segment the model lacks (e.g. arm markers on MyoLeg) get no weight
+  (self.active False): their columns stay in the arrays, their error is NaN."""
+
+  def __init__(self, profile=None, markerset=None, neck=False):
+    self.profile = _prof.load(profile) if profile is not None else _prof.selected()
+    self.ms = _ms.load(markerset) if markerset is not None else _ms.selected()
+    p, ms = self.profile, self.ms
+    spec = p.spec()
+    root_body = p.root_body or spec.joint(p.root_joint).parent.name
+    bodies = {l: p.segment_body(ms.segment(l)) for l in ms.LABELS}
+    self.active = np.array([bodies[l] is not None for l in ms.LABELS])
+    for l in ms.LABELS:
+      spec.body(bodies[l] or root_body).add_site(name=f"mk_{l}", pos=[0, 0, 0], size=[0.01, 0, 0])
     self.neck = neck
-    self.free = list(FREE) + (list(NECK) if neck else [])
+    nk = p.ik_cfg.get("neck") if neck else None
+    if neck and nk is None:
+      raise SystemExit(f"{p.name}: no optional neck for this model ([ik] neck in its profile)")
     if neck:
-      for n, ax, rg in zip(NECK, _NECK_AXES, _NECK_RANGE):
-        spec.body("neck").add_joint(name=n, type=mujoco.mjtJoint.mjJNT_HINGE, pos=list(_NECK_PIVOT),
-                                    axis=list(ax), range=list(rg), limited=1)
+      for n, ax, rg in zip(NECK, nk["axes"], nk["ranges"]):
+        spec.body(nk["body"]).add_joint(name=n, type=mujoco.mjtJoint.mjJNT_HINGE, pos=list(nk["pivot"]),
+                                        axis=list(ax), range=list(rg), limited=1)
     self.m = spec.compile()
     self.d = mujoco.MjData(self.m)
     m = self.m
+    self.free = p.ik_joints(m) + (list(NECK) if neck else [])
+    self.qref = p.reference_qpos(m)  # MyoFullBody: qpos0
+    self.root_bid = int(m.jnt_bodyid[m.joint(p.root_joint).id])
+    LABELS = ms.LABELS
     self.sid = np.array([m.site(f"mk_{l}").id for l in LABELS])
     # Sites created at the body origin get site_sameframe=1, and kinematics
     # then copies the body pose and ignores site_pos -- every offset written
     # later would silently do nothing. Clear the flag.
     m.site_sameframe[self.sid] = 0
-    self.bid = np.array([m.body(MARKERS[l][0]).id for l in LABELS])
-    self.w = np.array([MARKERS[l][1] for l in LABELS])
+    self.bid = np.array([m.body(bodies[l] or root_body).id for l in LABELS])
+    # a marker on a body that no IK joint moves relative to the pelvis (MyoLeg's trunk and
+    # head, MS-Human-700 Locomotion's arms) would only pull the pelvis: left out
+    jbody = {int(m.jnt_bodyid[m.joint(n).id]) for n in p.ik_joints(m)}
+    pel = p.segment_body("pelvis")
+    for k, l in enumerate(LABELS):
+      if not self.active[k] or bodies[l] == pel:
+        continue
+      b, moved = self.bid[k], False
+      while b > 0 and not moved:
+        moved = b in jbody
+        b = m.body_parentid[b]
+      self.active[k] = moved
+    self.w = np.array([ms.MARKERS[l][1] if a else 0.0 for l, a in zip(LABELS, self.active)])
     self.adr = np.array([m.jnt_qposadr[m.joint(n).id] for n in self.free])
-    self.mtp = np.array([self.free.index(f"mtp_angle_{sd}") for sd in ("r", "l")])
+    self.mtp = np.array([self.free.index(n) for n in p.ik_cfg.get("mtp", [])], int)
+    self.mtp_q0 = self.qref[self.adr[self.mtp]]  # the toes' neutral (MyoFullBody: 0)
+    self.static_neutral = list(p.ik_cfg.get("static_neutral", []))
     self.neck_adr = np.array([m.jnt_qposadr[m.joint(n).id] for n in NECK]) if neck else np.zeros(0, int)
     jid = [m.joint(n).id for n in self.free]
     self.lo = np.array([m.jnt_range[j][0] if m.jnt_limited[j] else -np.pi for j in jid])
     self.hi = np.array([m.jnt_range[j][1] if m.jnt_limited[j] else np.pi for j in jid])
+    heavy = p.ik_cfg.get("smooth_heavy", [])
+    self.smooth_heavy = np.array([any(fnmatch.fnmatchcase(n, g) for g in heavy) for n in self.free])
+    self.smooth_gated = [(self.free.index(j), self.free.index(g))
+                         for j, g in p.ik_cfg.get("smooth_gated", {}).items()]
+    self._model_height = p.data.get("height", {}).get("model_height")
     self._foot_points()
-    self.hand_b = [m.body("thirdmc_l").id, m.body("thirdmc_r").id]
-    pl, sp = O.hand_palmar_local(), O.hand_sphere_local()
-    self.palm_n = [pl["l"], pl["r"]]
-    self.palm_c = [sp["l"], sp["r"]]
-    mujoco.mj_kinematics(m, self.d)  # qpos0 (set by _foot_points)
-    self.palm_d = []  # distal (finger) axis in the thirdmc frame
-    for sd, b in zip("lr", self.hand_b):
-      v = self.d.xpos[m.body(f"3proxph_{sd}").id] - self.d.xpos[b]
-      self.palm_d.append(self.d.xmat[b].reshape(3, 3).T @ (v / np.linalg.norm(v)))
+    self._palms()
+
+  @property
+  def model_height(self) -> float:
+    """Standing height the subjects are scaled to (MyoFullBody: MODEL_HEIGHT)."""
+    if self._model_height is None:
+      self._model_height = self.profile.model_height
+    return float(self._model_height)
+
+  @property
+  def labels(self):
+    return self.ms.LABELS
+
+  def _palms(self):
+    """Palm points: MyoFullBody's hand sphere (mocap2myo.objects); another model's from its
+    landmarks: centre 65 % of the way wrist -> 3rd metacarpal head, palm normal from
+    the radial / ulnar styloids and that axis (as objects.py does with the metacarpals)."""
+    m, p = self.m, self.profile
+    pb = p.contact.get("palm_body")
+    self.hand_b, self.palm_c, self.palm_n, self.palm_d = [], [], [], []
+    if p.name.startswith("myofullbody"):
+      self.hand_b = [m.body("thirdmc_l").id, m.body("thirdmc_r").id]
+      pl, sp = O.hand_palmar_local(), O.hand_sphere_local()
+      self.palm_n = [pl["l"], pl["r"]]
+      self.palm_c = [sp["l"], sp["r"]]
+      self.d.qpos[:] = self.qref
+      mujoco.mj_kinematics(m, self.d)  # qpos0
+      for sd, b in zip("lr", self.hand_b):  # distal (finger) axis in the thirdmc frame
+        v = self.d.xpos[m.body(f"3proxph_{sd}").id] - self.d.xpos[b]
+        self.palm_d.append(self.d.xmat[b].reshape(3, 3).T @ (v / np.linalg.norm(v)))
+      return
+    if not pb:
+      return
+    from mocap2myo import landmarks as L
+    nt = L.Neutral(p, "floor", m)
+    lm = L.compute(p, neutral=nt).landmarks
+    for sd in "lr":
+      need = [f"{k}_{sd}" for k in ("wrist", "mc3_head", "styloid_rad", "styloid_uln")]
+      if any(k not in lm for k in need):
+        self.hand_b, self.palm_c, self.palm_n, self.palm_d = [], [], [], []
+        return
+      wr, mc, ra, ul = (lm[k].pos for k in need)
+      b = m.body(pb[sd]).id
+      R, x = nt.d.xmat[b].reshape(3, 3), nt.d.xpos[b]
+      distal = (mc - wr) / np.linalg.norm(mc - wr)
+      across = ra - ul
+      n = np.cross(across, distal) if sd == "r" else np.cross(distal, across)
+      self.hand_b.append(b)
+      self.palm_c.append(R.T @ (wr + 0.65 * (mc - wr) - x))
+      self.palm_n.append(R.T @ (n / np.linalg.norm(n)))
+      self.palm_d.append(R.T @ distal)
 
   def split_qpos(self, Q):
     """IK qpos of this model -> (qpos in the plain model's layout, neck angles [.., 3])."""
@@ -143,8 +234,11 @@ class MarkerModel:
     return out
 
   def palms(self):
-    """Hand sphere centres, palm normals, finger axes [2, 3] each (l, r)."""
+    """Hand sphere centres, palm normals, finger axes [2, 3] each (l, r); NaN for a
+    model without hands."""
     c, n, f = np.zeros((2, 3)), np.zeros((2, 3)), np.zeros((2, 3))
+    if not self.hand_b:
+      return c * np.nan, n * np.nan, f * np.nan
     for k, b in enumerate(self.hand_b):
       R = self.d.xmat[b].reshape(3, 3)
       c[k] = self.d.xpos[b] + R @ self.palm_c[k]
@@ -153,35 +247,55 @@ class MarkerModel:
     return c, n, f
 
   def _foot_points(self):
-    """Sole points: both ends of every foot capsule, radius below the axis (feet
-    are flat at qpos0). heel = back ends of calcn capsules, toe = front ends of
-    toes capsules (the model faces -y). Stored as (body, local offset)."""
+    """Sole points, stored as (body, local offset) with (side, heel / toe / -). With the
+    profile's sole_geoms = "collision" and capsules (MyoFullBody): both ends of every
+    capsule of the sole bodies, radius below the axis, at the reference pose (feet flat);
+    heel = rear ends on the first sole body (calcn), toe = front ends on the last (toes;
+    the model faces -y). Otherwise mocap2myo.landmarks.sole_points (spheres, ellipsoids,
+    boxes; or points on the foot bones)."""
     m, d = self.m, self.d
-    d.qpos[:] = m.qpos0
+    p = self.profile
+    d.qpos[:] = self.qref
     mujoco.mj_kinematics(m, d)
     self.fp_body, self.fp_local, self.fp_kind = [], [], []  # kind: (side, heel/toe/-)
-    for g in range(m.ngeom):
-      b = m.geom_bodyid[g]
-      bn = m.body(b).name
-      if not (m.geom_contype[g] and m.geom_type[g] == mujoco.mjtGeom.mjGEOM_CAPSULE
-              and bn[:-2] in ("calcn", "toes")):
-        continue
-      R = d.geom_xmat[g].reshape(3, 3)
-      ends = [d.geom_xpos[g] + s * R[:, 2] * m.geom_size[g][1] for s in (1, -1)]
-      ys = [e[1] for e in ends]
-      for k, e in enumerate(ends):
-        w = e - np.array([0, 0, m.geom_size[g][0]])
-        Rb = d.xmat[b].reshape(3, 3)
-        kind = "-"
-        if bn.startswith("calcn") and ys[k] == max(ys):
-          kind = "heel"
-        if bn.startswith("toes") and ys[k] == min(ys):
-          kind = "toe"
-        self.fp_body.append(b)
-        self.fp_local.append(Rb.T @ (w - d.xpos[b]))
-        self.fp_kind.append((bn[-1], kind))
-    self.fp_body = np.array(self.fp_body)
-    self.fp_local = np.array(self.fp_local)
+    c = p.contact
+    sb = c.get("sole_bodies", {})
+    if c.get("sole_geoms", "collision") == "collision" and c.get("sole_geom_types") == ["capsule"]:
+      where = {}
+      for sd, bl in sb.items():
+        for k, bn in enumerate(bl):
+          where[bn] = (sd, k == 0, k == len(bl) - 1)
+      for g in range(m.ngeom):
+        b = m.geom_bodyid[g]
+        bn = m.body(b).name
+        if not (m.geom_contype[g] and m.geom_type[g] == mujoco.mjtGeom.mjGEOM_CAPSULE
+                and bn in where):
+          continue
+        side, first, last = where[bn]
+        R = d.geom_xmat[g].reshape(3, 3)
+        ends = [d.geom_xpos[g] + s * R[:, 2] * m.geom_size[g][1] for s in (1, -1)]
+        ys = [e[1] for e in ends]
+        for k, e in enumerate(ends):
+          w = e - np.array([0, 0, m.geom_size[g][0]])
+          Rb = d.xmat[b].reshape(3, 3)
+          kind = "-"
+          if first and ys[k] == max(ys):
+            kind = "heel"
+          if last and ys[k] == min(ys):
+            kind = "toe"
+          self.fp_body.append(b)
+          self.fp_local.append(Rb.T @ (w - d.xpos[b]))
+          self.fp_kind.append((side, kind))
+    elif sb:
+      from mocap2myo import landmarks as L
+      for sp in L.sole_points(L.Neutral(p, "floor", m)):
+        self.fp_body.append(m.body(sp["body"]).id)
+        self.fp_local.append(sp["local"])
+        self.fp_kind.append((sp["side"], sp["kind"]))
+      d.qpos[:] = self.qref
+      mujoco.mj_kinematics(m, d)
+    self.fp_body = np.array(self.fp_body, int)
+    self.fp_local = np.array(self.fp_local).reshape(-1, 3)
     self.heel_pts = {sd: [i for i, k in enumerate(self.fp_kind) if k == (sd, "heel")] for sd in "lr"}
     self.toe_pts = {sd: [i for i, k in enumerate(self.fp_kind) if k == (sd, "toe")] for sd in "lr"}
 
@@ -195,7 +309,7 @@ class MarkerModel:
 
   def pose(self, x, q_root_ref):
     """x = [root pos 3, root rotvec 3 (relative to q_root_ref), self.free joints]."""
-    q = self.m.qpos0.copy()
+    q = self.qref.copy()
     q[:3] = x[:3]
     r = sRot.from_rotvec(x[3:6]) * sRot.from_quat(q_root_ref[[1, 2, 3, 0]])
     q[3:7] = r.as_quat()[[3, 0, 1, 2]]
@@ -256,7 +370,8 @@ class MarkerModel:
     target (rad) with weight (per rad). For the static-trial calibration
     (calibrate_static): the subject stands in a known, near-neutral pose.
     """
-    ok = ~np.isnan(P[:, 0])
+    PELVIS_MASK, HEAD = self.ms.PELVIS_MASK, self.ms.HEAD
+    ok = ~np.isnan(P[:, 0]) & self.active
     w = np.sqrt(self.w[ok])[:, None]
     lo = np.r_[[-np.inf] * 3, [-np.pi] * 3, self.lo]
     hi = np.r_[[np.inf] * 3, [np.pi] * 3, self.hi]
@@ -279,8 +394,8 @@ class MarkerModel:
       r = [e.ravel()]
       if x_prev is not None and np.any(smooth > 0):
         r.append(smooth * (x[6:] - x_prev[6:]))
-      if mtp_prior:
-        r.append(mtp_prior * x[6 + self.mtp])
+      if mtp_prior and len(self.mtp):
+        r.append(mtp_prior * (x[6 + self.mtp] - self.mtp_q0))
       if posture is not None:
         pi, pt, pw = posture
         r.append(pw * (x[6 + pi] - pt))
@@ -306,6 +421,7 @@ class MarkerModel:
                                        bounds=(lo, hi), xtol=1e-6, ftol=1e-6,
                                        max_nfev=100)
     err = np.linalg.norm(self.markers(self.pose(sol.x, q_root_ref)) - P, axis=1)
+    err[~self.active] = np.nan
     if robust:
       if outlier is not None:  # as the re-solve: 1-3 far markers = mislabels (NaN in
         bad = (np.nan_to_num(err) > outlier) & ~HEAD  # the error), more = a bad solve
@@ -323,23 +439,45 @@ class MarkerModel:
 
 
 def anat_offsets(mm):
-  """Marker offsets in body frames from the anatomical world guesses."""
-  m, d = mm.m, mm.d
-  d.qpos[:] = m.qpos0
-  d.qpos[:3] = [0, 0, 0.99]
-  d.qpos[3:7] = [1, 0, 0, 0]
-  mujoco.mj_kinematics(m, d)
+  """Marker offsets in body frames from the marker set's anatomical placement: the
+  explicit guesses of its [override] for this model (Plug-in-Gait on MyoFullBody: world,
+  qpos0 with the root at (0, 0, 0.99), identity), else each marker's landmark + offset on
+  the model at its neutral pose (mocap2myo.landmarks; markers whose landmark the model
+  lacks stay at their body's origin and are switched off)."""
+  m, d, ms = mm.m, mm.d, mm.ms
+  LABELS = ms.LABELS
   off = np.zeros((len(LABELS), 3))
+  if ms.has_override(mm.profile.name):
+    d.qpos[:] = m.qpos0
+    d.qpos[:3] = mm.profile.neutral_cfg.get("root_pos", [0, 0, 0.99])
+    d.qpos[3:7] = [1, 0, 0, 0]
+    mujoco.mj_kinematics(m, d)
+    for k, l in enumerate(LABELS):
+      R = d.xmat[mm.bid[k]].reshape(3, 3)
+      off[k] = R.T @ (ms.anat_world(l) - d.xpos[mm.bid[k]])
+    return off
+  from mocap2myo import landmarks as L
+  nt = L.Neutral(mm.profile, "floor", m)
+  lm = L.compute(mm.profile, neutral=nt).landmarks
   for k, l in enumerate(LABELS):
-    R = d.xmat[mm.bid[k]].reshape(3, 3)
-    off[k] = R.T @ (anat_world(l) - d.xpos[mm.bid[k]])
+    if not mm.active[k]:
+      continue
+    g = ms.guess_world(l, lm)
+    if g is None:
+      mm.active[k] = False
+      mm.w[k] = 0.0
+      print(f"  {mm.profile.name}: no landmark {ms.markers[l].landmark} for {l}: marker not used")
+      continue
+    R = nt.d.xmat[mm.bid[k]].reshape(3, 3)
+    off[k] = R.T @ (g - nt.d.xpos[mm.bid[k]])
   return off
 
 
 def root_from_pelvis(mm, P):
   """Root pose from a rigid (Kabsch) fit of the model pelvis markers."""
   m, d = mm.m, mm.d
-  d.qpos[:] = m.qpos0
+  PELVIS = mm.ms.PELVIS
+  d.qpos[:] = mm.qref
   d.qpos[:3] = 0
   d.qpos[3:7] = [1, 0, 0, 0]
   mujoco.mj_kinematics(m, d)
@@ -354,15 +492,16 @@ def root_from_pelvis(mm, P):
   return pos, sRot.from_matrix(R).as_quat()[[3, 0, 1, 2]]
 
 
-# Joints held near 0 in the static (anatomical) standing trial, see calibrate(static=...)
+# Joints held near neutral in the static (anatomical) standing trial, see
+# calibrate(static=...): MyoFullBody's; a model's own are its profile's [ik] static_neutral
 STATIC_NEUTRAL = [f"{j}_{s}" for s in ("r", "l") for j in
                   ("hip_flexion", "hip_adduction", "hip_rotation", "knee_angle", "ankle_angle",
                    "subtalar_angle")]
 
 
-# Segments whose marker placement the static trial decides (the posture prior holds
-# for them); see calibrate(static_segments=...)
-STATIC_SEGMENTS_LEGS = ("pelvis", "femur_r", "femur_l", "tibia_r", "tibia_l", "calcn_r", "calcn_l")
+# Canonical segments whose marker placement the static trial decides (the posture prior
+# holds for them); see calibrate(static_segments=...)
+STATIC_SEGMENTS_LEGS = ("pelvis", "femur_r", "femur_l", "tibia_r", "tibia_l", "foot_r", "foot_l")
 # legs only: the pelvis markers stay with the motion trials (skin over the iliac
 # crests slides in deep stoops; placed from the upright static pose they made the
 # pelvis jump in two case-study subjects when both ASIS were hidden by the box)
@@ -387,13 +526,16 @@ def calibrate(mm, trials, n_frames=24, iters=5, prior=2.0, max_shift=0.06, seed=
   knee bent 20 deg, and the dynamic frames alone settled on bent knees / tilted
   pelvis in some subjects (case study: quiet-standing knee flexion 10-24 deg in 16
   of 22 trials, confirmed against Xsens on one trial). With the static trial: knee
-  ~0 deg, residual unchanged or lower in most subjects, at most +2 mm.
-  static_segments (optional): only markers on these bodies take their placement
+  ~0 deg, residual unchanged or lower in most subjects, at most +2 mm. "Near neutral":
+  the profile's [ik] static_neutral joints toward the model's neutral pose (MyoFullBody:
+  hips, knees, ankles, subtalar at 0).
+  static_segments (optional): only markers on these canonical segments take their placement
   from the static frames (e.g. STATIC_SEGMENTS_LEGS); with all markers, the hand
   markers were fitted to the loose hanging wrists of the static pose and their
   leave-one-out prediction got worse (finger 33 -> 48 mm)."""
   rng = np.random.default_rng(seed)
   m, d = mm.m, mm.d
+  LABELS, PELVIS = mm.ms.LABELS, mm.ms.PELVIS
   off0 = anat_offsets(mm)
   off = off0.copy()
   mm.set_offsets(off)
@@ -414,11 +556,11 @@ def calibrate(mm, trials, n_frames=24, iters=5, prior=2.0, max_shift=0.06, seed=
     wt = np.r_[wt, np.full(len(st), static_share / (1 - static_share) * n_dyn / max(len(st), 1))]
     # with the optional neck, the static trial also holds the neck near neutral: the head
     # markers' placement and the neck angles are not separable otherwise (as for the knees)
-    pidx = np.array([mm.free.index(j) for j in STATIC_NEUTRAL + (list(NECK) if mm.neck else [])])
-    posture = (pidx, np.zeros(len(pidx)), static_w)
+    pidx = np.array([mm.free.index(j) for j in mm.static_neutral + (list(NECK) if mm.neck else [])])
+    posture = (pidx, mm.qref[mm.adr[pidx]], static_w)  # the neutral pose (MyoFullBody: 0)
   use_static = np.ones(len(LABELS), bool)
   if static_segments is not None:
-    use_static = np.array([MARKERS[l][0] in static_segments for l in LABELS])
+    use_static = np.array([mm.ms.segment(l) in static_segments for l in LABELS])
   for it in range(iters):
     mm.set_offsets(off)
     poses, used = [], []
@@ -426,7 +568,7 @@ def calibrate(mm, trials, n_frames=24, iters=5, prior=2.0, max_shift=0.06, seed=
       fl = flat if fi >= n_rand else 0.0
       is_static = fi >= n_dyn
       pos, q = root_from_pelvis(mm, P)
-      x0 = np.r_[pos, np.zeros(3), m.qpos0[mm.adr]]
+      x0 = np.r_[pos, np.zeros(3), mm.qref[mm.adr]]
       best = None
       for k in range(3 if it == 0 and not is_static else 1):
         xs = x0.copy()
@@ -462,16 +604,18 @@ def calibrate(mm, trials, n_frames=24, iters=5, prior=2.0, max_shift=0.06, seed=
     errs = []
     for P, qq in zip(frames, poses):
       e = np.linalg.norm(mm.markers(qq) - P, axis=1)
-      errs.append(np.nanmean(e))
+      errs.append(np.nanmean(e[mm.active]))
     print(f"  calib iter {it}: mean marker err {1e3 * np.mean(errs):.1f} mm "
           f"(max shift {1e3 * np.linalg.norm(off - off0, axis=1).max():.0f} mm)")
   return off
 
 
-def sole_stance(P, rate, v_max=0.1, dz=0.02, min_s=0.1):
+def sole_stance(P, rate, v_max=0.1, dz=0.02, min_s=0.1, ms=None):
   """Stance mask per sole marker {(side, heel|toe): [T] bool} from the markers:
   slow (< v_max m/s) and low (< its 5th-percentile height + dz), runs shorter
-  than min_s dropped."""
+  than min_s dropped. ms: the marker set (default the selected one)."""
+  ms = ms or _ms.MARKER_SET
+  LABELS, SOLE = ms.LABELS, ms.SOLE
   out = {}
   for side in ("l", "r"):
     for kind in ("heel", "toe"):
@@ -489,9 +633,11 @@ def sole_stance(P, rate, v_max=0.1, dz=0.02, min_s=0.1):
   return out
 
 
-def standing(P, rate):
-  """Quiet upright standing frames from the markers (scaled-subject frame)."""
-  L = LABELS
+def standing(P, rate, ms=None):
+  """Quiet upright standing frames from the markers (scaled-subject frame); ms: the
+  marker set (default the selected one)."""
+  ms = ms or _ms.MARKER_SET
+  L, PELVIS, ANKLES = ms.LABELS, ms.PELVIS, ms.ANKLES
   pel = P[:, PELVIS].mean(1)
   ank = P[:, [L.index(l) for l in ANKLES]]
 
@@ -545,14 +691,24 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
   contact=True (needs rate): sole points kept above the floor (the lowest sole
   point of the first, standing frame), sole points in marker-detected stance
   locked where they touched down (no skating), joint speed <= v_joint rad/s.
+
+  smooth / ankle_smooth (and the gated joints' 0.05-1.05) are per-frame weights at
+  SMOOTH_RATE (100 Hz), scaled by rate / SMOOTH_RATE: the same penalty on a joint's
+  velocity at any frame rate.
   """
   rng = np.random.default_rng(seed)
   m = mm.m
+  LABELS, PELVIS = mm.ms.LABELS, mm.ms.PELVIS
   T = len(P)
   Q = np.zeros((T, m.nq))
   E = np.full((T, len(LABELS)), np.nan)
   x_prev, q_ref = None, None
-  stance = sole_stance(P, rate) if contact else None
+  stance = sole_stance(P, rate, ms=mm.ms) if contact else None
+  # smoothing weights are per frame at SMOOTH_RATE: scaled with the rate, they put the same
+  # penalty on a joint velocity at any rate (x 1.0 at 100 Hz)
+  fs = rate / SMOOTH_RATE if rate else 1.0
+  if not contact:
+    smooth = smooth * fs
   if contact:
     # stronger frame-to-frame smoothing where the IK chattered: ankle/subtalar
     # wobbled at the speed limit in deep squats; elv_angle (shoulder elevation
@@ -560,15 +716,13 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
     # two equivalent fits -- so it is held only while shoulder_elv is small
     # (a constant 1.0 lagged the raised arm: elbow marker error 8.7 -> 14 mm;
     # 0.2 on every joint lagged fast clips)
-    base = np.array([ankle_smooth if n.startswith(("ankle_angle", "subtalar")) else 0.05
-                     for n in mm.free])
-    elv = [mm.free.index(f"elv_angle_{sd}") for sd in ("r", "l")]
-    selv = [mm.free.index(f"shoulder_elv_{sd}") for sd in ("r", "l")]
+    base = np.where(mm.smooth_heavy, ankle_smooth, 0.05) * fs
+    gated = mm.smooth_gated  # (joint, gate joint) index pairs into mm.free
 
     def smooth_at(x):
       w = base.copy()
-      for e, se in zip(elv, selv):
-        w[e] = 0.05 + 1.0 * np.exp(-(x[6 + se] / 0.35) ** 2)
+      for e, se in gated:
+        w[e] = (0.05 + 1.0 * np.exp(-(x[6 + se] / 0.35) ** 2)) * fs
       return w
   floor, anchors, last_t = None, {}, None
 
@@ -597,11 +751,11 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
       pos, q_ref = root_from_pelvis(mm, P[t])
       cands = []
       for k in range(restarts):
-        xs = np.r_[pos, np.zeros(3), m.qpos0[mm.adr]]
+        xs = np.r_[pos, np.zeros(3), mm.qref[mm.adr]]
         if k:
           xs[6:] = mm.lo + rng.random(len(mm.lo)) * (mm.hi - mm.lo)
         if mtp_prior:
-          xs[6 + mm.mtp] = 0.0
+          xs[6 + mm.mtp] = mm.mtp_q0
         cands.append(mm.solve(P[t], xs, q_ref, outlier=outlier, mtp_prior=mtp_prior,
                               robust=robust))
       x, err = min(cands, key=lambda c: np.nanmean(c[1]))
@@ -630,3 +784,10 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
   if len(solved) and solved[0] > 0:
     Q[: solved[0]] = Q[solved[0]]
   return Q, E
+
+
+# the selected marker set's names (M2M_MARKER_SET), re-exported for older callers; the
+# functions above take the marker set from the MarkerModel instead
+ANKLES, HEAD, LABELS, MARKERS = _ms.ANKLES, _ms.HEAD, _ms.LABELS, _ms.MARKERS
+PELVIS, PELVIS_LABELS, PELVIS_MASK, SOLE = _ms.PELVIS, _ms.PELVIS_LABELS, _ms.PELVIS_MASK, _ms.SOLE
+anat_world = _ms.anat_world

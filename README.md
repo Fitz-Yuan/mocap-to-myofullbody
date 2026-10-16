@@ -2,7 +2,7 @@
 
 *Repository: `mocap-to-myofullbody`. Motion capture to musculoskeletal models; MyoFullBody is the default model.*
 
-Turn optical motion-capture recordings (OptiTrack Motive takes, or C3D / TRC files from other labs; Plug-in-Gait markers) into motions of **MyoFullBody**, a 416-muscle MuJoCo musculoskeletal model, with checks that show how accurate the result is.
+Turn optical motion-capture recordings (OptiTrack Motive takes, or C3D / TRC files from other labs) into motions of a MuJoCo musculoskeletal model, with checks that show how accurate the result is. The default model is **MyoFullBody** (416 muscles); MyoLeg, MS-Human-700, MASS and OpenSim's Gait2354, Rajagopal 2016 and LaiUhlrich2022 models (converted with MyoConverter) work the same way, and the marker set is data too (Plug-in-Gait and the ISB / Dumas set ship with it). See [Models and marker sets](#models-and-marker-sets).
 
 - **Website:** https://fitz-yuan.github.io/mocap-to-myofullbody/
 - **Documentation:** https://fitz-yuan.github.io/mocap-to-myofullbody/documentation/ (every stage, the validation, and what it found)
@@ -18,11 +18,11 @@ The pipeline was built for a box-lifting study (the MMH Elevator data: subjects 
 </picture>
 
 1. **Read** the raw recordings (`pipeline/read_raw.py`): OptiTrack `.tak` files directly (`mocap2myo/tak.py`; a `.tak` is an OLE compound file, the marker trajectories, labels and rigid bodies are parsed from its `Channels.dat` and `Nodes.dat` streams; checked against Motive's own TRC exports: all 11 processed takes identical, largest difference 0.005 mm, float32 rounding), or C3D and TRC files (`mocap2myo/readers.py`, C3D through ezc3d): markers in metres in a Z-up world, the lab software's model outputs kept apart, force plates as the ground reaction on the body per marker frame (force, centre of pressure, free moment, plate corners), other analog channels (EMG) by name, at the recording's own frame rate.
-2. **Condition the markers** (`pipeline/prepare_markers.py`): map labels onto the marker set (`mocap2myo/markerset.py`: Plug-in-Gait, including a subject labelled with a Motive skeleton template with ISB landmark names), assign the head markers by position, drop mislabelled samples, refill pelvis markers as a rigid body. The task adds its objects (`tasks/box_lift/box_fit.py`: box pose by a Kabsch fit, shelf, platform and floor).
+2. **Condition the markers** (`pipeline/prepare_markers.py`): map labels onto the marker set (`mocap2myo/markersets/`: Plug-in-Gait, including a subject labelled with a Motive skeleton template with ISB landmark names; the ISB / Dumas set), assign the head markers by position, drop mislabelled samples, refill pelvis markers as a rigid body. The task adds its objects (`tasks/box_lift/box_fit.py`: box pose by a Kabsch fit, shelf, platform and floor).
 3. **Calibrate each subject** (`mocap2myo.ik.calibrate`): where each marker sits on its bone. With `M2M_STATIC=1` (what `run_all.sh` sets; the default in `config.py` is `0`) the subject's static standing trial anchors the joint angles (hips, knees, ankles near 0°); without it the marker placement and the joint angles are not separable and some subjects come out with 20° of knee flexion while standing.
-4. **Solve IK per frame** (`mocap2myo/ik.py`, `pipeline/solve_ik.py`): bounded least squares over 37 degrees of freedom on MyoFullBody, with a robust loss, floor contact, stance-foot locking and joint speed limits.
+4. **Solve IK per frame** (`mocap2myo/ik.py`, `pipeline/solve_ik.py`): bounded least squares over the model's degrees of freedom (37 on MyoFullBody), with a robust loss, floor contact, stance-foot locking and joint speed limits; the frame-to-frame smoothing is set per second of motion, so a 200 Hz recording gets the same as a 100 Hz one.
 5. **Build the reference, check it, cut clips** (`tasks/box_lift/build_reference.py`, `pipeline/qa.py`, `tasks/box_lift/build_dataset.py`, `pipeline/report.py`).
-6. **Inverse dynamics** (`mocap2myo/kinetics.py`, `pipeline/kinetics.py`): net joint forces and moments by Newton–Euler on subtrees of MyoFullBody at the subject's size and mass. The low back (L5/S1), shoulders and elbows come top-down from the body motion and the carried box (no force plates needed); the total ground reaction and its centre of pressure from the whole body; hips, knees and ankles from that reaction shared between the feet (estimated in double support).
+6. **Inverse dynamics** (`mocap2myo/kinetics.py`, `pipeline/kinetics.py`): net joint forces and moments by Newton–Euler on subtrees of the model at the subject's size and mass. The low back (L5/S1), shoulders and elbows come top-down from the body motion and the carried box (no force plates needed); the total ground reaction and its centre of pressure from the whole body; hips, knees and ankles from that reaction shared between the feet (estimated in double support).
 7. **Optional OpenSim run** (`run_all.sh --opensim`): the standard Scale + Marker Placer + IK with the Rajagopal 2016 model on the same markers, then OpenSim Inverse Dynamics with the same external loads, scored side by side (`pipeline/validate/opensim_compare.py`, `kinetics_compare.py`).
 
 ## Results on the case study
@@ -87,7 +87,7 @@ This writes `tak_cache/` (`raw_cache/` for C3D / TRC), `markers/`, `ik/` (IK, `q
 | `pipeline/kinetics.py` | IK, refs (the task's loads), anthropometrics | `kin/` (`M2M_KIN_DIR`: joint loads per trial, `summary.json`) |
 | `pipeline/validate/opensim_ik.py`, `pipeline/opensim_id.py` (`--opensim`) | `markers/`, `kin/`, `opensim_setup/` | `opensim_ik/`, `opensim_id/` |
 
-Every `M2M_*` setting and `IK_WORKERS` is read in `pipeline/config.py`; `MYOFULLBODY_MODEL` belongs to the library (`mocap2myo/model.py`), and `PY` / `OSIM_PY` to `run_all.sh`. A setting comes from its environment variable, else from the dataset profile (key = the name without `M2M_`, lower case), else the default. Settings with a fixed set of values, and unknown profile keys, stop the run.
+Every `M2M_*` setting and `IK_WORKERS` is read in `pipeline/config.py`; `MYOFULLBODY_MODEL` and `M2M_MODELS_DIR` belong to the library (`mocap2myo/model.py`, `mocap2myo/profile.py`), and `PY` / `OSIM_PY` to `run_all.sh`. A setting comes from its environment variable, else from the dataset profile (key = the name without `M2M_`, lower case), else the default. Settings with a fixed set of values, and unknown profile keys, stop the run.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -99,7 +99,9 @@ Every `M2M_*` setting and `IK_WORKERS` is read in `pipeline/config.py`; `MYOFULL
 | `M2M_UP`, `M2M_UNITS`, `M2M_RATE` | `y` (`.tak`) / `auto`, file's, `native` | the files' up axis (`auto`: from head vs foot markers; `x`/`y`/`z`, optionally `-`), length unit, frame rate (a number: keep every k-th frame) |
 | `M2M_POINTS_EXCLUDE`, `M2M_ANALOG` | (none), `.*` | C3D: point labels that are not markers (besides the POINT type groups), analog channels to keep (EMG) |
 | `M2M_FP_SIGN`, `M2M_FP_MIN_FZ` | `auto`, `20` | C3D force plates: sign of ezc3d's force (`auto`: the vertical force on a loaded plate points up), N below which there is no centre of pressure |
-| `M2M_MARKER_SET` | `plug_in_gait` | the marker set the data uses; `prepare_markers.py` stops if `mocap2myo/markerset.py` selects another |
+| `M2M_MODEL` | `myofullbody` | the model: a profile in `mocap2myo/profiles/` (see [Models and marker sets](#models-and-marker-sets)) |
+| `M2M_MARKER_SET`, `M2M_MARKER_ALIASES` | `plug_in_gait`, `auto` | the marker set the data uses (`mocap2myo/markersets/<name>.toml`); which of its alias label sets a recording may use (`auto`: the best-matching one, if it beats the set's own labels; `none`; or names) |
+| `M2M_MODELS_DIR` | `~/data/mocap2myo/models` | where `models/fetch.py` puts the models that are not in the repository |
 | `M2M_ANTHRO`, `M2M_ANTHRO_C3D_HEIGHT`, `M2M_ANTHRO_C3D_MASS` | `csv`, `SUBJECT:height`, `SUBJECT:weight` | where heights / masses come from: the CSV, or C3D parameters (`GROUP:NAME`), collected into `<cache>/anthropometrics.csv` |
 | `M2M_NPZ_DIR`, `M2M_IK_DIR`, `M2M_REF_DIR` | `markers/`, `ik/`, `ref/` | stage folders under `M2M_ROOT` |
 | `M2M_DATA`, `M2M_DATA_STEM` | `box_lift`, `box_lift` | dataset folder in `data/`, file stem `motion_<stem>[_ok]_100hz.npz` |
@@ -112,11 +114,11 @@ Every `M2M_*` setting and `IK_WORKERS` is read in `pipeline/config.py`; `MYOFULL
 | `M2M_IK_FRAMES` | (all) | `a:b`: IK on a frame range only |
 | `M2M_LOMO_EVERY_S` | `1.0` | `validate/lomo.py`: one frame per this many seconds |
 | `M2M_KIN_DIR`, `M2M_KIN_LOWPASS_HZ` | `kin/`, `6` | inverse-dynamics output; low-pass (Hz) before differentiating positions (also the OpenSim ID's) |
-| `M2M_CARRIED_COLUMN`, `M2M_CARRIED_BODY` | `Wgt+K5`, `torso` | a CSV column with the mass while recorded (equipment worn, here a metabolic system); the extra mass is lumped at that body; ignored when the CSV has no such column |
+| `M2M_CARRIED_COLUMN`, `M2M_CARRIED_BODY` | `Wgt+K5`, `torso` | a CSV column with the mass while recorded (equipment worn, here a metabolic system); the extra mass is lumped at that body (a body of the model, else that canonical segment's body); ignored when the CSV has no such column |
 | `M2M_XSENS_TRIAL`, `M2M_XSENS_C3D` | `S11_Spring_NE`, `xsens_s11/<trial>.c3d` | the Xsens check (`validate/xsens.py`, `opensim_compare.py`) |
 | `M2M_OSIM_SETUP_DIR`, `M2M_OSIM_SCALE_SETUP` | `opensim_setup/`, `Sub_09__Scalingsetup_09.xml` | the OpenSim inputs (below) |
 | `IK_WORKERS` | 12 | parallel processes of every parallel stage (~1-2 GB each for the IK) |
-| `MYOFULLBODY_MODEL` | `kneefix` | `original`: the model with the left knee coupling as released (see [License and credits](#license-and-credits)) |
+| `MYOFULLBODY_MODEL` | `kneefix` | `original`: MyoFullBody with the left knee coupling as released (see [License and credits](#license-and-credits)) |
 | `PY`, `OSIM_PY` | `python`, `$PY` | `run_all.sh`: the Python for the stages, and the one with `opensim` |
 
 ### OpenSim comparison (optional)
@@ -154,17 +156,49 @@ python pipeline/export_viewer.py clip S01_Solid_NE OUT_DIR --clip 1  # one carry
 
 Open the [viewer](https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/) (it plays a demo) and drop your `.elvw` clip on it. The plot menu switches between joint angles, joint loads and the ground reaction; the OpenSim button overlays the OpenSim skeleton and its curves (dashed). The file is read in the browser; nothing is uploaded. A clip carries body poses per frame, measured and model markers, joint-angle curves, the QA grades, and two task-neutral lists the viewer draws as given: objects (shape, size, pose) and state tracks (for example hand contact), both from the task (`tasks/box_lift/viewer_scene.py`).
 
+## Models and marker sets
+
+The model and the marker set are both data, so the stages work with any pair of them.
+
+**A model profile** (`mocap2myo/profiles/<name>.toml`, chosen with `M2M_MODEL`) says where the model file is and how to get it, its root and the direction it faces, its neutral standing pose, the joints the IK solves, which of its bodies are the canonical segments (pelvis, torso, head, femur, tibia, foot, toes, scapula, humerus, radius / ulna, hand), its joint centres, the inverse-dynamics joints (and the axes their moments are reported about), its feet and hands. `mocap2myo/landmarks.py` computes some 70 anatomical landmarks from the model's own bones (joint centres; bony points such as the ASIS, the femoral epicondyles, C7, the styloids). Profiles that ship:
+
+| Profile | Model | IK joints | Muscles |
+|---|---|---|---|
+| `myofullbody` (default) | MyoFullBody, in this repository | 31 + root | 416 |
+| `myofullbody_kneeframe` | MyoFullBody with the knee joints at the OpenSim knee's joint frame (opt-in) | 31 + root | 416 |
+| `myoleg`, `myoleg_kneeframe` | MyoSim's MyoLeg (legs on a rigid trunk) | 14 + root | 80 |
+| `ms_human_700`, `ms_human_700_locomotion` | MS-Human-700, full body / legs | 37 / 14 + root | 700 / 100 |
+| `mass` | MASS, converted from its DART files (`models/mass_to_mjcf.py`) | 46 + root | 284 |
+| `gait2354`, `rajagopal2016`, `lai_uhlrich2022` | OpenSim models converted with MyoConverter (`models/osim_to_mjcf.py`) | 17 / 23 / 27 + root | 54 / 80 / 80 |
+
+The models other than MyoFullBody are fetched and built once: `M2M_MODELS_DIR=... python models/fetch.py [profile ...]` (the OpenSim conversions need a Python with MyoConverter's dependencies, `--myoconverter-python`); `python models/check.py` prints and draws every profile's landmarks.
+
+**A marker set** (`mocap2myo/markersets/<name>.toml`, chosen with `M2M_MARKER_SET` or the dataset profile's `marker_set`) gives each marker the segment it moves with, the landmark under it, its offset from that landmark in the segment's anatomical axes (anterior, superior, lateral, mm), its weight and its calibration group, and names the roles: head, pelvis, heel / toe and ankle markers, alias label sets. From Plug-in-Gait:
+
+```toml
+[markers]
+LASI = { segment = "pelvis", landmark = "asis_l", offset_mm = [12, 0, 0], weight = 1.0 }
+LKNE = { segment = "femur_l", landmark = "femur_epi_lat_l", offset_mm = [0, 0, 12], weight = 1.0 }
+LTHI = { segment = "femur_l", landmark = "hip_l", offset_mm = [0, 0, 70], weight = 0.5, along = ["knee_l", 0.5], group = "loose" }
+[roles]
+pelvis = ["LASI", "RASI", "LPSI", "RPSI"]
+heel = { l = "LHEE", r = "RHEE" }
+toe = { l = "LTOE", r = "RTOE" }
+```
+
+On MyoFullBody, Plug-in-Gait keeps the hand-tuned marker guesses the case study was calibrated with (the set's `[override]`), so the case-study results are unchanged; on any other model, and for any other set, the markers are placed from the landmarks. Markers on a segment the model lacks (arm markers on MyoLeg), or that no IK joint can move relative to the pelvis, are left out.
+
 ## Adapting to other data
 
 A dataset needs:
 
 1. **Labelled marker trajectories**: OptiTrack `.tak` takes, C3D or TRC files (`pipeline/read_raw.py`). Labels as the recording software assigned them are enough; unlabelled point clouds are not. Force plates (C3D) and any frame rate are taken as they are.
-2. **A known marker set**: which bone each marker is on, its weight and a rough anatomical position. `mocap2myo/markerset.py` defines Plug-in-Gait (`PLUG_IN_GAIT`: markers, anatomical guesses, head / pelvis / foot markers, label aliases); another set is another dict with the same keys, selected by pointing `MARKER_SET` (a constant in that file, not an environment variable) at it. A profile names the set its data uses (`marker_set`), and `prepare_markers.py` stops when that is not the selected one.
+2. **A known marker set**: per marker the segment it is on, the anatomical landmark under it and its offset from it, and its weight; a small TOML file in `mocap2myo/markersets/` (format in `mocap2myo/markerset.py`; see [Models and marker sets](#models-and-marker-sets)). The dataset profile names it (`marker_set`, or `M2M_MARKER_SET`).
 3. **Enough markers per segment** to fix its orientation (ideally three).
 4. **A static standing trial per subject**, to anchor the joint angles.
 5. **Subject height** (for scaling).
 
-A dataset's settings go into a profile, a small TOML file in `datasets/` (settings only, no data), loaded with `M2M_DATASET=datasets/<name>.toml`; its keys are the settings of `pipeline/config.py` without `M2M_` (an environment variable still overrides any of them). Three ship with the repository: `mmh_elevator.toml` (the case study; the same as no profile), `ramp_vielemeyer2026.toml` (Vielemeyer et al. 2026, level and ramp walking, Vicon C3D, Plug-in-Gait, 200 Hz, three inclined force plates) and `moissenet2019.toml` (Moissenet and Schreiber 2019, gait at five speeds, Qualisys C3D, 52 ISB markers, height and mass in the C3D; its marker set is not defined yet, so it stops after reading). From the ramp profile:
+A dataset's settings go into a profile, a small TOML file in `datasets/` (settings only, no data), loaded with `M2M_DATASET=datasets/<name>.toml`; its keys are the settings of `pipeline/config.py` without `M2M_` (an environment variable still overrides any of them). Three ship with the repository: `mmh_elevator.toml` (the case study; the same as no profile), `ramp_vielemeyer2026.toml` (Vielemeyer et al. 2026, level and ramp walking, Vicon C3D, Plug-in-Gait, 200 Hz, three inclined force plates) and `moissenet2019.toml` (Moissenet and Schreiber 2019, gait at five speeds, Qualisys C3D, the 52-marker ISB / Dumas set `isb_dumas`, height and mass in the C3D). From the ramp profile:
 
 ```toml
 [paths]
@@ -193,7 +227,8 @@ Everything about the lifting task (box template and pose, shelf, platform and fl
 
 ## Limitations
 
-- MyoFullBody has no knee axial rotation and no neck joint (the IK can add one, `M2M_NECK=1`); deep squats reach its 120° joint limits.
+- MyoFullBody has no knee axial rotation and no neck joint (the IK can add one, `M2M_NECK=1`); deep squats reach its 120° joint limits. Its knee rotates about the tibia's origin, not about the joint frame of the OpenSim model it was converted from (up to 15 mm at the ankle in deep flexion; `myofullbody_kneeframe` corrects it, opt-in).
+- The lifting task (`tasks/box_lift/`: reference, dataset, hand contact, box loads) is written for MyoFullBody's bodies; with another model use `M2M_TASK=none`.
 - The model is scaled uniformly by height, not per segment.
 - Skin markers move on the soft tissue by 1–3 cm in large motions; residuals of about 1 cm are close to that floor.
 
@@ -202,7 +237,9 @@ Everything about the lifting task (box template and pose, shelf, platform and fl
 ```
 mocap2myo/           the library
   model.py             MyoFullBody model files (assets/myofullbody/)
-  markerset.py         marker sets (Plug-in-Gait): body, weight, anatomical guess per marker
+  profile.py, profiles/   model profiles: file, root, frame, IK joints, segments, kinetics (TOML)
+  landmarks.py         anatomical landmarks from a model's bones (joint centres, bony points)
+  markerset.py, markersets/   marker sets as data: segment, landmark, offset, weight per marker
   ik.py                marker model, per-frame IK, subject calibration
   kinetics.py          inverse dynamics: subtree Newton-Euler, ground reaction, foot split
   tak.py               OptiTrack .tak reader, TRC reader / writer
@@ -221,6 +258,8 @@ tasks/box_lift/      the lifting task: __init__.py (the hooks), box_fit.py, chec
                      loads.py, viewer_scene.py, build_reference.py, build_dataset.py,
                      motion_io.py, force_plates.py
 datasets/            dataset profiles (TOML): mmh_elevator, ramp_vielemeyer2026, moissenet2019
+models/              fetch.py (the other models, pinned), mass_to_mjcf.py, osim_to_mjcf.py,
+                     check.py (landmarks, counts and images of every profile)
 docs/                GitHub Pages: landing page, documentation (handbook/ redirects there), viewer; assets/ (README images)
 ```
 
@@ -231,5 +270,7 @@ The code (everything outside `mocap2myo/assets/`) is licensed under Apache-2.0 (
 The model files in `mocap2myo/assets/myofullbody/` are not covered by that alone. They are MyoFullBody by the MuscleMimic team, built upon MyoSuite / MyoSim models and distributed under Apache-2.0 (`mocap2myo/assets/myofullbody/LICENSE`), with the third-party terms listed in `mocap2myo/assets/myofullbody/NOTICE`. That NOTICE states that the arm and hand parts (from MyoArm / MyoHand) derive from the MoBL-ARMS upper-extremity model, whose licence is BSD 3-Clause with a non-commercial restriction: it was released "solely for non-commercial purposes (including research, academic, evaluation and personal uses)". The full-body model contains those parts, so check that NOTICE before any commercial use; the Apache-2.0 licence of this repository's code does not change it.
 
 Changes made here to the model files: `body/myofullbody_clean.xml` and `body/myofullbody_clean_kneefix.xml` are copies of the released `body/myofullbody.xml` (musclemimic_models 1.0.5) without its scene include (floor and skybox) and with a headlight / offscreen-size block; `leg/assets/myolegs_assets_kneefix.xml` is a copy of `leg/assets/myolegs_assets.xml` with the left knee's coupled rotation / translation fixed (two coefficient sets, which in the released file turned the left shank the wrong way with flexion), and the `kneefix` body file (the default) includes it.
+
+The other models are not in this repository: `models/fetch.py` downloads them at pinned commits and builds them locally (sources, commits and licences in `mocap2myo/profiles/sources.toml`; each profile has a `license` line): MyoLeg (MyoSim, Apache-2.0), MS-Human-700 (Apache-2.0), MASS (Apache-2.0), MyoConverter (Apache-2.0) with OpenSim's Gait2354 (CC BY 3.0), Rajagopal et al. 2016 (MIT Use Agreement) and LaiUhlrich2022 (OpenCap, Apache-2.0).
 
 The viewer uses three.js (MIT). The OpenSim baseline uses the Rajagopal et al. (2016) full-body model (MIT), not included.

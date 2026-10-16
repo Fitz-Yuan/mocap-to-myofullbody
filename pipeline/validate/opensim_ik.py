@@ -31,7 +31,9 @@ import time
 import numpy as np
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
-from mocap2myo import markerset as ms  # noqa: E402
+from pipeline import config as _cfg  # noqa: E402
+
+ms = _cfg.marker_set()  # the dataset's marker set (its labels are the OpenSim markers')
 from pipeline import config  # noqa: E402
 
 NPZ = config.NPZ_DIR

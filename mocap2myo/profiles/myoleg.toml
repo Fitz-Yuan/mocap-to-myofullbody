@@ -20,6 +20,21 @@ forward = "-y"          # the same world as MyoFullBody
 [ik]
 # 14 leg joints; the passive torso (lumbar spine, ribs, neck, head) is rigid on the pelvis
 include = ["*"]
+mtp = ["mtp_angle_r", "mtp_angle_l"]          # pulled toward neutral (M2M_MTP_PRIOR): no marker on the toes
+static_neutral = ["hip_flexion_r", "hip_adduction_r", "hip_rotation_r", "knee_angle_r", "ankle_angle_r", "subtalar_angle_r",
+                  "hip_flexion_l", "hip_adduction_l", "hip_rotation_l", "knee_angle_l", "ankle_angle_l", "subtalar_angle_l"]
+smooth_heavy = ["ankle_angle*", "subtalar*"]          # smoothed harder (ik_trial ankle_smooth)
+neck = { body = "neck", pivot = [0.0, 0.39, 0.0], axes = [[0, 0, 1], [1, 0, 0], [0, 1, 0]], ranges = [[-1.2, 1.0], [-0.8, 0.8], [-1.4, 1.4]] }   # optional (M2M_NECK): pivot at about C7/T1, ~1.49 m at qpos0
+
+[angles]   # name -> [joint, sign]: positive = the named motion
+knee_flex_r = ["knee_angle_r", 1]
+hip_flex_r = ["hip_flexion_r", 1]
+hip_add_r = ["hip_adduction_r", 1]
+ankle_dorsi_r = ["ankle_angle_r", 1]
+knee_flex_l = ["knee_angle_l", 1]
+hip_flex_l = ["hip_flexion_l", 1]
+hip_add_l = ["hip_adduction_l", 1]
+ankle_dorsi_l = ["ankle_angle_l", 1]
 
 [segments]
 pelvis = ["pelvis", "sacrum"]

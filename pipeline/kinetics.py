@@ -1,7 +1,9 @@
 """Inverse dynamics: net joint forces and moments from the IK (after the reference).
 
-For every trial in <M2M_IK_DIR>: MyoFullBody at the subject's size and mass (the
-anthropometrics; equipment worn: M2M_CARRIED_COLUMN), the task's external loads on the
+For every trial in <M2M_IK_DIR>: the model (M2M_MODEL, default MyoFullBody; its profile's
+[kinetics] joints) at the subject's size and mass (the
+anthropometrics; equipment worn: M2M_CARRIED_COLUMN, lumped at M2M_CARRIED_BODY: a body
+of the model, or a canonical segment such as torso), the task's external loads on the
 body (box_lift: the box on the hands while it is carried, tasks/box_lift/loads.py;
 M2M_TASK=none: no external load but the ground), and mocap2myo/kinetics.py: L5/S1,
 shoulders and elbows top-down (no ground reaction needed), the total ground reaction
@@ -27,8 +29,8 @@ import sys
 import numpy as np
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from mocap2myo import ik, kinetics  # noqa: E402
-from pipeline import config  # noqa: E402
+from pipeline import config  # noqa: E402  (first: it selects the model and marker set)
+from mocap2myo import kinetics  # noqa: E402
 
 KIN = None
 
@@ -80,7 +82,20 @@ def force_plates(trial, n):
 
 def init():
   global KIN
-  KIN = kinetics.Kinetics(ik.MarkerModel())
+  KIN = kinetics.Kinetics(config.marker_model())
+
+
+def carried_body(m):
+  """M2M_CARRIED_BODY as a body of the model: the body of that name, else the body of
+  that canonical segment (MASS has no "torso" body: its torso segment's)."""
+  import mujoco
+  b = config.CARRIED_BODY
+  if mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, b) >= 0:
+    return b
+  seg = KIN.mm.profile.segment_body(b)
+  if seg is None:
+    raise SystemExit(f"M2M_CARRIED_BODY={b!r}: no such body or segment in {KIN.mm.profile.name}")
+  return seg
 
 
 def run(trial):
@@ -98,7 +113,10 @@ def run(trial):
   loads, more = [], {}
   if task is not None and hasattr(task, "kinetics_loads"):
     loads, more = task.kinetics_loads(trial, KIN, kin, scale, rate)
-  out = KIN.solve(kin, rate, scale, body, {config.CARRIED_BODY: extra} if extra > 0 else None,
+  cal = os.path.join(config.IK_DIR, f"{trial}.npz")
+  if "model_profile" in K.files and str(K["model_profile"]) != KIN.mm.profile.name:
+    raise SystemExit(f"{cal}: IK of {K['model_profile']}, not M2M_MODEL={KIN.mm.profile.name}")
+  out = KIN.solve(kin, rate, scale, body, {carried_body(KIN.m): extra} if extra > 0 else None,
                   loads, lp_hz=config.KIN_LOWPASS_HZ, plates=force_plates(trial, len(Q)))
   out.update(more)
   out["unsolved"] = bad
@@ -117,7 +135,14 @@ def run(trial):
               L5S1_compression_max=round(float(out["L5S1_compression"][ok].max()), 1))
   for j in ("shoulder_r_flex", "shoulder_l_flex", "elbow_r_flex", "elbow_l_flex", "hip_r_ext",
             "hip_l_ext", "knee_r_ext", "knee_l_ext", "ankle_r_plantar", "ankle_l_plantar"):
-    summ[f"{j}_p95"] = pct(j)
+    if j in out:  # a model without arms has no shoulders / elbows
+      summ[f"{j}_p95"] = pct(j)
+  if "plates_all_measured" in out:  # total vertical force: plates vs whole-body dynamics
+    pm = out["plates_all_measured"] & ok
+    if pm.any():
+      summ["plates_fz_rms_over_weight"] = round(float(np.sqrt(np.mean(
+        (out["plates_fz"][pm] - out["plates_pred_fz"][pm]) ** 2)) / W), 4)
+      summ["plates_frames"] = int(pm.sum())
   print(trial, {k: summ[k] for k in ("grf_over_weight_no_load", "L5S1_ext_p95", "L5S1_ext_max",
                                      "L5S1_compression_p95", "unsolved")}, flush=True)
   return trial, summ

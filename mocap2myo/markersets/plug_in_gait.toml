@@ -1,0 +1,114 @@
+# Plug-in-Gait (Vicon), full body: 39 markers. Format: mocap2myo/markerset.py.
+# Generic placement (any model profile): the canonical segment, the landmark under the marker
+# and the offset in the segment's anatomical axes (anterior, superior, lateral; mm), including
+# skin and marker. Wands (THI, TIB, UPA, FRM) sit half-way along their segment, 6-7 cm out;
+# RBAK on the right scapula. MyoFullBody keeps its hand-tuned guesses ([override]), with
+# which the case study was calibrated: on it the calibration is unchanged.
+name = "Plug-in-Gait"
+description = "Vicon Plug-in-Gait full-body marker set (39 markers); head markers on a head band"
+sides = { l = "L", r = "R" }
+
+[markers]
+LFHD = { segment = "head", landmark = "forehead_l", offset_mm = [9, 0, 9], weight = 0.3, group = "loose" }
+RFHD = { segment = "head", landmark = "forehead_r", offset_mm = [9, 0, 9], weight = 0.3, group = "loose" }
+LBHD = { segment = "head", landmark = "back_head_l", offset_mm = [-9, 0, 9], weight = 0.3, group = "loose" }
+RBHD = { segment = "head", landmark = "back_head_r", offset_mm = [-9, 0, 9], weight = 0.3, group = "loose" }
+C7 = { segment = "torso", landmark = "c7", offset_mm = [-12, 0, 0], weight = 1.0 }
+T10 = { segment = "torso", landmark = "t10", offset_mm = [-12, 0, 0], weight = 1.0, group = "loose" }
+CLAV = { segment = "torso", landmark = "jugular", offset_mm = [12, 0, 0], weight = 1.0 }
+STRN = { segment = "torso", landmark = "xiphoid", offset_mm = [12, 0, 0], weight = 1.0, group = "loose" }
+RBAK = { segment = "torso", landmark = "scap_spine_root_r", offset_mm = [-15, -30, 20], weight = 0.3, group = "loose" }
+LSHO = { segment = "scapula_l", landmark = "acromion_l", offset_mm = [0, 12, 5], weight = 1.0 }
+LUPA = { segment = "humerus_l", landmark = "shoulder_l", offset_mm = [0, 0, 65], weight = 0.5, along = ["elbow_l", 0.5], group = "loose" }
+LELB = { segment = "humerus_l", landmark = "epicondyle_lat_l", offset_mm = [0, 0, 12], weight = 1.0 }
+LFRM = { segment = "radius_l", landmark = "elbow_l", offset_mm = [0, 0, 30], weight = 0.5, along = ["wrist_l", 0.5], group = "loose" }
+LWRA = { segment = "radius_l", landmark = "styloid_rad_l", offset_mm = [8, 0, 3], weight = 1.0 }
+LWRB = { segment = "ulna_l", landmark = "styloid_uln_l", offset_mm = [-8, 0, 3], weight = 1.0 }
+LFIN = { segment = "hand_l", landmark = "mc3_head_l", offset_mm = [0, -10, 10], weight = 1.0 }
+RSHO = { segment = "scapula_r", landmark = "acromion_r", offset_mm = [0, 12, 5], weight = 1.0 }
+RUPA = { segment = "humerus_r", landmark = "shoulder_r", offset_mm = [0, 0, 65], weight = 0.5, along = ["elbow_r", 0.5], group = "loose" }
+RELB = { segment = "humerus_r", landmark = "epicondyle_lat_r", offset_mm = [0, 0, 12], weight = 1.0 }
+RFRM = { segment = "radius_r", landmark = "elbow_r", offset_mm = [0, 0, 30], weight = 0.5, along = ["wrist_r", 0.5], group = "loose" }
+RWRA = { segment = "radius_r", landmark = "styloid_rad_r", offset_mm = [8, 0, 3], weight = 1.0 }
+RWRB = { segment = "ulna_r", landmark = "styloid_uln_r", offset_mm = [-8, 0, 3], weight = 1.0 }
+RFIN = { segment = "hand_r", landmark = "mc3_head_r", offset_mm = [0, -10, 10], weight = 1.0 }
+LASI = { segment = "pelvis", landmark = "asis_l", offset_mm = [12, 0, 0], weight = 1.0 }
+RASI = { segment = "pelvis", landmark = "asis_r", offset_mm = [12, 0, 0], weight = 1.0 }
+LPSI = { segment = "pelvis", landmark = "psis_l", offset_mm = [-12, 0, 0], weight = 1.0 }
+RPSI = { segment = "pelvis", landmark = "psis_r", offset_mm = [-12, 0, 0], weight = 1.0 }
+LTHI = { segment = "femur_l", landmark = "hip_l", offset_mm = [0, 0, 70], weight = 0.5, along = ["knee_l", 0.5], group = "loose" }
+LKNE = { segment = "femur_l", landmark = "femur_epi_lat_l", offset_mm = [0, 0, 12], weight = 1.0 }
+LTIB = { segment = "tibia_l", landmark = "knee_l", offset_mm = [0, 0, 60], weight = 0.5, along = ["ankle_l", 0.5], group = "loose" }
+LANK = { segment = "tibia_l", landmark = "malleolus_lat_l", offset_mm = [0, 0, 12], weight = 1.0, group = "foot" }
+LHEE = { segment = "foot_l", landmark = "heel_l", offset_mm = [-12, 0, 0], weight = 1.0, group = "foot" }
+LTOE = { segment = "foot_l", landmark = "mt2_head_l", offset_mm = [0, 12, 0], weight = 1.0, group = "foot" }
+RTHI = { segment = "femur_r", landmark = "hip_r", offset_mm = [0, 0, 70], weight = 0.5, along = ["knee_r", 0.5], group = "loose" }
+RKNE = { segment = "femur_r", landmark = "femur_epi_lat_r", offset_mm = [0, 0, 12], weight = 1.0 }
+RTIB = { segment = "tibia_r", landmark = "knee_r", offset_mm = [0, 0, 60], weight = 0.5, along = ["ankle_r", 0.5], group = "loose" }
+RANK = { segment = "tibia_r", landmark = "malleolus_lat_r", offset_mm = [0, 0, 12], weight = 1.0, group = "foot" }
+RHEE = { segment = "foot_r", landmark = "heel_r", offset_mm = [-12, 0, 0], weight = 1.0, group = "foot" }
+RTOE = { segment = "foot_r", landmark = "mt2_head_r", offset_mm = [0, 12, 0], weight = 1.0, group = "foot" }
+
+[roles]
+# head markers: front (+1) / back (-1), left (+1) / right (-1) of the head centre
+head = { LFHD = [1, 1], RFHD = [1, -1], LBHD = [-1, 1], RBHD = [-1, -1] }
+pelvis = ["LASI", "RASI", "LPSI", "RPSI"]
+heel = { l = "LHEE", r = "RHEE" }
+toe = { l = "LTOE", r = "RTOE" }
+ankles = ["LANK", "RANK"]
+# the ISB template's single elbow marker took either epicondyle name; the lateral one wins
+prefer = ["LHLE", "RHLE"]
+
+# Plug-in-Gait markers labelled live with a Motive skeleton template with ISB landmark
+# names (case study: one subject). Same physical markers, other names; its head names were
+# rotated on that subject (assigned by position instead). LHGT (left counterpart of RBAK)
+# and TV2 are not in this marker set.
+[aliases.ISB]
+CV7 = "C7"
+SJN = "CLAV"
+SXS = "STRN"
+TV7 = "T10"
+RHGT = "RBAK"
+LCAJ = "LSHO"
+RCAJ = "RSHO"
+LUA = "LUPA"
+RUA = "RUPA"
+LHLE = "LELB"
+LHME = "LELB"
+RHLE = "RELB"
+RHME = "RELB"
+LRSP = "LWRA"
+RRSP = "RWRA"
+LUSP = "LWRB"
+RUSP = "RWRB"
+LHM2 = "LFIN"
+RHM2 = "RFIN"
+LIAS = "LASI"
+RIAS = "RASI"
+LIPS = "LPSI"
+RIPS = "RPSI"
+LTH = "LTHI"
+RTH = "RTHI"
+LFLE = "LKNE"
+RFLE = "RKNE"
+LTTC = "LTIB"
+RTTC = "RTIB"
+LFAL = "LANK"
+RFAL = "RANK"
+LFCC = "LHEE"
+RFCC = "RHEE"
+LDP1 = "LTOE"
+RDP1 = "RTOE"
+LAH = "HEAD"
+RAH = "HEAD"
+LPH = "HEAD"
+RPH = "HEAD"
+
+# MyoFullBody: the hand-tuned guesses (world, model at qpos0 with the root at (0, 0, 0.99),
+# identity: it faces -y, left = +x), built from the model's joint centres (hip 0.077, 0.056,
+# 0.911; knee z .507; ankle z .107; shoulder .17, .10, 1.464; elbow .158, .093, 1.174; wrist
+# .203, .075, .92) plus typical skin-marker offsets.
+[override]
+profiles = ["myofullbody", "myofullbody_kneeframe"]
+left = { FHD = [0.06, 0.02, 1.68], BHD = [0.06, 0.19, 1.66], SHO = [0.17, 0.1, 1.51], UPA = [0.23, 0.1, 1.32], ELB = [0.193, 0.093, 1.17], FRM = [0.21, 0.09, 1.04], WRA = [0.205, 0.045, 0.925], WRB = [0.205, 0.105, 0.925], FIN = [0.215, 0.065, 0.81], ASI = [0.125, -0.014, 0.98], PSI = [0.05, 0.146, 0.985], THI = [0.147, 0.056, 0.71], KNE = [0.126, 0.056, 0.507], TIB = [0.136, 0.06, 0.31], ANK = [0.116, 0.066, 0.1], HEE = [0.084, 0.135, 0.045], TOE = [0.08, -0.055, 0.035] }
+mid = { C7 = [0, 0.17, 1.47], T10 = [0, 0.16, 1.23], CLAV = [0, 0.04, 1.44], STRN = [0, 0.0, 1.26], RBAK = [-0.08, 0.18, 1.36] }

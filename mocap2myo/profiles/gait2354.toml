@@ -21,6 +21,22 @@ keyframe = "default-pose"   # meets the knee couplings and the moving path point
 include = ["*"]         # 17: legs (with subtalar, mtp) and lumbar; path-point slides and knee
                         # translations follow by joint equalities
 
+mtp = ["mtp_angle_r", "mtp_angle_l"]          # pulled toward neutral (M2M_MTP_PRIOR): no marker on the toes
+static_neutral = ["hip_flexion_r", "hip_adduction_r", "hip_rotation_r", "knee_angle_r", "ankle_angle_r", "subtalar_angle_r",
+                  "hip_flexion_l", "hip_adduction_l", "hip_rotation_l", "knee_angle_l", "ankle_angle_l", "subtalar_angle_l"]
+smooth_heavy = ["ankle_angle*", "subtalar*"]          # smoothed harder (ik_trial ankle_smooth)
+
+[angles]   # name -> [joint, sign]: positive = the named motion
+knee_flex_r = ["knee_angle_r", -1]
+hip_flex_r = ["hip_flexion_r", 1]
+hip_add_r = ["hip_adduction_r", 1]
+ankle_dorsi_r = ["ankle_angle_r", 1]
+knee_flex_l = ["knee_angle_l", -1]
+hip_flex_l = ["hip_flexion_l", 1]
+hip_add_l = ["hip_adduction_l", 1]
+ankle_dorsi_l = ["ankle_angle_l", 1]
+lumbar_ext = ["lumbar_extension", 1]
+
 [segments]
 pelvis = ["pelvis"]     # pelvis + sacrum meshes
 # one trunk body (spine, ribs, skull, jaw), split by mesh: no neck joint
