@@ -1,4 +1,6 @@
-# mocap-to-myofullbody
+# Mocap to MSK
+
+*Repository: `mocap-to-myofullbody`. Motion capture to musculoskeletal models; MyoFullBody is the default model.*
 
 Turn optical motion-capture recordings (OptiTrack Motive takes, or C3D / TRC files from other labs; Plug-in-Gait markers) into motions of **MyoFullBody**, a 416-muscle MuJoCo musculoskeletal model, with checks that show how accurate the result is.
 
