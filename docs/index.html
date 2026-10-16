@@ -438,8 +438,9 @@ footer a { color: var(--fg-2); }
           <div class="step-text">
             <p class="step-n"><b>04</b> / 05</p>
             <h2>Least-squares IK, <span data-fact="dof"></span> degrees of freedom.</h2>
-            <p class="body">Each frame is solved by bounded least squares on MyoFullBody, with a robust loss, floor contact, stance-foot locking and joint speed limits. The median marker residual is about <span data-fact="residOursMm"></span> mm.</p>
+            <p class="body">Each frame is solved by bounded least squares on MyoFullBody, with a robust loss, floor contact, stance-foot locking and joint speed limits. The median marker residual is about <span data-fact="residOursMm"></span> mm. On a GPU the frames of a trial are solved in parallel, to the same answer.</p>
             <div class="readout"><span class="ro-num" id="roDof"></span><span class="ro-cap">Degrees of freedom: pelvis, legs, lumbar spine and arms</span></div>
+            <div class="readout"><span class="ro-num"><span data-fact="gpuSpeedup"></span><small>×</small></span><span class="ro-cap">Faster on a GPU: one trial in <span data-fact="gpuTrialS"></span> s instead of <span data-fact="cpuTrialMin"></span> min on a CPU core</span></div>
           </div>
         </article>
         <article class="step">
@@ -526,7 +527,7 @@ footer a { color: var(--fg-2); }
         </div>
         <div class="stat s-d" data-reveal style="--d:.12s">
           <div class="num"><span data-fact="cpuHours"></span><small>hour</small></div>
-          <p>Wall-clock time for the whole dataset on one workstation, <span data-fact="cpuCores"></span> trials solved in parallel.</p>
+          <p>Wall-clock time for the whole dataset on one workstation's CPU, <span data-fact="cpuCores"></span> trials solved in parallel. On a GPU, one trial takes under a minute.</p>
         </div>
       </div>
     </div>
@@ -583,6 +584,9 @@ window.FACTS = {
   lowBackPeakOpenSimNm: 347,  // ... same trial, OpenSim (N·m)
   cpuHours: 1,                // whole dataset, wall clock (the IK, about 45 min, is nearly all of it)
   cpuCores: 22,               // trials solved in parallel (IK_WORKERS)
+  gpuTrialS: 51,              // IK of trial S08 Solid (11,738 frames) on a GPU, M2M_IK_DEVICE=gpu (a shared card)
+  cpuTrialMin: 27,            // ... the same trial on one CPU core (1,627 s)
+  gpuSpeedup: 32,             // 1627 / 51; same result (residual equal to 0.01 mm, joint angles within 0.02 deg RMS)
 };
 /* Plug-in-Gait markers placed on the model at rest (model coordinates, metres,
    z up, facing -y). These are the starting guesses of the calibration
