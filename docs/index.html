@@ -127,6 +127,26 @@ h1, h2, h3, p, figure { margin: 0; }
   padding: calc(var(--nav-h) + 32px) var(--gutter) 112px;
 }
 .hero-copy { max-width: min(640px, 47vw); }
+@media (min-width: 900px) {
+  .hero { align-items: start; justify-items: center; text-align: center; padding-top: calc(var(--nav-h) + clamp(36px, 6.5vh, 76px)); }
+  .hero-copy { max-width: 860px; }
+  .hero .lede { margin-left: auto; margin-right: auto; max-width: 36em; }
+  .hero .actions { justify-content: center; }
+}
+.hero { cursor: grab; touch-action: pan-y; }
+.hero.drag { cursor: grabbing; }
+.hero.over { cursor: pointer; }
+.hero-copy, .hero-foot a, .hero-foot button { cursor: auto; }
+.hero-copy a, .hero-foot a { cursor: pointer; }
+.ring-cap { display: flex; flex-direction: column; gap: 7px; text-align: left; transition: opacity .35s var(--ease); }
+.ring-cap.swap { opacity: 0; }
+.ring-cap .rc-1 { font-size: 15px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
+.ring-cap .rc-1 b { color: var(--fg); font-weight: 600; margin-right: 10px; }
+.ring-cap .rc-2 { display: flex; flex-wrap: wrap; gap: 6px 20px; font-size: 14px; }
+.ring-cap .rc-2 a { color: var(--accent); text-decoration: none; white-space: nowrap; }
+.ring-cap .rc-2 a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.ring-cap .rc-2 a.alt { color: var(--fg-2); }
+.ring-cap .rc-hint { color: var(--fg-3); }
 h1 {
   font: var(--weight-display) clamp(42px, 5.6vw, 88px)/1.02 var(--font-display);
   letter-spacing: var(--track-display); margin-bottom: 28px; text-wrap: balance;
@@ -254,45 +274,6 @@ h1 {
 
 .osim { padding: clamp(80px, 10vw, 144px) 0 clamp(64px, 8vw, 112px); border-top: 1px solid var(--line-2); }
 
-/* models: one card per model, the same walking frame rendered by the viewer */
-.models { padding: clamp(120px, 15vw, 220px) 0 clamp(72px, 9vw, 128px); }
-.models .sec-head h2 { max-width: 15em; }
-.models .sec-head h2 .dim { color: #7c7c82; }
-.models .sec-head p { margin-top: 8px; }
-.io-row { display: flex; flex-wrap: wrap; gap: 10px 32px; margin: clamp(28px, 3.4vw, 44px) 0 clamp(32px, 4vw, 52px); font-size: 15px; color: var(--fg-2); }
-.io-row b { color: var(--fg); font-weight: 600; margin-right: 10px; }
-.ring-stage { position: relative; height: clamp(500px, 68vh, 740px); margin-top: clamp(4px, 1.5vw, 16px); }
-.ring-stage canvas { -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent); mask-image: linear-gradient(to bottom, #000 82%, transparent); }
-.ring-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: pan-y; outline: none; }
-.ring-stage canvas.drag { cursor: grabbing; }
-.ring-stage canvas.over { cursor: pointer; }
-.ring-foot { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 34rem); align-items: end; gap: 28px clamp(32px, 5vw, 80px); margin-top: 4px; }
-.ring-cap { min-width: 0; transition: opacity .35s var(--ease), transform .35s var(--ease); }
-.ring-cap.swap { opacity: 0; transform: translateY(10px); }
-.ring-n { font: 500 13px/1 var(--font-text); color: var(--fg-3); font-variant-numeric: tabular-nums; margin-bottom: 14px; }
-.ring-cap h3 { margin: 0; font: var(--weight-display) clamp(34px, 4.2vw, 60px)/1 var(--font-display); letter-spacing: var(--track-display); }
-.ring-spec { margin-top: 14px; font-size: 17px; color: var(--fg); font-variant-numeric: tabular-nums; }
-.ring-src { margin-top: 4px; font-size: 14.5px; line-height: 1.45; color: var(--fg-2); }
-.ring-links { display: flex; flex-wrap: wrap; gap: 8px 22px; margin-top: 18px; }
-.ring-links a { font-size: 15.5px; color: var(--accent); text-decoration: none; white-space: nowrap; }
-.ring-links a:hover { text-decoration: underline; text-underline-offset: 3px; }
-.ring-links a.alt { color: var(--fg-2); }
-.ring-hint { position: absolute; right: 0; top: 8px; font-size: 13px; color: var(--fg-3); text-align: right; pointer-events: none; }
-.ring-chips { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-.ring-chips button {
-  font: 500 13.5px/1 var(--font-text); color: var(--fg-2); background: transparent; cursor: pointer;
-  border: 1px solid var(--line-2); border-radius: 99px; padding: 9px 14px; transition: color .2s, border-color .2s, background .2s;
-}
-.ring-chips button:hover { color: var(--fg); border-color: var(--line); }
-.ring-chips button[aria-pressed="true"] { color: #111; background: var(--fg); border-color: var(--fg); }
-@media (max-width: 699px) {
-  .ring-stage { height: 520px; }
-  .ring-foot { grid-template-columns: minmax(0, 1fr); }
-  .ring-chips { justify-content: flex-start; }
-  .ring-cap h3 { font-size: 32px; }
-  .ring-hint { display: none; }
-}
-.mnote { margin-top: 22px; font-size: 13px; line-height: 1.5; color: var(--fg-3); max-width: 62em; }
 .osim .sec-head h2 { max-width: 16em; }
 .osim .sec-head h2 .dim { color: #7c7c82; }
 .osim .sec-head p { margin-top: 8px; }
@@ -378,7 +359,7 @@ footer a { color: var(--fg-2); }
   }
   h1 { font-size: clamp(36px, 10.4vw, 52px); margin-bottom: 20px; }
   .lede { font-size: 16px; margin-bottom: 26px; }
-  .lede .more, .hero-foot .note { display: none; }
+  .lede .more, .hero-foot .note, .ring-cap { display: none; }
   .hero-foot .note.loading { display: inline; }
   .hero-foot { justify-content: flex-end; }
   .no-gl .hero-fallback { right: 50%; top: calc(var(--nav-h) + 16px); height: 40vh; transform: translateX(50%); }
@@ -406,7 +387,7 @@ footer a { color: var(--fg-2); }
   <section class="hero" id="hero">
     <div class="hero-copy" data-reveal>
       <h1>Mocap to <span class="nowrap">MSK.</span></h1>
-      <p class="lede">Optical motion capture in, musculoskeletal motion and joint loads out. OptiTrack takes, C3D or TRC; MyoFullBody, <span data-fact="muscles"></span> muscles, by default, or seven other models. <span class="more">Half the marker error of OpenSim on the same data.</span></p>
+      <p class="lede">Optical motion capture in, musculoskeletal motion and joint loads out. OptiTrack takes, C3D or TRC, onto eight MuJoCo models; MyoFullBody, <span data-fact="muscles"></span> muscles, by default. <span class="more">Half the marker error of OpenSim on the same data.</span></p>
       <div class="actions">
         <a class="btn" href="documentation/">Read the documentation</a>
         <a class="tlink" href="viewer/">Open the viewer <span class="arr" aria-hidden="true">→</span></a>
@@ -414,7 +395,11 @@ footer a { color: var(--fg-2); }
     </div>
     <div class="hero-fallback" id="heroFallback" aria-hidden="true"></div>
     <div class="hero-foot">
-      <span id="loadState" class="note">MyoFullBody at rest.</span>
+      <span id="loadState" class="note" style="display:none">MyoFullBody at rest.</span>
+      <div class="ring-cap" id="ringCap" aria-live="polite">
+        <div class="rc-1"><b id="ringName">MyoFullBody</b><span id="ringSpec">416 muscles · 31 joints solved</span></div>
+        <div class="rc-2"><a id="ringRepo" href="https://github.com/amathislab/musclemimic_models" target="_blank" rel="noopener">Model repository <span aria-hidden="true">↗</span></a><a class="alt" id="ringView" href="viewer/?demo=walk&amp;model=myofullbody">Watch it walk <span aria-hidden="true">→</span></a><span class="rc-hint">Drag to turn · click a model</span></div>
+      </div>
       <span class="cue" aria-hidden="true">Scroll for the pipeline <i></i></span>
     </div>
   </section>
@@ -471,35 +456,6 @@ footer a { color: var(--fg-2); }
           </div>
         </article>
       </div>
-    </div>
-  </section>
-
-  <section class="sheet models" id="models">
-    <div class="wrap">
-      <header class="sec-head" data-reveal>
-        <h2>Eight models, one pipeline. <span class="dim">Bring your markers, pick a body.</span></h2>
-        <p>A model is a short profile, a marker set is a list of anatomical landmarks, so any marker set runs on any model. Turn the ring to pick one.</p>
-      </header>
-      <div class="io-row" data-reveal>
-        <span><b>In</b>OptiTrack .tak · C3D · TRC · force plates</span>
-        <span><b>Markers</b>Plug-in-Gait · ISB · your own, as a TOML file</span>
-        <span><b>Out</b>joint angles · joint loads · viewer clips</span>
-      </div>
-      <div class="ring-stage" id="ringStage">
-        <canvas id="ringGl" tabindex="0" aria-label="The eight models standing in a ring. Drag to turn it; click the model in front to open its repository."></canvas>
-        <div class="ring-hint" id="ringHint">Drag to turn · click the model in front</div>
-      </div>
-      <div class="ring-foot">
-          <div class="ring-cap" id="ringCap" aria-live="polite">
-            <div class="ring-n"><span id="ringIdx">1</span> / 8</div>
-            <h3 id="ringName">MyoFullBody</h3>
-            <p class="ring-spec" id="ringSpec">416 muscles · 31 joints solved</p>
-            <p class="ring-src" id="ringSrc">MuscleMimic · whole body · the default</p>
-            <div class="ring-links"><a id="ringRepo" href="https://github.com/amathislab/musclemimic_models" target="_blank" rel="noopener">Model repository <span aria-hidden="true">↗</span></a><a class="alt" id="ringView" href="viewer/?demo=walk&amp;model=myofullbody">Watch it walk <span aria-hidden="true">→</span></a></div>
-          </div>
-          <div class="ring-chips" id="ringChips" aria-label="Models"></div>
-      </div>
-      <p class="mnote">Each model in its neutral standing pose, as the pipeline uses it. Fit: median distance between the measured and the model's markers on one public walking trial (Moissenet &amp; Schreiber 2019, CC BY 4.0). Models are fetched from their own repositories at pinned versions and keep their own licences; MyoFullBody ships with the code.</p>
     </div>
   </section>
 
@@ -600,7 +556,7 @@ footer a { color: var(--fg-2); }
     <footer>
       <div class="wrap">
         <p>Code under Apache-2.0. The MyoFullBody model is by the MuscleMimic team, built upon MyoSuite / MyoSim models; its arm and hand derive from MoBL-ARMS, released for non-commercial use only (see the model's NOTICE). Rendering with three.js (MIT).</p>
-        <p>The figure on this page is the model at rest with procedural poses. The viewer's demo clip is one de-identified carry cycle from the case study; nothing else from the study's data is published.</p>
+        <p>The figures on this page are the eight models in their neutral standing poses (fit: median distance between measured and model markers on one public walking trial, Moissenet &amp; Schreiber 2019, CC BY 4.0; the models come from their own repositories and keep their own licences) and MyoFullBody with procedural poses. The viewer's demo clip is one de-identified carry cycle from the case study; nothing else from the study's data is published.</p>
       </div>
     </footer>
   </section>
@@ -758,6 +714,12 @@ import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
 import { LineMaterial } from "three/addons/lines/LineMaterial.js";
 import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { FontLoader } from "three/addons/loaders/FontLoader.js";
+import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { OutlinePass } from "three/addons/postprocessing/OutlinePass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 
 window.__m2mModule = true;
 const root = document.documentElement;
@@ -1141,19 +1103,247 @@ async function main() {
     }
   }
 
+
+  /* ---------- the cover: the eight models on a ring; scrolling melts them into the markers ----------
+     Each model's file from the viewer folder at its neutral standing pose (meta.canonical turns it
+     into z up, facing -y), standing on a ring around the spot where the story's markers appear. The
+     ring turns slowly; the model passing the front gets a white outline (OutlinePass) and its name
+     above its head. Scrolling the cover away (h 0 -> 1) fades the models while points sampled from
+     their bones fly to the markers of the story's first stage. */
+  const RMODELS = [
+    { k: "myofullbody", label: "MyoFullBody", muscles: 416, spec: "416 muscles · 31 joints solved", repo: "https://github.com/amathislab/musclemimic_models" },
+    { k: "ms_human_700", label: "MS-Human-700", muscles: 700, spec: "700 muscles · 37 joints solved", repo: "https://github.com/LNSGroup/MS-Human-700" },
+    { k: "mass", label: "MASS", muscles: 284, spec: "284 muscles · 46 joints solved", repo: "https://github.com/lsw9021/MASS" },
+    { k: "rajagopal2016", label: "Rajagopal 2016", muscles: 80, spec: "80 muscles · 23 joints solved", repo: "https://github.com/opensim-org/opensim-models" },
+    { k: "lai_uhlrich2022", label: "Lai-Uhlrich 2022", muscles: 80, spec: "80 muscles · 27 joints solved", repo: "https://github.com/stanfordnmbl/opencap-core" },
+    { k: "gait2354", label: "Gait2354", muscles: 54, spec: "54 muscles · 17 joints solved", repo: "https://github.com/opensim-org/opensim-models" },
+    { k: "myoleg", label: "MyoLeg", muscles: 80, spec: "80 muscles · 14 joints solved", repo: "https://github.com/MyoHub/myo_sim" },
+    { k: "ms_human_700_locomotion", label: "MS-Human-700 legs", muscles: 100, spec: "100 muscles · 14 joints solved", repo: "https://github.com/LNSGroup/MS-Human-700" },
+  ];
+  const RN = RMODELS.length, RSTEP = (2 * Math.PI) / RN, RR = 2.15, RSPEED = (2 * Math.PI) / 72;   // one turn in 72 s
+  const ringG = new THREE.Group(); scene.add(ringG);
+  const ringLines = [], ringFog = new THREE.Fog(0x000000, 10, 17);
+  const rslots = RMODELS.map((d, i) => {
+    const g = new THREE.Group(), a = i * RSTEP;
+    g.position.set(RR * Math.sin(a), -RR * Math.cos(a), 0); g.rotation.z = a;   // facing out of the ring
+    g.userData.i = i; ringG.add(g);
+    return g;
+  });
+  const floorRing = new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 193 }, (_, i) => new THREE.Vector3(Math.cos(i / 192 * 2 * Math.PI) * RR, Math.sin(i / 192 * 2 * Math.PI) * RR, 0.004))),
+    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.08, depthWrite: false }));
+  ringG.add(floorRing);
+  function ringFigure(Mx) {
+    const meta = Mx.meta, NB2 = meta.bodies.length, P = Mx.a.rest_pos.data, Q = Mx.a.rest_quat.data;
+    const canon = new THREE.Group(), bones = new THREE.Group(); canon.add(bones);
+    const mat = new THREE.MeshStandardMaterial({ color: 0xe9e1cf, roughness: 0.5, metalness: 0, envMapIntensity: 0.55, transparent: true });
+    const V = Mx.a.verts.data, Fc = Mx.a.faces.data, groups = [];
+    for (let b = 0; b < NB2; b++) {
+      const g = new THREE.Group(); g.position.set(P[3 * b], P[3 * b + 1], P[3 * b + 2]); g.quaternion.set(Q[4 * b + 1], Q[4 * b + 2], Q[4 * b + 3], Q[4 * b]);
+      groups.push(g); bones.add(g);
+    }
+    for (const me of meta.meshes) {
+      const pos = new Float32Array(me.nv * 3);
+      for (let i = 0; i < me.nv; i++) for (let c = 0; c < 3; c++) pos[3 * i + c] = (V[3 * (me.vofs + i) + c] + 32767) * me.scale[c] + me.lo[c];
+      const g = new THREE.BufferGeometry();
+      g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      g.setIndex(new THREE.BufferAttribute(Fc.slice(3 * me.fofs, 3 * (me.fofs + me.nf)), 1));
+      g.computeVertexNormals();
+      const mesh = new THREE.Mesh(g, mat); mesh.position.set(...me.pos); mesh.quaternion.set(me.quat[1], me.quat[2], me.quat[3], me.quat[0]);
+      groups[me.body].add(mesh);
+    }
+    const sb = Mx.a.site_body.data, sp = Mx.a.site_pos.data, W = new Float32Array(sb.length * 3), v = new THREE.Vector3(), q = new THREE.Quaternion();
+    for (let i = 0; i < sb.length; i++) {
+      const b = sb[i]; q.set(Q[4 * b + 1], Q[4 * b + 2], Q[4 * b + 3], Q[4 * b]);
+      v.set(sp[3 * i], sp[3 * i + 1], sp[3 * i + 2]).applyQuaternion(q);
+      W[3 * i] = v.x + P[3 * b]; W[3 * i + 1] = v.y + P[3 * b + 1]; W[3 * i + 2] = v.z + P[3 * b + 2];
+    }
+    const seg = [];
+    for (const mu of meta.muscles) for (let i = 0; i + 1 < mu.sites.length; i++) { const a = 3 * mu.sites[i], c = 3 * mu.sites[i + 1]; seg.push(W[a], W[a + 1], W[a + 2], W[c], W[c + 1], W[c + 2]); }
+    const lg = new LineSegmentsGeometry(); lg.setPositions(seg);
+    const lm = new LineMaterial({ color: 0xe8432b, linewidth: 1.3, transparent: true, opacity: 0.85, depthWrite: false });
+    lm.resolution.set(VW, VH); ringLines.push(lm);
+    const lines = new LineSegments2(lg, lm); lines.renderOrder = 3; canon.add(lines);
+    const C = meta.canonical ?? [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    canon.setRotationFromMatrix(new THREE.Matrix4().set(C[0][0], C[0][1], C[0][2], 0, C[1][0], C[1][1], C[1][2], 0, C[2][0], C[2][1], C[2][2], 0, 0, 0, 0, 1));
+    const hold = new THREE.Group(); hold.add(canon); hold.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(bones), c = box.getCenter(new THREE.Vector3());
+    canon.position.set(-c.x, -c.y, -box.min.z);
+    hold.userData = { mat, lm, bones, top: box.max.z - box.min.z };
+    return hold;
+  }
+  // names above the heads: extruded, translucent type, the muscle count below
+  const FONT = "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/fonts/helvetiker_bold.typeface.json";
+  let rfont = null;
+  function ringLabel(i) {
+    const sl = rslots[i], top = sl.userData.fig?.userData.top;
+    if (!rfont || top == null || sl.userData.label) return;
+    const face = new THREE.MeshStandardMaterial({ color: 0xf3ede2, roughness: 0.32, metalness: 0.15, envMapIntensity: 0.9, transparent: true });
+    const side = new THREE.MeshStandardMaterial({ color: 0x9a9286, roughness: 0.5, metalness: 0.1, transparent: true });
+    const small = new THREE.MeshStandardMaterial({ color: 0xa9a297, roughness: 0.5, metalness: 0, transparent: true });
+    face.userData.k = 0.55; side.userData.k = 0.2; small.userData.k = 0.5;
+    const text = (str, size, depth, bevel) => {
+      const g = new TextGeometry(str, { font: rfont, size, height: depth, curveSegments: 6, bevelEnabled: bevel, bevelThickness: 0.004, bevelSize: 0.0026, bevelSegments: 2 });
+      g.computeBoundingBox(); const b = g.boundingBox;
+      g.translate(-(b.max.x + b.min.x) / 2, 0, -depth / 2); g.rotateX(Math.PI / 2);
+      return g;
+    };
+    const grp = new THREE.Group();
+    grp.add(new THREE.Mesh(text(RMODELS[i].label, 0.1, 0.016, true), [face, side]));
+    const sub = new THREE.Mesh(text(`${RMODELS[i].muscles} muscles`, 0.046, 0.006, false), small); sub.position.z = -0.085; grp.add(sub);
+    grp.position.set(0, 0, top + 0.15);
+    sl.add(grp); sl.userData.label = { grp, mats: [face, side, small], z: top + 0.15 };
+  }
+  new FontLoader().load(FONT, (f) => { rfont = f; rslots.forEach((_, i) => ringLabel(i)); ringDirty = true; });
+  // points that fly from the models to the markers: sampled from each model's bones, in its slot's frame
+  const PPER = 60, NPR = RN * PPER, prt = [];
+  const prtGeo = new THREE.BufferGeometry();
+  prtGeo.setAttribute("position", attr(NPR, 3)); prtGeo.setAttribute("aColor", attr(NPR, 3));
+  prtGeo.setAttribute("aAlpha", attr(NPR, 1)); prtGeo.setAttribute("aSize", attr(NPR, 1)); prtGeo.setAttribute("aRing", attr(NPR, 1));
+  const prtPts = new THREE.Points(prtGeo, ptsMat); prtPts.frustumCulled = false; prtPts.renderOrder = 6; prtPts.visible = false; scene.add(prtPts);
+  function sampleBones(i) {
+    const fig = rslots[i].userData.fig, inv = new THREE.Matrix4().copy(rslots[i].matrixWorld).invert(), all = [];
+    rslots[i].updateMatrixWorld(true); inv.copy(rslots[i].matrixWorld).invert();
+    fig.userData.bones.traverse((o) => { if (o.isMesh) all.push(o); });
+    const v = new THREE.Vector3();
+    for (let n = 0; n < PPER; n++) {
+      const mesh = all[Math.floor(rng() * all.length)], pa = mesh.geometry.attributes.position;
+      v.fromBufferAttribute(pa, Math.floor(rng() * pa.count)).applyMatrix4(mesh.matrixWorld).applyMatrix4(inv);
+      prt.push({ s: i, p: v.clone(), k: Math.floor(rng() * NM), d: rng() * 0.35, w: new THREE.Vector3(rng() - 0.5, rng() - 0.5, rng() * 0.6) });
+    }
+  }
+  let ringDirty = true, ringN = 0, onRingLoad = () => {};
+  RMODELS.forEach((d, i) => {
+    const got = d.k === "myofullbody" ? Promise.resolve(M)
+      : fetch(`viewer/models/${d.k}_model.elvw`).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(r.status)))).then(parseELVW);
+    got.then((Mx) => {
+      const f = ringFigure(Mx); f.traverse((o) => { o.userData.slot = i; });
+      rslots[i].add(f); rslots[i].userData.fig = f; ringLabel(i);
+      ringG.updateMatrixWorld(true); sampleBones(i);
+      ringN++; ringDirty = true; onRingLoad();
+    }).catch((e) => console.warn("ring model", d.k, e));
+  });
+  // the outline of the model in front: postprocessing while the cover shows
+  const composer = new EffectComposer(renderer);
+  composer.addPass(new RenderPass(scene, camera));
+  const outline = new OutlinePass(new THREE.Vector2(256, 256), scene, camera);
+  outline.visibleEdgeColor.set(0xffffff); outline.hiddenEdgeColor.set(0x000000);
+  outline.edgeThickness = 1.0; outline.edgeGlow = 0.9; outline.edgeStrength = 0; outline.pulsePeriod = 0;
+  composer.addPass(outline); composer.addPass(new OutputPass());
+  // caption and pointer
+  const cap = $("ringCap");
+  let rTheta = 0, rTarget = null, rHold = 0, rFront = 0, rCapT = 0, rDrag = null, rScroll = 0;
+  const frontOf = (th) => ((Math.round(-th / RSTEP) % RN) + RN) % RN;
+  function caption(i) {
+    if (i === rFront) return;
+    rFront = i; clearTimeout(rCapT); cap.classList.add("swap");
+    rCapT = setTimeout(() => {
+      const d = RMODELS[rFront];
+      $("ringName").textContent = d.label.replace("Lai-", "Lai–"); $("ringSpec").textContent = d.spec;
+      $("ringRepo").href = d.repo; $("ringView").href = `viewer/?demo=walk&model=${d.k}`;
+      cap.classList.remove("swap");
+    }, 260);
+  }
+  function turnTo(i, now) {
+    const k = Math.round(-rTheta / RSTEP), cur = ((k % RN) + RN) % RN;
+    let d = i - cur; if (d > RN / 2) d -= RN; if (d < -RN / 2) d += RN;
+    rTarget = -(k + d) * RSTEP; rHold = now + 6000;
+  }
+  const hero = $("hero"), rRay = new THREE.Raycaster(), rPtr = new THREE.Vector2();
+  function ringPick(e) {
+    rPtr.set((e.clientX / VW) * 2 - 1, -(e.clientY / VH) * 2 + 1);
+    rRay.setFromCamera(rPtr, camera);
+    const figs = rslots.map((sl) => sl.userData.fig).filter(Boolean);
+    const hit = rRay.intersectObjects(figs, true).find((x) => x.object.isMesh);
+    return hit ? hit.object.userData.slot : -1;
+  }
+  const interactive = (e) => rScroll < 0.04 && !e.target.closest("a, button, .hero-copy");
+  hero.addEventListener("pointerdown", (e) => {
+    if (!interactive(e) || e.button !== 0) return;
+    rDrag = { x: e.clientX, t0: rTheta, moved: 0 }; rTarget = null; hero.setPointerCapture(e.pointerId); hero.classList.add("drag");
+  });
+  hero.addEventListener("pointermove", (e) => {
+    if (rDrag) {
+      const dx = e.clientX - rDrag.x; rDrag.moved = Math.max(rDrag.moved, Math.abs(dx));
+      rTheta = rDrag.t0 + (dx / VW) * Math.PI * 1.6; ringDirty = true;
+    } else hero.classList.toggle("over", interactive(e) && ringPick(e) >= 0);
+  });
+  hero.addEventListener("pointerup", (e) => {
+    if (!rDrag) return;
+    hero.classList.remove("drag");
+    const now = performance.now();
+    if (rDrag.moved < 6) {
+      const i = ringPick(e);
+      if (i >= 0 && i === frontOf(rTheta)) window.open(RMODELS[i].repo, "_blank", "noopener");
+      else if (i >= 0) turnTo(i, now);
+    } else rHold = now + 2500;
+    rDrag = null;
+  });
+  hero.addEventListener("pointercancel", () => { rDrag = null; hero.classList.remove("drag"); });
+
+  // every frame of the cover: the turn, the outline, the names, the fade and the flying points
+  const pv = new THREE.Vector3(), tv = new THREE.Vector3();
+  function updateRing(h, dt, now, still) {
+    rScroll = h;
+    const fig = 1 - ramp(h, 0.04, 0.4), pa = ramp(h, 0.03, 0.12) * (1 - ramp(h, 0.72, 0.9));
+    ringG.visible = fig > 0.003;
+    if (!rDrag && !still) {
+      if (rTarget !== null) { rTheta += (rTarget - rTheta) * (1 - Math.exp(-dt * 3.2)); if (Math.abs(rTarget - rTheta) < 0.002) rTarget = null; }
+      else if (now > rHold) rTheta -= RSPEED * dt * (1 - ramp(h, 0, 0.1));
+    }
+    ringG.rotation.z = rTheta;
+    caption(frontOf(rTheta));
+    scene.fog = fig > 0.003 ? ringFog : null;
+    let best = null, bestC = -2;
+    for (const sl of rslots) {
+      const u = sl.userData.fig?.userData; if (!u) continue;
+      const facing = Math.cos(sl.userData.i * RSTEP + rTheta);   // 1: towards the camera
+      u.mat.opacity = fig; u.lm.opacity = 0.85 * fig;
+      if (facing > bestC) { bestC = facing; best = u; }
+      const L = sl.userData.label;
+      if (L) {
+        const a = THREE.MathUtils.smoothstep(facing, 0.45, 0.8) * fig, on = THREE.MathUtils.smoothstep(facing, 0.93, 0.995);
+        for (const m of L.mats) m.opacity = a * Math.min(1, m.userData.k + 0.25 * on);
+        L.grp.visible = a > 0.01;
+        L.grp.position.z = L.z + 0.016 * on * Math.sin(now / 900);
+      }
+    }
+    // the white outline follows the model nearest the front, strongest when it faces the camera
+    outline.selectedObjects = best ? [best.bones] : [];
+    outline.edgeStrength = 1.4 * THREE.MathUtils.smoothstep(bestC, 0.9, 0.995) * fig;
+    // the points: from their place on a model to a marker, each on its own curve
+    prtPts.visible = pa > 0.003 && prt.length > 0;
+    if (prtPts.visible) {
+      ringG.updateMatrixWorld(true); human.updateMatrixWorld(true);
+      const E = ramp(h, 0.06, 0.72), Pp = prtGeo.attributes.position.array, Cc = prtGeo.attributes.aColor.array,
+        A = prtGeo.attributes.aAlpha.array, Z = prtGeo.attributes.aSize.array, Rg = prtGeo.attributes.aRing.array;
+      for (let n = 0; n < prt.length; n++) {
+        const q = prt[n], e = sstep((E - q.d) / 0.65);
+        pv.copy(q.p).applyMatrix4(rslots[q.s].matrixWorld);
+        tv.set(MK[q.k][2], MK[q.k][3], MK[q.k][4]).applyMatrix4(human.matrixWorld);
+        pv.lerp(tv, e).addScaledVector(q.w, Math.sin(Math.PI * e) * 0.9);
+        Pp[3 * n] = pv.x; Pp[3 * n + 1] = pv.y; Pp[3 * n + 2] = pv.z;
+        Cc[3 * n] = RAW[0]; Cc[3 * n + 1] = RAW[1]; Cc[3 * n + 2] = RAW[2];
+        A[n] = pa * (0.55 + 0.45 * e); Z[n] = lerp(0.03, 0.05, e); Rg[n] = 0;
+      }
+      for (const nm of ["position", "aColor", "aAlpha", "aSize", "aRing"]) prtGeo.attributes[nm].needsUpdate = true;
+      prtGeo.setDrawRange(0, prt.length);
+    }
+    return fig > 0.003;
+  }
+
   /* ---------- the scroll script: every visual is a function of (h, u) ---------- */
   const YAW = [[0, -18], [1, -10], [2, -4], [2.28, 66], [3.0, 74], [3.55, 92], [4.0, 104], [4.95, 335]];
   const EL = [[0, 8], [2, 7], [2.3, 3], [3.2, 4], [4, 6], [5, 5]];
   const DM = [[0, 0.94], [2, 0.94], [2.3, 0.95], [3.15, 1], [5, 1]];
   const ZT = [[0, 0.9], [2, 0.9], [2.3, 0.86], [3.15, 0.88], [5, 0.9]];
   function stateAt(h, u, t) {
-    const heroOut = ramp(h, 0.08, 0.75), hb = ramp(h, 0.1, 0.95), cal = ramp(u, 2.3, 2.68);
+    const hb = ramp(h, 0.1, 0.95), cal = ramp(u, 2.3, 2.68);
     const S = {
-      bones: Math.max(1 - heroOut, ramp(u, 2.0, 2.22)),
-      musOpacity: Math.max(1 - ramp(h, 0.04, 0.5), ramp(u, 3.98, 4.06)),
+      bones: ramp(u, 2.0, 2.22),                      // the cover shows the ring, not this figure
+      musOpacity: ramp(u, 3.98, 4.06),
       musReveal: u < 3.5 ? 1 : clamp01((u - 4.02) / 0.8),
-      markers: ramp(h, 0.3, 0.85) * (1 - ramp(u, 4.1, 4.5)),
-      stray: ramp(h, 0.45, 0.95) * (1 - ramp(u, 1.02, 1.35)),
+      markers: ramp(h, 0.5, 0.85) * (1 - ramp(u, 4.1, 4.5)),
+      stray: ramp(h, 0.6, 0.95) * (1 - ramp(u, 1.02, 1.35)),
       labelMix: ramp(u, 1.0, 1.3),
       labelText: ramp(u, 1.12, 1.38) * (1 - ramp(u, 1.86, 2.06)),
       sticks: ramp(u, 1.15, 1.45) * (1 - ramp(u, 1.95, 2.25)),
@@ -1163,8 +1353,10 @@ async function main() {
       err: 1 - cal,
       follow: ramp(u, 2.9, 3.05),
       lift: ramp(u, 3.08, 3.5) * (1 - ramp(u, 3.72, 4.12)),
-      yaw: lerp(wrapDeg(36 * t - 26), keys(YAW, u), hb),   // hero: a full turn every 10 s
-      el: lerp(5, keys(EL, u), hb), dmul: lerp(1, keys(DM, u), hb), zt: lerp(0.9, keys(ZT, u), hb),
+      yaw: keys(YAW, u),
+      // the cover frames the whole ring from further out and higher, below the centred title
+      el: lerp(11, keys(EL, u), hb), dmul: lerp(2.25, keys(DM, u), hb), zt: lerp(0.8, keys(ZT, u), hb),
+      sx: lerp(0, -0.17, hb), sy: lerp(-0.16, 0, hb),
       hb,
     };
     S.twinkle = 1 - S.labelMix;
@@ -1173,7 +1365,7 @@ async function main() {
   let VW = 1, VH = 1;
   function frameCamera(S, square) {
     const fov = camera.fov * DEG;
-    let figFrac = square ? 0.86 : 0.8, shiftY = 0;
+    let figFrac = square ? 0.86 : 0.8, shiftY = wide ? S.sy ?? 0 : 0;
     if (!square && !wide) {
       // phones: in the hero the figure fills the space between the nav and the headline; in the story it sits above the captions
       const avail = Math.max(0.3 * VH, heroCopyTop - navH - 28);
@@ -1187,7 +1379,7 @@ async function main() {
     camera.position.set(0, -dist * Math.cos(S.el * DEG), S.zt + dist * Math.sin(S.el * DEG));
     camera.lookAt(0, 0, S.zt);
     if (square) camera.clearViewOffset();
-    else camera.setViewOffset(VW, VH, wide ? -0.17 * VW : 0, shiftY * VH, VW, VH);   // lens shift: figure right of the text, or above it
+    else camera.setViewOffset(VW, VH, wide ? (S.sx ?? -0.17) * VW : 0, shiftY * VH, VW, VH);   // lens shift: figure right of the text, or above it
   }
   function applyState(S, square = false) {
     turn.rotation.z = S.yaw * DEG;
@@ -1211,14 +1403,16 @@ async function main() {
     VW = Math.max(1, wrap.clientWidth); VH = Math.max(1, wrap.clientHeight);
     renderer.setSize(VW, VH, false);
     camera.aspect = VW / VH; camera.updateProjectionMatrix();
-    for (const m of [musMat, sticks.mat, resid.mat]) m.resolution.set(VW, VH);
+    for (const m of [musMat, sticks.mat, resid.mat, ...ringLines]) m.resolution.set(VW, VH);
     ptsMat.uniforms.uScale.value = (VH * DPR) / (2 * Math.tan((camera.fov * DEG) / 2));
+    composer.setPixelRatio(DPR); composer.setSize(VW, VH);
     measure();
   }
 
   /* ---------- static mode: one hero frame, plus a still per stage ---------- */
   if (STATIC) {
-    const renderHero = () => { resize(); applyState(stateAt(0, 0, 0)); renderer.render(scene, camera); };
+    const renderHero = () => { resize(); applyState(stateAt(0, 0, 0)); updateRing(0, 0, 0, true); composer.render(); };
+    onRingLoad = () => { if (ringN === RN) renderHero(); };
     const STILL_U = [0.62, 1.62, 2.24, 3.6, 4.98], STILL_YAW = [-18, -8, 40, 90, -25];
     const S2 = 720, figs = document.querySelectorAll(".still");
     renderer.setPixelRatio(1); renderer.setSize(S2, S2, false);
@@ -1257,319 +1451,18 @@ async function main() {
     const moving = hS !== hT || uS !== uT;
     if (moving || dirty) updateSteps(uS);
     if (window.scrollY >= storyEnd) return;                       // the sheets below cover the canvas
-    if (!(moving || dirty || live || hS < 1)) return;             // settled, nothing animating
+    if (!(moving || dirty || live || hS < 1 || ringDirty)) return;   // settled, nothing animating
     clock += dt;
     const S = stateAt(hS, uS, clock);
     live = S.markers * S.twinkle > 0.01 || S.stray > 0.01;        // dropouts and stray points flicker
     applyState(S);
+    const cover = updateRing(hS, dt, now, false);
     updateLabels(S.labelText);
     updateReadouts(S, uS);
-    renderer.render(scene, camera);
-    dirty = false;
+    if (cover) composer.render(); else renderer.render(scene, camera);
+    dirty = false; ringDirty = false;
   }
   requestAnimationFrame(frame);
-}
-</script>
-<script type="module">
-/* The models section: every model's file from the viewer folder, posed at its neutral standing
-   pose, turned into the canonical frame (meta.canonical) and stood on a ring that steps from
-   one model to the next. Dragging turns it and snaps to a model; the model in front glows at
-   its edges; a click on it opens its repository, a click on another turns the ring to it. */
-import * as THREE from "three";
-import { LineSegments2 } from "three/addons/lines/LineSegments2.js";
-import { LineSegmentsGeometry } from "three/addons/lines/LineSegmentsGeometry.js";
-import { LineMaterial } from "three/addons/lines/LineMaterial.js";
-import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
-import { FontLoader } from "three/addons/loaders/FontLoader.js";
-import { TextGeometry } from "three/addons/geometries/TextGeometry.js";
-
-const MODELS = [
-  { k: "myofullbody", label: "MyoFullBody", muscles: 416, name: "MyoFullBody", spec: "416 muscles · 31 joints solved", src: "MuscleMimic · whole body · the default · fit 6.5 mm", repo: "https://github.com/amathislab/musclemimic_models" },
-  { k: "ms_human_700", label: "MS-Human-700", muscles: 700, name: "MS-Human-700", spec: "700 muscles · 37 joints solved", src: "Whole body · fit 8.0 mm", repo: "https://github.com/LNSGroup/MS-Human-700" },
-  { k: "mass", label: "MASS", muscles: 284, name: "MASS", spec: "284 muscles · 46 joints solved", src: "Lee et al. 2019 · converted from DART · fit 4.0 mm", repo: "https://github.com/lsw9021/MASS" },
-  { k: "rajagopal2016", label: "Rajagopal 2016", muscles: 80, name: "Rajagopal 2016", spec: "80 muscles · 23 joints solved", src: "OpenSim full body · via MyoConverter · fit 5.4 mm", repo: "https://github.com/opensim-org/opensim-models" },
-  { k: "lai_uhlrich2022", label: "Lai-Uhlrich 2022", muscles: 80, name: "Lai–Uhlrich 2022", spec: "80 muscles · 27 joints solved", src: "OpenCap · via MyoConverter · fit 5.4 mm", repo: "https://github.com/stanfordnmbl/opencap-core" },
-  { k: "gait2354", label: "Gait2354", muscles: 54, name: "Gait2354", spec: "54 muscles · 17 joints solved", src: "OpenSim · legs and trunk · via MyoConverter · fit 4.9 mm", repo: "https://github.com/opensim-org/opensim-models" },
-  { k: "myoleg", label: "MyoLeg", muscles: 80, name: "MyoLeg", spec: "80 muscles · 14 joints solved", src: "MyoSuite · legs on a passive torso · fit 5.8 mm", repo: "https://github.com/MyoHub/myo_sim" },
-  { k: "ms_human_700_locomotion", label: "MS-Human-700 legs", muscles: 100, name: "MS-Human-700 legs", spec: "100 muscles · 14 joints solved", src: "Legs on a rigid upper body · fit 7.9 mm", repo: "https://github.com/LNSGroup/MS-Human-700" },
-];
-const N = MODELS.length, STEP = (2 * Math.PI) / N, R = 2.15, DWELL = 3.2;
-const $ = (id) => document.getElementById(id);
-const stage = $("ringStage"), canvas = $("ringGl"), cap = $("ringCap");
-const REDUCED = matchMedia("(prefers-reduced-motion: reduce)").matches;
-let sel = 0;
-
-// caption and buttons work without WebGL too
-const chips = MODELS.map((d, i) => {
-  const b = document.createElement("button");
-  b.type = "button"; b.textContent = d.name; b.setAttribute("aria-pressed", i === 0);
-  b.addEventListener("click", () => select(i, true));
-  $("ringChips").append(b);
-  return b;
-});
-function caption(i) {
-  const d = MODELS[i];
-  $("ringIdx").textContent = i + 1; $("ringName").textContent = d.name; $("ringSpec").textContent = d.spec; $("ringSrc").textContent = d.src;
-  $("ringRepo").href = d.repo; $("ringView").href = `viewer/?demo=walk&model=${d.k}`;
-  chips.forEach((c, j) => c.setAttribute("aria-pressed", j === i));
-}
-let capTimer = 0;
-function showCaption(i) {
-  if (i === sel) return;
-  sel = i; clearTimeout(capTimer);
-  cap.classList.add("swap");
-  capTimer = setTimeout(() => { caption(sel); cap.classList.remove("swap"); }, 220);
-}
-let select = (i) => { showCaption(i); };   // replaced once the ring is up
-
-function webgl() { try { const c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); } catch (e) { return false; } }
-if (!webgl()) { canvas.remove(); $("ringHint").remove(); }
-else {
-  const io = new IntersectionObserver((es) => { if (es.some((e) => e.isIntersecting)) { io.disconnect(); start(); } }, { rootMargin: "800px 0px" });
-  io.observe(stage);
-}
-
-function parseELVW(buf) {
-  const dv = new DataView(buf);
-  if (String.fromCharCode(...new Uint8Array(buf, 0, 4)) !== "ELVW") throw new Error("Not an .elvw file");
-  const hl = dv.getUint32(8, true);
-  const head = JSON.parse(new TextDecoder().decode(new Uint8Array(buf, 12, hl)));
-  const base = 12 + hl, T = { i2: Int16Array, u2: Uint16Array, f4: Float32Array, u1: Uint8Array, i1: Int8Array, i4: Int32Array, u4: Uint32Array };
-  const a = {};
-  for (const [name, [dt, shape, off]] of Object.entries(head.arrays)) a[name] = { data: new T[dt](buf, base + off, shape.reduce((x, y) => x * y, 1)), shape };
-  return { meta: head.meta, a };
-}
-
-function start() {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
-  renderer.setClearColor(0x000000, 0);
-  renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.05;
-  const scene = new THREE.Scene();
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture; pmrem.dispose();
-  const camera = new THREE.PerspectiveCamera(24, 1, 0.1, 60); camera.up.set(0, 0, 1);
-  const key = new THREE.DirectionalLight(0xfff0de, 2.0); key.position.set(-2.6, -4.2, 3.6);
-  const rimA = new THREE.DirectionalLight(0xcfe0ff, 2.4); rimA.position.set(3.2, 2.8, 2.6);
-  const rimB = new THREE.DirectionalLight(0xffffff, 1.3); rimB.position.set(-3.4, 2.6, 1.4);
-  scene.add(key, rimA, rimB, new THREE.HemisphereLight(0x9fb0c8, 0x000000, 0.3));
-  scene.fog = new THREE.Fog(0x000000, 6, 13);
-
-  // floor: a soft pool of light under the ring and the ring itself
-  const pool = (() => {
-    const c = document.createElement("canvas"); c.width = c.height = 256;
-    const g = c.getContext("2d"), gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
-    gr.addColorStop(0, "rgba(255,255,255,0.11)"); gr.addColorStop(0.55, "rgba(255,255,255,0.05)"); gr.addColorStop(1, "rgba(255,255,255,0)");
-    g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(2 * R + 3, 2 * R + 3), new THREE.MeshBasicMaterial({ map: t, transparent: true, depthWrite: false, toneMapped: false }));
-    m.position.z = 0.002; return m;
-  })();
-  const circle = new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 193 }, (_, i) => new THREE.Vector3(Math.cos(i / 192 * 2 * Math.PI) * R, Math.sin(i / 192 * 2 * Math.PI) * R, 0.003))),
-    new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.09, depthWrite: false }));
-  scene.add(pool, circle);
-  const ring = new THREE.Group(); scene.add(ring);
-
-  // bones: one material per model so the selected one can glow at its silhouette (fresnel rim)
-  const GLOW = new THREE.Color("#ffb4a4");
-  function boneMaterial() {
-    const m = new THREE.MeshStandardMaterial({ color: 0xe9e1cf, roughness: 0.5, metalness: 0, envMapIntensity: 0.55 });
-    m.userData.glow = { value: 0 };
-    m.onBeforeCompile = (sh) => {
-      sh.uniforms.uGlow = m.userData.glow; sh.uniforms.uGlowCol = { value: GLOW };
-      sh.fragmentShader = sh.fragmentShader
-        .replace("#include <common>", "#include <common>\nuniform float uGlow; uniform vec3 uGlowCol;")
-        .replace("#include <emissivemap_fragment>", "#include <emissivemap_fragment>\nfloat rimF = pow(1.0 - clamp(abs(dot(normalize(vNormal), normalize(vViewPosition))), 0.0, 1.0), 2.4);\ntotalEmissiveRadiance += uGlowCol * rimF * uGlow * 2.4;");
-    };
-    return m;
-  }
-  const musMats = [];
-  function figure(M) {
-    const meta = M.meta, NB = meta.bodies.length, P = M.a.rest_pos.data, Q = M.a.rest_quat.data;
-    const canon = new THREE.Group(), bones = new THREE.Group(); canon.add(bones);
-    const mat = boneMaterial(), V = M.a.verts.data, F = M.a.faces.data, groups = [];
-    for (let b = 0; b < NB; b++) {
-      const g = new THREE.Group(); g.position.set(P[3 * b], P[3 * b + 1], P[3 * b + 2]); g.quaternion.set(Q[4 * b + 1], Q[4 * b + 2], Q[4 * b + 3], Q[4 * b]);
-      groups.push(g); bones.add(g);
-    }
-    for (const me of meta.meshes) {
-      const pos = new Float32Array(me.nv * 3);
-      for (let i = 0; i < me.nv; i++) for (let k = 0; k < 3; k++) pos[3 * i + k] = (V[3 * (me.vofs + i) + k] + 32767) * me.scale[k] + me.lo[k];
-      const g = new THREE.BufferGeometry();
-      g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-      g.setIndex(new THREE.BufferAttribute(F.slice(3 * me.fofs, 3 * (me.fofs + me.nf)), 1));
-      g.computeVertexNormals();
-      const mesh = new THREE.Mesh(g, mat); mesh.position.set(...me.pos); mesh.quaternion.set(me.quat[1], me.quat[2], me.quat[3], me.quat[0]);
-      groups[me.body].add(mesh);
-    }
-    // muscle paths at rest: straight segments between the attachment sites
-    const sb = M.a.site_body.data, sp = M.a.site_pos.data, W = new Float32Array(sb.length * 3), v = new THREE.Vector3(), q = new THREE.Quaternion();
-    for (let s = 0; s < sb.length; s++) {
-      const b = sb[s]; q.set(Q[4 * b + 1], Q[4 * b + 2], Q[4 * b + 3], Q[4 * b]);
-      v.set(sp[3 * s], sp[3 * s + 1], sp[3 * s + 2]).applyQuaternion(q);
-      W[3 * s] = v.x + P[3 * b]; W[3 * s + 1] = v.y + P[3 * b + 1]; W[3 * s + 2] = v.z + P[3 * b + 2];
-    }
-    const seg = [];
-    for (const mu of meta.muscles) for (let i = 0; i + 1 < mu.sites.length; i++) { const a = 3 * mu.sites[i], c = 3 * mu.sites[i + 1]; seg.push(W[a], W[a + 1], W[a + 2], W[c], W[c + 1], W[c + 2]); }
-    const lg = new LineSegmentsGeometry(); lg.setPositions(seg);
-    const lm = new LineMaterial({ color: 0xe8432b, linewidth: 1.3, transparent: true, opacity: 0.9, depthWrite: false });
-    lm.resolution.set(stage.clientWidth, stage.clientHeight); musMats.push(lm);
-    const lines = new LineSegments2(lg, lm); lines.renderOrder = 3; canon.add(lines);
-    // into the canonical frame (z up, facing -y), feet on the floor, centred on the slot
-    const C = meta.canonical ?? [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
-    canon.setRotationFromMatrix(new THREE.Matrix4().set(C[0][0], C[0][1], C[0][2], 0, C[1][0], C[1][1], C[1][2], 0, C[2][0], C[2][1], C[2][2], 0, 0, 0, 0, 1));
-    const hold = new THREE.Group(); hold.add(canon); hold.updateMatrixWorld(true);
-    const box = new THREE.Box3().setFromObject(bones), c = box.getCenter(new THREE.Vector3());
-    canon.position.set(-c.x, -c.y, -box.min.z);
-    hold.userData = { mat, lm, glow: 0, top: box.max.z - box.min.z };
-    return hold;
-  }
-
-  // a soft halo behind the selected model
-  const haloTex = (() => {
-    const c = document.createElement("canvas"); c.width = 128; c.height = 256;
-    const g = c.getContext("2d"), gr = g.createRadialGradient(64, 128, 0, 64, 128, 64);
-    gr.addColorStop(0, "rgba(255,170,150,0.55)"); gr.addColorStop(0.5, "rgba(255,120,100,0.16)"); gr.addColorStop(1, "rgba(255,120,100,0)");
-    g.setTransform(1, 0, 0, 2, 0, -128); g.fillStyle = gr; g.fillRect(0, 0, 128, 256);
-    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
-  })();
-  const slots = MODELS.map((d, i) => {
-    const s = new THREE.Group(), a = i * STEP;
-    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
-    halo.scale.set(1.5, 2.6, 1); halo.position.set(0, 0.35, 0.92); halo.renderOrder = -1; s.add(halo); s.userData.halo = halo;
-    s.position.set(R * Math.sin(a), -R * Math.cos(a), 0); s.rotation.z = a;  // facing out of the ring
-    s.userData.i = i; ring.add(s);
-    return s;
-  });
-  // name above each head: extruded type (bevelled face, darker sides), the muscle count below
-  const FONT = "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/fonts/helvetiker_bold.typeface.json";
-  const ACCENT = new THREE.Color("#ff7a62");
-  let font = null; const waiting = [];
-  function label(i) {
-    const s = slots[i], top = s.userData.fig?.userData.top;
-    if (!font || top == null) { if (top != null) waiting.push(i); return; }
-    const face = new THREE.MeshStandardMaterial({ color: 0xf3ede2, roughness: 0.32, metalness: 0.15, envMapIntensity: 0.9, transparent: true });
-    const side = new THREE.MeshStandardMaterial({ color: 0x9a9286, roughness: 0.5, metalness: 0.1, transparent: true });
-    const small = new THREE.MeshStandardMaterial({ color: 0xa9a297, roughness: 0.5, metalness: 0, transparent: true });
-    const text = (str, size, depth, bevel) => {
-      const g = new TextGeometry(str, { font, size, height: depth, curveSegments: 6, bevelEnabled: bevel, bevelThickness: 0.004, bevelSize: 0.0026, bevelSegments: 2 });
-      g.computeBoundingBox(); const b = g.boundingBox;
-      g.translate(-(b.max.x + b.min.x) / 2, 0, -depth / 2); g.rotateX(Math.PI / 2);  // upright, facing -y like the model
-      return g;
-    };
-    const grp = new THREE.Group();
-    grp.add(new THREE.Mesh(text(MODELS[i].label, 0.1, 0.016, true), [face, side]));
-    const sub = new THREE.Mesh(text(`${MODELS[i].muscles} muscles`, 0.046, 0.006, false), small); sub.position.z = -0.085; grp.add(sub);
-    grp.position.set(0, 0, top + 0.15);
-    face.userData.k = 0.55; side.userData.k = 0.2; small.userData.k = 0.5;   // translucent; the selected name a little more solid
-    s.add(grp); s.userData.label = { grp, mats: [face, side, small], face, z: top + 0.15 };
-  }
-  new FontLoader().load(FONT, (f) => { font = f; slots.forEach((_, i) => label(i)); });
-  let loaded = 0;
-  MODELS.forEach((d, i) => {
-    const url = d.k === "myofullbody" ? "viewer/myofullbody_model.elvw" : `viewer/models/${d.k}_model.elvw`;
-    fetch(url).then((r) => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then((buf) => {
-      const f = figure(parseELVW(buf)); f.traverse((o) => { o.userData.slot = i; });
-      slots[i].add(f); slots[i].userData.fig = f; loaded++; label(i);
-      if (loaded === N) $("ringHint").textContent = "Drag to turn · click the model in front";
-      else $("ringHint").textContent = `Loading the models, ${loaded} of ${N}`;
-    }).catch(() => {});
-  });
-  $("ringHint").textContent = `Loading the models, 0 of ${N}`;
-
-  // turning: theta is the ring's yaw; the model in front is the one at -theta / STEP
-  let theta = 0, target = 0, idleT = 0, holdUntil = 0;
-  const front = () => (((Math.round(-theta / STEP)) % N) + N) % N;
-  select = (i, user) => {
-    const k = Math.round(-target / STEP), cur = ((k % N) + N) % N;
-    let d = i - cur; if (d > N / 2) d -= N; if (d < -N / 2) d += N;
-    target = -(k + d) * STEP;
-    if (user) holdUntil = performance.now() + 9000;
-    showCaption(i);
-  };
-
-  // pointer: drag turns, a click picks (the front model opens its repository)
-  const ray = new THREE.Raycaster(), ptr = new THREE.Vector2();
-  let drag = null;
-  function pick(e) {
-    const r = canvas.getBoundingClientRect();
-    ptr.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
-    ray.setFromCamera(ptr, camera);
-    const hits = ray.intersectObjects(slots.map((s) => s.userData.fig).filter(Boolean), true).filter((h) => h.object.isMesh);
-    return hits.length ? hits[0].object.userData.slot : -1;
-  }
-  canvas.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, t0: theta, moved: 0, id: e.pointerId }; canvas.setPointerCapture(e.pointerId); canvas.classList.add("drag"); });
-  canvas.addEventListener("pointermove", (e) => {
-    if (drag) {
-      const dx = e.clientX - drag.x; drag.moved = Math.max(drag.moved, Math.abs(dx));
-      theta = target = drag.t0 + dx * (2.4 / canvas.clientWidth) * Math.PI / 2;
-      showCaption(front()); holdUntil = performance.now() + 9000;
-    } else canvas.classList.toggle("over", pick(e) >= 0);
-  });
-  const end = (e) => {
-    if (!drag) return;
-    canvas.classList.remove("drag");
-    if (drag.moved < 6) {
-      const i = pick(e);
-      if (i >= 0 && i === front() && Math.abs(target - theta) < 0.05) window.open(MODELS[i].repo, "_blank", "noopener");
-      else if (i >= 0) select(i, true);
-    } else select(front(), true);   // snap to the nearest model
-    drag = null;
-  };
-  canvas.addEventListener("pointerup", end);
-  canvas.addEventListener("pointercancel", () => { drag = null; canvas.classList.remove("drag"); select(front(), true); });
-  canvas.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowRight") { select((front() + 1) % N, true); e.preventDefault(); }
-    if (e.key === "ArrowLeft") { select((front() + N - 1) % N, true); e.preventDefault(); }
-    if (e.key === "Enter") window.open(MODELS[front()].repo, "_blank", "noopener");
-  });
-
-  // camera: the front model large, its neighbours and the far side of the ring behind
-  function frame() {
-    const w = stage.clientWidth, h = stage.clientHeight, narrow = w / h < 1;
-    renderer.setSize(w, h, false); camera.aspect = w / h;
-    const D = narrow ? 7.6 : 6.2;
-    camera.position.set(0, -R - D, narrow ? 2.1 : 1.85);
-    camera.lookAt(0, -R * 0.45, narrow ? 0.75 : 1.0);
-    camera.updateProjectionMatrix();
-    for (const m of musMats) m.resolution.set(w, h);
-  }
-  new ResizeObserver(frame).observe(stage); frame();
-
-  let visible = false;
-  new IntersectionObserver((es) => { visible = es.some((e) => e.isIntersecting); }).observe(stage);
-  let last = performance.now();
-  function tick(now) {
-    requestAnimationFrame(tick);
-    const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (!visible || document.hidden) return;
-    if (!drag && !REDUCED && now > holdUntil && loaded === N) {   // step to the next model every few seconds
-      idleT += dt;
-      if (idleT > DWELL) { idleT = 0; select((front() + 1) % N, false); }
-    } else idleT = 0;
-    if (!drag) theta += (target - theta) * (1 - Math.exp(-dt * (REDUCED ? 30 : 3.4)));
-    ring.rotation.z = theta;
-    const f = front();
-    for (const s of slots) {
-      const u = s.userData.fig?.userData; if (!u) continue;
-      const on = s.userData.i === f && Math.abs(target - theta) < 0.35 ? 1 : 0;
-      u.glow += (on - u.glow) * (1 - Math.exp(-dt * 5));
-      u.mat.userData.glow.value = u.glow * (0.75 + 0.25 * Math.sin(now / 700));
-      u.lm.opacity = 0.55 + 0.4 * u.glow;
-      s.userData.halo.material.opacity = 0.55 * u.glow * (0.85 + 0.15 * Math.sin(now / 700));
-      const L = s.userData.label;
-      if (L) {
-        const facing = Math.cos(s.userData.i * STEP + theta);          // 1: towards the camera
-        const a = THREE.MathUtils.smoothstep(facing, 0.45, 0.8);   // edge-on names would be slivers
-        for (const m of L.mats) m.opacity = a * Math.min(1, m.userData.k + 0.25 * u.glow);
-        L.grp.visible = a > 0.01;
-        L.face.emissive.copy(ACCENT).multiplyScalar(0.28 * u.glow);
-        L.grp.position.z = L.z + 0.018 * u.glow * Math.sin(now / 900);
-      }
-    }
-    renderer.render(scene, camera);
-  }
-  requestAnimationFrame(tick);
 }
 </script>
 </body>
