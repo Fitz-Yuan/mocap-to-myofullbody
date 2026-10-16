@@ -134,8 +134,7 @@ class Kinetics:
     Ib = np.where((m.body_mass < 0.01)[:, None], 0.0, m.body_inertia) * mu * k**2
     T = len(K["C"])
     if floor_z is None:
-      from scipy.ndimage import minimum_filter1d
-      floor_z = minimum_filter1d(K["sole"][..., 2].min(1) * k, int(3 * rate) + 1, mode="nearest")
+      floor_z = floor_from_soles(K["sole"] * k, [self.sole[s] for s in "lr"], rate)
     floor_z = np.broadcast_to(np.asarray(floor_z, float), (T,)).copy()
     C = lowpass(K["C"] * k, rate, lp_hz)
     a = np.gradient(np.gradient(C, axis=0), axis=0) * rate**2
@@ -171,7 +170,7 @@ class Kinetics:
       foot_free = share * free[:, None]
       source = np.zeros((T, 2), np.int8)  # 0 estimated (lever rule), 1 measured, 2 remainder
       if plates is not None:
-        foot_F, foot_cop, foot_free, source = feet_from_plates(
+        foot_F, foot_cop, foot_free, source, contact = feet_from_plates(
           plates, foot_F, foot_cop, foot_free, contact, sole, self.sole, F, M, floor_z)
         out.update(plates_check(plates, contact, source, F))
       out.update(foot_share=share, foot_cop=foot_cop, foot_contact=contact, foot_force=foot_F,
@@ -238,14 +237,14 @@ def feet_from_plates(plates, foot_F, foot_cop, foot_free, contact, sole, sole_id
 
   plates: dict(force [T, P, 3] N on the body, cop [T, P, 3] m, free [T, P] N m) in the same world
   frame and units as the kinetics (subject size). A plate carrying more than min_fz belongs to
-  the loaded foot whose contact centre is within `on_plate` of its centre of pressure (none if
-  both are: the two feet share the plate and stay estimated). A foot gets the sum of its
+  the foot whose centre is within `on_plate` of its centre of pressure (none if both are: the
+  two feet share the plate and stay estimated); that foot counts as on the ground. A foot gets the sum of its
   plates (source 1). If only one foot is measured and the other is also on the ground, the
   other carries the rest of the total ground reaction from the whole-body dynamics (source 2),
   at the centre of pressure that balances the moments. Elsewhere the estimate stays (0).
   """
   T = len(F)
-  foot_F, foot_cop, foot_free = foot_F.copy(), foot_cop.copy(), foot_free.copy()
+  foot_F, foot_cop, foot_free, contact = foot_F.copy(), foot_cop.copy(), foot_free.copy(), contact.copy()
   source = np.zeros((T, 2), np.int8)
   centre = np.zeros((T, 2, 3))
   for i, s in enumerate("lr"):
@@ -258,7 +257,7 @@ def feet_from_plates(plates, foot_F, foot_cop, foot_free, contact, sole, sole_id
       if not np.isfinite(fz) or fz < min_fz or not np.isfinite(pc[t, p]).all():
         continue
       d = np.linalg.norm(centre[t, :, :2] - pc[t, p, :2], axis=1)
-      near = [i for i in range(2) if contact[t, i] and d[i] < on_plate]
+      near = [i for i in range(2) if d[i] < on_plate]  # the plate, not the kinematics, says which foot is down
       if len(near) != 1:
         continue
       a = acc[near[0]]
@@ -267,6 +266,7 @@ def feet_from_plates(plates, foot_F, foot_cop, foot_free, contact, sole, sole_id
       a[2] += fz
       a[3] += pm[t, p]
     measured = [acc[i][2] > 0 for i in range(2)]
+    contact[t] |= np.array(measured)
     for i in range(2):
       if measured[i]:
         foot_F[t, i] = acc[i][0]
@@ -293,7 +293,7 @@ def feet_from_plates(plates, foot_F, foot_cop, foot_free, contact, sole, sole_id
       else:
         foot_F[t, o] = 0.0
         foot_free[t, o] = 0.0
-  return foot_F, foot_cop, foot_free, source
+  return foot_F, foot_cop, foot_free, source, contact
 
 
 def plates_check(plates, contact, source, F):
@@ -303,3 +303,28 @@ def plates_check(plates, contact, source, F):
   all_measured &= contact.any(1)
   fz = np.nansum(np.where(plates["force"][..., 2] > 20.0, plates["force"][..., 2], 0.0), 1)
   return dict(plates_all_measured=all_measured, plates_fz=fz, plates_pred_fz=F[:, 2])
+
+
+def floor_from_soles(sole, feet, rate, window_s=3.0, v_still=0.15, q=20):
+  """Floor height [T] as the model's soles see it: the height of the lowest sole point of a
+  foot that stands still (slower than v_still), as a running low percentile over window_s.
+  The lowest point overall is not used: the model's feet dip a few cm below the standing
+  level at heel strike and toe-off, which put the floor too low and the standing foot
+  "above" it. Frames with no still foot in the window take the nearest estimate."""
+  T = len(sole)
+  low = np.stack([sole[:, idx, 2].min(1) for idx in feet], 1)  # [T, 2]
+  arg = np.stack([sole[:, idx, 2].argmin(1) for idx in feet], 1)
+  v = np.linalg.norm(np.gradient(sole, axis=0), axis=-1) * rate
+  vlow = np.stack([v[np.arange(T), np.asarray(idx)[arg[:, i]]] for i, idx in enumerate(feet)], 1)
+  still = vlow < v_still
+  half = int(window_s * rate / 2)
+  out = np.full(T, np.nan)
+  for t in range(T):
+    a, b = max(0, t - half), min(T, t + half + 1)
+    z = low[a:b][still[a:b]]
+    if len(z):
+      out[t] = np.percentile(z, q)
+  if np.isnan(out).all():
+    return np.full(T, np.percentile(low, 5))
+  idx = np.where(~np.isnan(out))[0]
+  return np.interp(np.arange(T), idx, out[idx])

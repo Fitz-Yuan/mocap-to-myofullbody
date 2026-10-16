@@ -52,6 +52,19 @@ def fill_unsolved(Q, bad):
   return Q, bad
 
 
+def static_plate_mass(subject):
+  """Mass (kg) the force plates read during the subject's static standing trial, or None."""
+  f = os.path.join(config.NPZ_DIR, "static", f"{subject}.npz")
+  if not os.path.exists(f):
+    return None
+  D = np.load(f)
+  if "fp_force" not in D.files:
+    return None
+  fz = np.nansum(np.where(D["fp_force"][..., 2] > 20.0, D["fp_force"][..., 2], 0.0), axis=-1)
+  fz = fz[fz > 0]
+  return float(np.median(fz)) / 9.81 if len(fz) else None
+
+
 def force_plates(trial, n):
   """Calibrated force plates stored with the conditioned markers (C3D inputs), or None."""
   f = os.path.join(config.NPZ_DIR, f"{trial}.npz")
@@ -77,6 +90,9 @@ def run(trial):
   subj = config.subject_of(trial)
   body = config.anthropometrics()[subj]["mass_kg"]
   extra = config.carried_mass().get(subj, 0.0)
+  weighed = static_plate_mass(subj)
+  if weighed is not None and 0.8 < weighed / (body + extra) < 1.25:
+    body = weighed - extra  # the plates weigh the subject as recorded (shoes, clothes, markers)
   kin = KIN.kinematics(Q)
   task = config.task()
   loads, more = [], {}
