@@ -1,7 +1,7 @@
 [project]
 name = "mocap2myo"
 version = "0.1.0"
-description = "Optical motion capture (OptiTrack takes, C3D, TRC; Plug-in-Gait markers) to MyoFullBody musculoskeletal motions"
+description = "Optical motion capture (OptiTrack takes, C3D, TRC, AddBiomechanics .b3d) to MuJoCo musculoskeletal models: joint angles, joint loads, muscle forces"
 readme = "README.md"
 license = { text = "Apache-2.0 for the code; the model files in mocap2myo/assets/myofullbody are under their own LICENSE and NOTICE (arm and hand parts: non-commercial use only)" }
 requires-python = ">=3.10"
@@ -13,8 +13,13 @@ tak = ["olefile>=0.46"]      # reading OptiTrack .tak files
 c3d = ["ezc3d>=1.5"]         # reading C3D files (markers, force plates, analog channels)
 xsens = ["ezc3d>=1.5"]       # Xsens c3d comparison
 gpu = ["torch>=2.1", "warp-lang>=1.0"]   # the GPU IK (M2M_IK_DEVICE=gpu): CUDA torch and NVIDIA Warp
+b3d = ["nimblephysics"]      # reading AddBiomechanics .b3d files
+dev = ["pytest>=7", "ruff>=0.4"]
 # The OpenSim baseline (pipeline/validate/opensim_ik.py) needs the opensim package from conda:
 #   conda install -c opensim-org opensim
+
+[project.scripts]
+mocap2myo = "mocap2myo.cli:main"   # init / check / run / demo / models (from a clone: pip install -e .)
 
 [build-system]
 requires = ["hatchling"]
