@@ -44,7 +44,7 @@ z), missing markers -32768.
   python pipeline/export_viewer.py clip TRIAL OUT_DIR [--clip K] [--fps 50]
       [--ik-dir DIR] [--ref-dir DIR] [--npz-dir DIR] [--run-label TEXT]
       [--ghost-ref-dir DIR [--ghost-label TEXT]]
-      [--kin-dir DIR] [--osim-id-dir DIR] [--osim-ik-dir DIR] [--public NAME]
+      [--kin-dir DIR] [--osim-id-dir DIR] [--osim-ik-dir DIR] [--muscle-dir DIR] [--public NAME]
   --clip K           clip K (1..n) of the task's reference (box_lift: carry cycle K);
                      0 (default) = the whole trial
   --ik-dir, --ref-dir, --npz-dir   inputs (default M2M_IK_DIR, M2M_REF_DIR, M2M_NPZ_DIR)
@@ -54,6 +54,10 @@ z), missing markers -32768.
   --kin-dir DIR      inverse dynamics (pipeline/kinetics.py; default M2M_KIN_DIR)
   --osim-id-dir DIR, --osim-ik-dir DIR   the OpenSim comparison (pipeline/opensim_id.py,
                      validate/opensim_ik.py)
+  --muscle-dir DIR   muscle forces (pipeline/muscles.py; off by default): each muscle's
+                     activation per frame (array muscle_act, meta muscle_act) and the
+                     "Muscles" plots (reserve torques, most active muscles, L5/S1
+                     compression), pipeline/viewer_layers.muscle_layers
   --public NAME      a de-identified clip for a public page, named NAME: the trial name,
                      the clip's position in the trial, the subject's scale and the QA
                      grades are left out, and the run is labelled --run-label or "demo"
@@ -301,9 +305,10 @@ def export_clip(a):
   kin = opt(a.kin_dir, f"{trial}.npz")
   osim = opt(a.osim_id_dir, f"{trial}.npz")
   omk = opt(a.osim_ik_dir, os.path.join(subj, f"{trial}_markers.npz"))
+  mus = opt(a.muscle_dir, f"{trial}.npz")
   la, lm = viewer_layers.layers(m, Q, idx, s, dz, q16, ps, kin=kin, osim=osim,
                                 osim_markers=None if omk is None else omk["markers"],
-                                profile=mm.profile)
+                                profile=mm.profile, muscles=mus)
   arrays.update(la)
   qa = {}
   rep = os.path.join(a.ik_dir, "report.json")
@@ -353,6 +358,8 @@ def main():
   pc.add_argument("--kin-dir", default=config.KIN_DIR, help="inverse dynamics (kinetics.py)")
   pc.add_argument("--osim-id-dir", default=config.OSIM_ID_DIR, help="OpenSim joints / ID (opensim_id.py)")
   pc.add_argument("--osim-ik-dir", default=config.OSIM_DIR, help="OpenSim IK (validate/opensim_ik.py)")
+  pc.add_argument("--muscle-dir", default="",
+                  help="muscle forces (muscles.py, e.g. M2M_MUSCLE_DIR): activation colouring and plots")
   pc.add_argument("--public", default="", help="name for a de-identified demo clip")
   a = ap.parse_args()
   if a.cmd == "model":

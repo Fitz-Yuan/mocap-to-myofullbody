@@ -3,7 +3,8 @@ and the OpenSim comparison (stick figure, markers, dashed curves). Positions go 
 clip's frame: the reference's model space (subject x scale) raised by the reference's
 human shift.
 
-layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_markers=None, profile=None)
+layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_markers=None, profile=None,
+       muscles=None)
   m: MuJoCo model (joint names), Q: reference qpos for the clip frames [n, nq],
   profile: the model profile (its [angles]; default MyoFullBody),
   idx: clip frame indices into the trial, scale: subject scale of the IK, human_dz: the
@@ -12,6 +13,8 @@ layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_markers=No
   stage (optional), osim_markers: OpenSim's model markers [T, n, 3] (optional).
   Returns (arrays, meta) to merge into the clip. Without task loads in the kinetics
   (M2M_TASK=none: no hand_force) the hand-load plot and arrows are left out.
+  muscles: npz of the muscle stage (pipeline/muscles.py, optional): the activation layer
+  (meta "muscle_act") and the "Muscles" plots, see muscle_layers.
 """
 
 import numpy as np
@@ -60,7 +63,45 @@ def angles(profile):
   return out
 
 
-def layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_markers=None, profile=None):
+def muscle_layers(mus, idx, kin=None):
+  """From the muscle stage's npz (pipeline/muscles.py): each used muscle's activation per clip
+  frame for colouring the muscles (uint8, activation x 254, 255 = not estimated; meta
+  "muscle_act" names them, the viewer pairs the names with its model file's muscles), and
+  the plots: reserve torques, the most active muscles, L5/S1 compression from the muscles."""
+  T = len(mus["act"])
+  ii = np.minimum(idx, T - 1)
+  used = mus["used"].astype(bool)
+  names = [str(n) for n in mus["muscles"][used]]
+  act = mus["act"][ii][:, used].astype(np.float32)
+  arrays = dict(muscle_act=np.where(np.isfinite(act), np.round(np.clip(act, 0, 1) * 254), 255).astype(np.uint8))
+  meta = dict(array="muscle_act", muscles=names, scale=1 / 254, missing=255)
+  comps = [str(c) for c in mus["comps"]]
+  arrays["mus_reserve"] = mus["reserve"][ii].astype(np.float32)
+  arrays["shade_mus"] = mus["uncertain"][ii].any(1).astype(np.uint8)
+  shade = dict(array="shade_mus", label="Grey: a matched joint moment is not determined in this frame")
+  plots = [dict(id="mus_reserve", group="Muscles", title="Reserve torques", unit="N·m",
+                series=[dict(label=c, array="mus_reserve", col=k, side="") for k, c in enumerate(comps)],
+                shade=shade, note="The part of each matched joint moment the muscles could not supply "
+                "(static optimisation); near zero where they can, the remainder where they saturate.")]
+  top = np.argsort(-np.nanpercentile(np.nan_to_num(act), 95, axis=0))[:8]
+  arrays["mus_top"] = np.nan_to_num(act[:, top])
+  plots.append(dict(id="mus_act", group="Muscles", title="Most active muscles", unit="activation",
+                    series=[dict(label=names[k], array="mus_top", col=i, side="") for i, k in enumerate(top)],
+                    shade=shade, note="Static optimisation: the least sum of squared activations whose "
+                    "moments match the joint loads. No co-contraction beyond what the moments need."))
+  if "L5S1_compression_muscles" in mus.files and kin is not None:
+    arrays["mus_l5s1"] = np.stack([mus["L5S1_compression_muscles"][ii], kin["L5S1_compression"][ii]], 1).astype(np.float32)
+    plots.append(dict(id="mus_l5s1", group="Muscles", title="L5/S1 compression: muscles vs single-muscle estimate",
+                      unit="N", series=[dict(label="Muscle forces", array="mus_l5s1", col=0, side=""),
+                                        dict(label="Single equivalent muscle", array="mus_l5s1", col=1, side="")],
+                      shade=shade, refs=[dict(value=3400, label="NIOSH action limit"),
+                                         dict(value=6400, label="NIOSH maximum")],
+                      note="Axial force across L5/S1 with every muscle crossing it; a reserve torque adds no force."))
+  return arrays, meta, plots
+
+
+def layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_markers=None, profile=None,
+           muscles=None):
   arrays, plots = {}, []
   to_clip = lambda P: P * scale + np.array([0.0, 0.0, human_dz])  # lab (subject) -> clip frame
   if profile is None:
@@ -156,4 +197,10 @@ def layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_marker
       M = osim_markers[np.minimum(idx, len(osim_markers) - 1)]
       arrays["osim_markers"] = q16(to_clip(M), ps)
       compare["markers"] = "osim_markers"
-  return arrays, dict(plots=plots, arrows=arrows, compare=compare)
+  out = dict(plots=plots, arrows=arrows, compare=compare)
+  if muscles is not None:
+    ma, mm, mp = muscle_layers(muscles, idx, kin)
+    arrays.update(ma)
+    plots.extend(mp)
+    out["muscle_act"] = mm
+  return arrays, out
