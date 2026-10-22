@@ -824,8 +824,11 @@ $("tl").addEventListener("pointermove", e => { if (e.buttons) scrubFrom(e); });
    A clip lists its plots (meta.plots): a title, a unit, a menu group and series read from
    the clip's arrays ({label, array, col, side}); optionally "cmp" series (the same quantity
    from another method, dashed, shown with the OpenSim toggle), "shade" (frames greyed out,
-   e.g. where a load is not determined) and reference lines. Clips without plots get the
-   joint-angle plots built from meta.curves. */
+   e.g. where a load is not determined) and reference lines. A series may carry a "band"
+   ({array, col}: a standard deviation per frame, drawn as a shaded band of +-1 SD around it;
+   joint angles: pipeline/confidence.py). Clips without plots get the joint-angle plots
+   built from meta.curves. */
+const BAND_NOTE = "Band: ±1 SD, how firmly the markers pin this angle (soft tissue moving the markers with the bone is not in it)";
 const ANGLE_PLOTS = [["ang_knee", "Knee flexion", ["knee_angle_r", "knee_angle_l"]], ["ang_hipf", "Hip flexion", ["hip_flexion_r", "hip_flexion_l"]],
   ["ang_hipa", "Hip adduction", ["hip_adduction_r", "hip_adduction_l"]], ["ang_ankle", "Ankle dorsiflexion", ["ankle_angle_r", "ankle_angle_l"]],
   ["ang_lumbar", "Lumbar extension", ["flex_extension"]], ["ang_shoulder", "Shoulder elevation", ["shoulder_elv_r", "shoulder_elv_l"]],
@@ -875,8 +878,12 @@ function drawChart() {
   const plot = currentPlot();
   if (!plot) { ctx.fillStyle = css("--muted"); ctx.fillText("This clip has no curves", 6, 18); return; }
   const n = clip.meta.frames, lines = plotLines(plot);
+  const band = (ln, i) => ln.sr.band && clip.a[ln.sr.band.array] ? seriesVal(ln.sr.band, i) : NaN;
   let lo = Infinity, hi = -Infinity;
-  for (const ln of lines) for (let i = 0; i < n; i++) { const v = seriesVal(ln.sr, i); if (Number.isFinite(v)) { lo = Math.min(lo, v); hi = Math.max(hi, v); } }
+  for (const ln of lines) for (let i = 0; i < n; i++) {
+    const v = seriesVal(ln.sr, i), sd = band(ln, i), e = Number.isFinite(sd) ? sd : 0;
+    if (Number.isFinite(v)) { lo = Math.min(lo, v - e); hi = Math.max(hi, v + e); }
+  }
   for (const r of plot.refs ?? []) { lo = Math.min(lo, r.value); hi = Math.max(hi, r.value); }
   if (!Number.isFinite(lo)) { lo = 0; hi = 1; }
   const pad = Math.max((hi - lo) * 0.08, plot.unit === "°" ? 5 : 1e-3); lo -= pad; hi += pad;
@@ -897,6 +904,18 @@ function drawChart() {
     ctx.strokeStyle = css("--bad"); ctx.setLineDash([2, 3]); ctx.beginPath(); ctx.moveTo(Lm, y(r.value)); ctx.lineTo(W - 4, y(r.value)); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = css("--bad"); ctx.fillText(r.label, Lm + 4, y(r.value) - 3);
   }
+  for (const ln of lines) {  // bands under the lines: v +- sd over each run of frames that has both
+    if (!ln.sr.band || !clip.a[ln.sr.band.array]) continue;
+    ctx.fillStyle = color_mix(ln.color, 0.25);
+    for (let i = 0; i < n;) {
+      if (!Number.isFinite(seriesVal(ln.sr, i)) || !Number.isFinite(band(ln, i))) { i++; continue; }
+      let j = i; while (j < n && Number.isFinite(seriesVal(ln.sr, j)) && Number.isFinite(band(ln, j))) j++;
+      ctx.beginPath();
+      for (let k = i; k < j; k++) ctx.lineTo(x(k), y(seriesVal(ln.sr, k) + band(ln, k)));
+      for (let k = j - 1; k >= i; k--) ctx.lineTo(x(k), y(seriesVal(ln.sr, k) - band(ln, k)));
+      ctx.closePath(); ctx.fill(); i = j;
+    }
+  }
   for (const ln of lines) {
     ctx.strokeStyle = ln.color; ctx.setLineDash(ln.dash); ctx.lineWidth = ln.cmp ? 1.3 : 1.6; ctx.beginPath();
     let pen = false;
@@ -911,7 +930,8 @@ function drawChart() {
   const prec = plot.unit === "°" ? 1 : Math.abs(hi) >= 100 ? 0 : 1;
   document.querySelectorAll("#chartLegend .val").forEach(el => {
     const sr = (el.dataset.cmp ? plot.cmp : plot.series)[+el.dataset.k], v = sr ? seriesVal(sr, frame) : NaN;
-    el.textContent = Number.isFinite(v) ? `${v.toFixed(prec)} ${plot.unit}` : "–";
+    const sd = sr?.band && clip.a[sr.band.array] ? seriesVal(sr.band, frame) : NaN;
+    el.textContent = !Number.isFinite(v) ? "–" : Number.isFinite(sd) ? `${v.toFixed(prec)} ± ${sd.toFixed(prec)} ${plot.unit}` : `${v.toFixed(prec)} ${plot.unit}`;
   });
 }
 function buildPlotMenu() {
@@ -944,6 +964,7 @@ function buildChartLegend() {
   }
   if (plot.ghost && clip.a.ghost_curves && $("lyGhost").checked) leg.insertAdjacentHTML("beforeend", `<div class="lrow">${sw(css("--ghost"), true)}<span>Ghost: ${clip.meta.ghost}</span></div>`);
   if (plot.shade) leg.insertAdjacentHTML("beforeend", `<div class="lrow muted"><span class="swatch" style="background:${color_mix(css("--fg"), 0.14)}"></span><span>${plot.shade.label}</span></div>`);
+  if (plot.series.some(sr => sr.band && clip.a[sr.band.array])) leg.insertAdjacentHTML("beforeend", `<div class="lrow muted"><span class="swatch" style="background:${color_mix(css("--fg"), 0.25)}"></span><span>${BAND_NOTE}</span></div>`);
   note.textContent = plot.note ?? "";
 }
 $("curveSel").addEventListener("change", () => { buildChartLegend(); drawChart(); });

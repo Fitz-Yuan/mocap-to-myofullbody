@@ -464,6 +464,11 @@ IK_ANKLE_SMOOTH = float(_env("M2M_IK_ANKLE_SMOOTH", 0.3))
 NECK = _flag("M2M_NECK", "0")
 IK_FRAMES = _env("M2M_IK_FRAMES", "")  # "a:b": tracking IK on that frame range only (pilot / timing)
 LOMO_EVERY_S = float(_env("M2M_LOMO_EVERY_S", 1.0))  # validate/lomo.py: one frame per this many s
+# pipeline/confidence.py (optional): per-joint, per-frame standard deviation of the IK from
+# how firmly the markers pin each joint (with lomo.json when there is one); written to
+# M2M_CONF_DIR, computed every M2M_CONF_STEP_S seconds and interpolated
+CONF_DIR = _path("M2M_CONF_DIR", os.path.join(IK_DIR, "confidence"))
+CONF_STEP_S = float(_env("M2M_CONF_STEP_S", 0.04))
 
 # --- inverse dynamics (kinetics.py) and the OpenSim comparison ---------------------
 

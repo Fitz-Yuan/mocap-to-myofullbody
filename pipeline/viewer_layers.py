@@ -3,13 +3,16 @@ and the OpenSim comparison (stick figure, markers, dashed curves). Positions go 
 clip's frame: the reference's model space (subject x scale) raised by the reference's
 human shift.
 
-layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_markers=None, profile=None)
+layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_markers=None, profile=None,
+       conf=None)
   m: MuJoCo model (joint names), Q: reference qpos for the clip frames [n, nq],
   profile: the model profile (its [angles]; default MyoFullBody),
   idx: clip frame indices into the trial, scale: subject scale of the IK, human_dz: the
   reference's vertical shift of the body, q16 / ps: export_viewer's int16 position
   encoder and its metres per unit, kin / osim: npz of our kinetics and of the OpenSim
-  stage (optional), osim_markers: OpenSim's model markers [T, n, 3] (optional).
+  stage (optional), osim_markers: OpenSim's model markers [T, n, 3] (optional), conf: npz of
+  pipeline/confidence.py (optional: each joint-angle series gets a band of +-1 SD, the
+  per-frame SD of its joint).
   Returns (arrays, meta) to merge into the clip. Without task loads in the kinetics
   (M2M_TASK=none: no hand_force) the hand-load plot and arrows are left out.
 """
@@ -60,7 +63,8 @@ def angles(profile):
   return out
 
 
-def layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_markers=None, profile=None):
+def layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_markers=None, profile=None,
+           conf=None):
   arrays, plots = {}, []
   to_clip = lambda P: P * scale + np.array([0.0, 0.0, human_dz])  # lab (subject) -> clip frame
   if profile is None:
@@ -82,11 +86,21 @@ def layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_marker
     n = len(osim[f"angle_{ocols[0]}"])
     ii = np.minimum(idx, n - 1)
     arrays["osim_ang"] = np.stack([osim[f"angle_{o}"][ii] for o in ocols], 1).astype(np.float32)
+  band = None
+  if conf is not None:  # the SD of each curve's joint (the sign of an angle does not change it)
+    joints = [str(j) for j in conf["joints"]]
+    sd = conf["joint_sd_deg"][np.minimum(idx, len(conf["joint_sd_deg"]) - 1)]
+    arrays["ang_sd"] = np.stack([sd[:, joints.index(j)] if j in joints else np.full(len(idx), np.nan)
+                                 for j in cols], 1).astype(np.float32)
+    band = lambda c: dict(array="ang_sd", col=c)
   for pid, title, pairs4, note in angs:
     pairs = [(j, o) for _, j, _, o in pairs4]
     two = len(pairs) > 1
     ser = [dict(label=("Right", "Left")[k] if two else title, array="ang", col=cols.index(j),
                 side=("r", "l")[k] if two else "") for k, (j, _) in enumerate(pairs)]
+    if band is not None:
+      for sr in ser:
+        sr["band"] = band(sr["col"])
     cmp = [dict(label="OpenSim", array="osim_ang", col=ocols.index(o), side=("r", "l")[k] if two else "")
            for k, (_, o) in enumerate(pairs) if o in ocols]
     plots.append(dict(id=pid, group="Joint angles", title=title, unit="°", series=ser, cmp=cmp or None, note=note))

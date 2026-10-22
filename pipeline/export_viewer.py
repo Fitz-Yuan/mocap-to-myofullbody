@@ -23,7 +23,8 @@ Two kinds of file, both in the ELVW container (below):
                     the reference and has no objects (and --clip is not available).
                     Optional ghost: the same frames from a second run (e.g. another
                     calibration) for an overlay.
-                    With the inverse dynamics (pipeline/kinetics.py) the clip also gets
+                    With pipeline/confidence.py the joint-angle curves get a band of
+                    +-1 SD. With the inverse dynamics (pipeline/kinetics.py) the clip also gets
                     joint-load and ground-reaction plots and force arrows, and with the
                     OpenSim comparison (validate/opensim_ik.py, pipeline/opensim_id.py)
                     the OpenSim stick figure, markers and dashed curves
@@ -44,7 +45,7 @@ z), missing markers -32768.
   python pipeline/export_viewer.py clip TRIAL OUT_DIR [--clip K] [--fps 50]
       [--ik-dir DIR] [--ref-dir DIR] [--npz-dir DIR] [--run-label TEXT]
       [--ghost-ref-dir DIR [--ghost-label TEXT]]
-      [--kin-dir DIR] [--osim-id-dir DIR] [--osim-ik-dir DIR] [--public NAME]
+      [--kin-dir DIR] [--osim-id-dir DIR] [--osim-ik-dir DIR] [--conf-dir DIR] [--public NAME]
   --clip K           clip K (1..n) of the task's reference (box_lift: carry cycle K);
                      0 (default) = the whole trial
   --ik-dir, --ref-dir, --npz-dir   inputs (default M2M_IK_DIR, M2M_REF_DIR, M2M_NPZ_DIR)
@@ -54,6 +55,9 @@ z), missing markers -32768.
   --kin-dir DIR      inverse dynamics (pipeline/kinetics.py; default M2M_KIN_DIR)
   --osim-id-dir DIR, --osim-ik-dir DIR   the OpenSim comparison (pipeline/opensim_id.py,
                      validate/opensim_ik.py)
+  --conf-dir DIR     per-joint confidence (pipeline/confidence.py): a +-1 SD band around
+                     each joint-angle curve (default M2M_CONF_DIR, with --ik-dir its
+                     confidence/ folder)
   --public NAME      a de-identified clip for a public page, named NAME: the trial name,
                      the clip's position in the trial, the subject's scale and the QA
                      grades are left out, and the run is labelled --run-label or "demo"
@@ -301,9 +305,14 @@ def export_clip(a):
   kin = opt(a.kin_dir, f"{trial}.npz")
   osim = opt(a.osim_id_dir, f"{trial}.npz")
   omk = opt(a.osim_ik_dir, os.path.join(subj, f"{trial}_markers.npz"))
+  conf_dir = a.conf_dir or (config.CONF_DIR if a.ik_dir == config.IK_DIR else os.path.join(a.ik_dir, "confidence"))
+  conf = opt(conf_dir, f"{trial}.npz")
+  if conf is not None and str(conf["model_profile"]) != mm.profile.name:
+    print(f"{trial}: confidence of {conf['model_profile']}, not {mm.profile.name}: left out")
+    conf = None
   la, lm = viewer_layers.layers(m, Q, idx, s, dz, q16, ps, kin=kin, osim=osim,
                                 osim_markers=None if omk is None else omk["markers"],
-                                profile=mm.profile)
+                                profile=mm.profile, conf=conf)
   arrays.update(la)
   qa = {}
   rep = os.path.join(a.ik_dir, "report.json")
@@ -330,6 +339,7 @@ def export_clip(a):
   size = write_elvw(os.path.join(a.out_dir, name), meta, arrays)
   print(f"{name}: {len(idx)} frames @ {fps:g} Hz, residual median {np.nanmedian(resid) * 1e3:.1f} mm, "
         f"{len(lm['plots'])} plots, kinetics {'yes' if kin is not None else 'no'}, "
+        f"confidence bands {'yes' if conf is not None else 'no'}, "
         f"OpenSim {'yes' if lm['compare'] else 'no'}, {size / 1e6:.2f} MB")
 
 
@@ -353,6 +363,8 @@ def main():
   pc.add_argument("--kin-dir", default=config.KIN_DIR, help="inverse dynamics (kinetics.py)")
   pc.add_argument("--osim-id-dir", default=config.OSIM_ID_DIR, help="OpenSim joints / ID (opensim_id.py)")
   pc.add_argument("--osim-ik-dir", default=config.OSIM_DIR, help="OpenSim IK (validate/opensim_ik.py)")
+  pc.add_argument("--conf-dir", default="", help="per-joint confidence (pipeline/confidence.py; default "
+                  "M2M_CONF_DIR, or <--ik-dir>/confidence)")
   pc.add_argument("--public", default="", help="name for a de-identified demo clip")
   a = ap.parse_args()
   if a.cmd == "model":
