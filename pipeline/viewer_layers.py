@@ -114,9 +114,10 @@ def layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_marker
     T = len(kin["grf"])
     ii = np.minimum(idx, T - 1)
     arrays["kin"] = np.stack([kin[k][ii] for k in keys], 1).astype(np.float32)
-    grf, share = kin["grf"][ii], kin["foot_share"][ii]
+    grf, foot = kin["grf"][ii], kin["foot_force"][ii]  # each foot: estimated or measured (plates)
     hands = "hand_force" in kin.files  # the task's load on the hands (none without a task)
-    gcols = [grf[:, 2], share[:, 0] * grf[:, 2], share[:, 1] * grf[:, 2]]
+    plated = bool((kin["foot_source"] == 1).any()) if "foot_source" in kin.files else False
+    gcols = [grf[:, 2], foot[:, 0, 2], foot[:, 1, 2]]
     if hands:
       gcols += [-kin["hand_force"][ii, 0, 2], -kin["hand_force"][ii, 1, 2]]
     arrays["grf"] = np.stack(gcols, 1).astype(np.float32)
@@ -143,8 +144,10 @@ def layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_marker
                               dict(label="Right foot", array="grf", col=2, side="r"),
                               dict(label="Left foot", array="grf", col=1, side="l")],
                       shade=dict(array="shade_dbl", label=DOUBLE),
-                      note="From the whole-body motion and the carried load (no force plates)." if hands
-                      else "From the whole-body motion (no force plates)."))
+                      note=("The total from the whole-body motion; a foot on a force plate carries "
+                            "the plate's force." if plated else
+                            "From the whole-body motion and the carried load (no force plates)." if hands
+                            else "From the whole-body motion (no force plates).")))
     if hands:
       plots.append(dict(id="box_hands", group="Ground reaction", title="Carried load on each hand (vertical)", unit="N",
                         series=[dict(label="Right", array="grf", col=4, side="r"), dict(label="Left", array="grf", col=3, side="l")],
@@ -153,7 +156,7 @@ def layers(m, Q, idx, scale, human_dz, q16, ps, kin=None, osim=None, osim_marker
       arrays["arr_hand_o"], arrays["arr_hand_v"] = q16(palm, ps), kin["hand_force"][ii].astype(np.float32)
     fcop = to_clip(np.nan_to_num(kin["foot_cop"][ii]))
     arrays["arr_foot_o"] = q16(fcop, ps)
-    arrays["arr_foot_v"] = (share[..., None] * grf[:, None, :]).astype(np.float32)
+    arrays["arr_foot_v"] = foot.astype(np.float32)
     for h, nm in enumerate(("left", "right")):
       if hands:
         arrows.append(dict(name=f"Carried load on the {nm} hand", origin="arr_hand_o", vector="arr_hand_v", col=h,
