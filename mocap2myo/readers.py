@@ -338,13 +338,16 @@ def read_tak_file(path, up=None):
 MOTIVE_UNITS = {"meters": 1.0, "millimeters": 0.001, "centimeters": 0.01}
 
 
-def read_motive_csv(path, up=None, units=None):
+def read_motive_csv(path, up=None, units=None, exclude=""):
   """An OptiTrack Motive CSV export (format versions 1.1-1.25): the labelled markers ("Marker"
   columns; names stripped of their skeleton prefix, "Unlabeled N" kept as they are), the
   export rate and length unit from the first line (Motive's "Coordinate Space" option moves the
   bones and rigid bodies only; markers are in the world frame). The skeleton's "Bone Marker" columns are
   where the solved skeleton expects its markers, not measurements, and are not read: an
-  export with nothing else stops with a message."""
+  export with nothing else stops with a message. Several skeletons in one take: a name that
+  two of them share keeps its prefix ("Alice:LHeel", "Bob:LHeel"), so their markers are never
+  mixed; `exclude` (a regex matched against the name with and without its prefix, e.g.
+  "Bob:.*") leaves the others out."""
   import csv
   with open(path, newline="", encoding="utf-8-sig") as f:
     rows = list(csv.reader(f))
@@ -360,11 +363,17 @@ def read_motive_csv(path, up=None, units=None):
   typ = next((r for r in head if len(r) > 1 and r[1].strip() == "Type"), head[0])
   name = next((r for r in head if len(r) > 1 and r[1].strip() == "Name"), head[1])
   prop, comp = rows[fi - 1], rows[fi]
-  cols = {}
+  excl = re.compile(exclude) if exclude else None
+  full = {}
   for j in range(2, len(comp)):
     t = typ[j].strip() if j < len(typ) else ""
     if t == "Marker" and j < len(prop) and prop[j].strip() == "Position" and comp[j].strip() in "XYZ":
-      cols.setdefault(strip_prefix(name[j].strip()), {})[comp[j].strip()] = j
+      nm = name[j].strip()
+      if excl and (excl.fullmatch(nm) or excl.fullmatch(strip_prefix(nm))):
+        continue
+      full.setdefault(nm, {})[comp[j].strip()] = j
+  short = [strip_prefix(nm) for nm in full]
+  cols = {(s if short.count(s) == 1 else nm): c for nm, s, c in zip(full, short, full.values())}
   kinds = sorted({c.strip() for c in typ[2:] if c.strip()})
   if not cols:
     raise ValueError(f"{path}: no measured markers (columns of type {kinds}); export from Motive "
@@ -486,7 +495,7 @@ def read_trial(path, kind=None, up=None, units=None, exclude="", analog=".*",
   if kind == "b3d":
     return read_b3d(path, up, fp_min_fz)
   if kind == "csv":
-    return read_motive_csv(path, up, units)
+    return read_motive_csv(path, up, units, exclude)
   raise ValueError(f"kind {kind!r}: expected c3d, trc, tak, b3d or csv")
 
 

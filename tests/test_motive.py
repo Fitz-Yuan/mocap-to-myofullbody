@@ -41,3 +41,14 @@ def test_bones_only_export_is_refused(tmp_path):
 def test_marker_sets_load(name):
   ms = markerset.load(name)
   assert len(ms.PELVIS_LABELS) == 4 and len(ms.LABELS) >= 16
+
+
+def test_two_people_kept_apart(tmp_path):
+  body = (",Type,Marker,Marker,Marker,Marker,Marker,Marker\n"
+          ",Name,Alice:LHeel,Alice:LHeel,Alice:LHeel,Bob:LHeel,Bob:LHeel,Bob:LHeel\n"
+          ",ID,1,1,1,2,2,2\n,,Position,Position,Position,Position,Position,Position\n"
+          "Frame,Time (Seconds),X,Y,Z,X,Y,Z\n0,0,1,2,3,4,5,6\n")
+  p = _csv(tmp_path, body)
+  assert readers.read_trial(p)["labels"] == ["Alice:LHeel", "Bob:LHeel"]  # never mixed
+  r = readers.read_trial(p, exclude="Bob:.*")
+  assert r["labels"] == ["LHeel"] and np.allclose(r["xyz"][0, 0], [0.001, 0.002, 0.003])

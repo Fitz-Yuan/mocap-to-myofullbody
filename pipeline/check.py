@@ -93,7 +93,8 @@ def main():
         labels, rate, units, up, plates = list(r["names"]), r["rate"], "m", "y", None
       else:
         from mocap2myo import readers
-        r = readers.read_trial(path, config.INPUT, up=config.UP, units=config.UNITS or None)
+        r = readers.read_trial(path, config.INPUT, up=config.UP, units=config.UNITS or None,
+                               exclude=config.POINTS_EXCLUDE)
         labels, rate, units, up, plates = r["labels"], r["rate"], r["units"], r["up"], r["plates"]
         T = len(r["xyz"])
         ok(f"{name}: {T} frames at {rate:g} Hz ({T / rate:.1f} s), units {units}, up {up}")
@@ -121,6 +122,7 @@ def main():
 
 
 def check_markers(labels):
+  from mocap2myo import readers
   ms = config.marker_set()
   labels = [l for l in labels if l and not l.startswith(("*", "Unlabeled"))]
   own = [l for l in labels if l in ms.markers or l in ms.HEAD_LABELS]
@@ -149,6 +151,10 @@ def check_markers(labels):
                                                                 " (another M2M_MARKER_SET? mocap2myo/markersets)"))
   if unknown:
     ok(f"{len(unknown)} labels not in the set (left out): {unknown[:8]}{'...' if len(unknown) > 8 else ''}")
+  shared = sorted({l.rsplit(":", 1)[0] for l in labels if ":" in l and readers.strip_prefix(l) in ms.LABELS})
+  if len(shared) > 1:
+    bad(f"several people in this take ({', '.join(shared)}): their markers share names; leave all but one "
+        f"out, e.g. points_exclude = '{'|'.join(x + ':.*' for x in shared[1:])}' in the profile (M2M_POINTS_EXCLUDE)")
   pel = [l for l in ms.PELVIS_LABELS if l not in mapped]
   if len(pel) > 1:
     bad(f"pelvis markers missing: {pel} (the IK needs at least 3 of {ms.PELVIS_LABELS})")
