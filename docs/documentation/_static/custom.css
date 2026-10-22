@@ -1,0 +1,66 @@
+/* the website's brand: accent red, Inter Tight; no other theme changes */
+@import url("https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&display=swap");
+html[data-theme="light"] {
+  --pst-color-primary: #d9381a;
+  --pst-color-secondary: #d9381a;
+  --pst-color-link: #b8301a;
+  --pst-color-link-hover: #d9381a;
+}
+html[data-theme="dark"] {
+  --pst-color-primary: #e0605a;
+  --pst-color-secondary: #e0605a;
+  --pst-color-link: #ff8a80;
+  --pst-color-link-hover: #e0605a;
+}
+:root {
+  --pst-font-family-base: "Inter Tight", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --pst-font-family-heading: "Inter Tight", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+}
+h1, h2, h3 { letter-spacing: -0.01em; }
+table.table { font-size: 0.92em; }
+table.table td:first-child { white-space: normal; }
+.bd-content .sd-card { border-radius: 10px; }
+
+/* figures drawn as inline SVG with the page's colours (carried over from the one-page docs) */
+html[data-theme="light"] { --m2m-surface: #f5f5f7; --m2m-fg: #1d1d1f; --m2m-muted: #6e6e73; --m2m-faint: #86868b;
+  --m2m-line: #d2d2d7; --m2m-accent: #d9381a; --m2m-ok: #248a3d; --m2m-warn-soft: rgba(201, 125, 0, 0.12); }
+html[data-theme="dark"] { --m2m-surface: #1c1c1e; --m2m-fg: #f5f5f7; --m2m-muted: #a1a1a6; --m2m-faint: #6e6e73;
+  --m2m-line: #2a2a2e; --m2m-accent: #e0605a; --m2m-ok: #30d158; --m2m-warn-soft: rgba(255, 159, 10, 0.16); }
+figure.fig { margin: 1rem 0; background: var(--m2m-surface); border-radius: 14px; padding: clamp(14px, 2.4vw, 24px);
+  display: flex; flex-direction: column; gap: 12px; }
+figure.fig svg { display: block; width: 100%; height: auto; }
+figure.fig figcaption { font-size: 13.5px; line-height: 1.5; color: var(--m2m-muted); }
+.fig .ax { stroke: var(--m2m-line); stroke-width: 1.2; fill: none; }
+.fig .ln { stroke: var(--m2m-muted); stroke-width: 1.6; fill: none; }
+.fig .faint { stroke: var(--m2m-faint); stroke-width: 1.4; fill: none; stroke-dasharray: 3 4; }
+.fig .acc { stroke: var(--m2m-accent); stroke-width: 2; fill: none; }
+.fig .dash { stroke-dasharray: 6 5; }
+.fig .bone { stroke: var(--m2m-fg); stroke-width: 7; stroke-linecap: round; fill: none; opacity: 0.85; }
+.fig .jt { fill: var(--m2m-surface); stroke: var(--m2m-fg); stroke-width: 2; }
+.fig .mk { fill: var(--m2m-ok); }
+.fig .mkh { fill: none; stroke: var(--m2m-accent); stroke-width: 2; stroke-dasharray: 3 3; }
+.fig .dot { fill: var(--m2m-muted); }
+.fig text { fill: var(--m2m-muted); font: 12.5px/1 var(--pst-font-family-base); }
+.fig text.t { fill: var(--m2m-fg); font-weight: 600; font-size: 13.5px; }
+.fig text.a { fill: var(--m2m-accent); }
+.fig text.k { fill: var(--m2m-ok); }
+/* "files" and "in / out" boxes of the pipeline pages */
+.m2m-files { font-size: 0.88em; color: var(--pst-color-text-muted); margin-bottom: 0.6rem; }
+.m2m-io { border-left: 3px solid var(--pst-color-primary); padding: 0.2rem 0.9rem; margin: 0.8rem 0; font-size: 0.93em; }
+.m2m-io p { margin: 0.25rem 0; }
+
+/* the sidebar already has the search box: no second one in a top bar */
+header.bd-header { display: none; }
+.navbar-brand { gap: 0.6rem; align-items: center; padding: 0.4rem 0 0.8rem; }
+.navbar-brand img.logo__image { height: 34px; width: auto; max-height: 34px; }
+.navbar-brand p.title { font-weight: 650; font-size: 1.12rem; letter-spacing: -0.01em; margin: 0; color: var(--pst-color-text-base); }
+
+/* wide reference tables: code wraps inside cells, the table scrolls rather than being cut */
+.bd-content table td code, .bd-content table th code { white-space: normal; overflow-wrap: anywhere; }
+.bd-content .pst-scrollable-table-container, .bd-content .table-wrapper { overflow-x: auto; }
+.bd-content table { max-width: 100%; }
+/* the theme keeps inline code on one line (span.pre); in tables let it break */
+.bd-content table span.pre { white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+.bd-content .pst-scrollable-table-container { overflow-x: auto; max-width: 100%; }
+/* use the width the empty right-hand contents column leaves on pages without sections */
+@media (min-width: 1200px) { .bd-main .bd-content .bd-article-container { max-width: 64rem; } }

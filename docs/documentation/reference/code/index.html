@@ -1,0 +1,684 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Source layout &#8212; Mocap to MSK</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=4418a689" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=5a5f2542" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../_static/documentation_options.js?v=55b5f74b"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'reference/code';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <script src="../../_static/redirects.js?v=686ecdf4"></script>
+    <link rel="icon" href="../../_static/favicon.svg"/>
+    <link rel="index" title="Index" href="../../genindex/" />
+    <link rel="search" title="Search" href="../../search/" />
+    <link rel="next" title="Glossary" href="../glossary/" />
+    <link rel="prev" title="Validation scripts" href="../validation-scripts/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Oct 22, 2026"/>
+  
+    
+    <script src="../../_static/searchtools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script src="../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search/"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../../_static/logo-dark.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Mocap to MSK</p>
+  
+</a></div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://fitz-yuan.github.io/mocap-to-myofullbody/" title="Website" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-house fa-lg" aria-hidden="true"></i><span class="visually-hidden">Website</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/" title="Viewer" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-person-walking fa-lg" aria-hidden="true"></i><span class="visually-hidden">Viewer</span></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../../">
+                    Mocap to MSK
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/installation/">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/demo/">The demo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/your-data/">Your own data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/results/">Reading the results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/troubleshooting/">When something goes wrong</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How it works</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/overview/">Pipeline overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/reading/">Reading recordings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/markers/">Marker conditioning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/gap-filling/">Gap filling</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/ik/">Calibration and inverse kinematics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/qa/">Quality checks and the report</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/kinetics/">Inverse dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/muscles/">Muscle forces</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/models/">Models and marker sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/box-lift/">Task: box lifting</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Validation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../validation/summary/">Validation summary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/parameters/">Parameters and their sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/sensitivity/">Sensitivity analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/joint-angles/">Joint angles: what the residual cannot show</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/public-data/">Public data: Vicon Plug-in-Gait and every model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/addbiomechanics/">Against AddBiomechanics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/xsens/">Against Xsens inertial capture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/opensim/">Against OpenSim</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/inverse-dynamics/">Inverse dynamics against OpenSim and force plates</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/markers/">Marker prediction: leave one marker out</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/gap-benchmark/">Gap filling against established methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/case-study/">The case study: box lifting with OptiTrack</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../cli/">Command line</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../settings/">Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../outputs/">Files and formats</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../validation-scripts/">Validation scripts</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Source layout</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../glossary/">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reading/">Further reading</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../license/">License and credits</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody/edit/main/docs-src/reference/code.md" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody/issues/new?title=Issue%20on%20page%20%2Freference/code.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../_sources/reference/code.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Source layout</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="source-layout">
+<span id="code"></span><h1>Source layout<a class="headerlink" href="#source-layout" title="Link to this heading">#</a></h1>
+<div class="pst-scrollable-table-container"><table class="refs table">
+<thead>
+<tr class="row-odd"><th class="head"><p>File</p></th>
+<th class="head"><p>What</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo/tak.py</span></code></p></td>
+<td><p>Reads .tak files without Motive; exports TRC; compares against a TRC export</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo/readers.py</span></code></p></td>
+<td><p>Reads one C3D, TRC, .tak or AddBiomechanics .b3d trial: markers (metres, Z-up), force plates as the ground reaction per marker frame, analog channels, the lab software’s model outputs apart</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pipeline/config.py</span></code>, <code class="docutils literal notranslate"><span class="pre">datasets/*.toml</span></code></p></td>
+<td><p>Folders, file naming (trials, subjects, static trials, anthropometrics) and every setting / environment variable; a dataset’s settings as a profile</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pipeline/read_raw.py</span></code></p></td>
+<td><p>Raw recordings (.tak, C3D, TRC, .b3d; trials and static trials) to the cache the cleaning step reads</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pipeline/prepare_markers.py</span></code></p></td>
+<td><p>Marker conditioning: label maps, head by position, mislabel rejection, pelvis refill (the task adds box and scene)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo/markerset.py</span></code>, <code class="docutils literal notranslate"><span class="pre">mocap2myo/markersets/*.toml</span></code></p></td>
+<td><p>Marker sets as data (Plug-in-Gait, ISB / Dumas): segment, landmark, offset and weight per marker, roles, label aliases</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo/profile.py</span></code>, <code class="docutils literal notranslate"><span class="pre">mocap2myo/profiles/*.toml</span></code>, <code class="docutils literal notranslate"><span class="pre">mocap2myo/landmarks.py</span></code></p></td>
+<td><p>Model profiles (file, root, facing, IK joints, canonical segments, kinetics joints, feet and hands) and the anatomical landmarks computed from a model’s bones</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">models/</span></code>: <code class="docutils literal notranslate"><span class="pre">fetch.py</span></code>, <code class="docutils literal notranslate"><span class="pre">mass_to_mjcf.py</span></code>, <code class="docutils literal notranslate"><span class="pre">osim_to_mjcf.py</span></code>, <code class="docutils literal notranslate"><span class="pre">check.py</span></code></p></td>
+<td><p>The models that are not in the repository, fetched at pinned commits and built (MASS, MyoConverter); landmarks and counts of every profile</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo/ik.py</span></code></p></td>
+<td><p>The IK solver: marker model, short-gap filling, per-frame least squares, tracking-loss recovery, the lost-limb check, subject calibration (with the static-trial option)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo/ik_gpu.py</span></code></p></td>
+<td><p>The same IK on the GPU (Warp kernels, chunked in time, all trials in one batch)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo/scaling.py</span></code></p></td>
+<td><p>Segment-by-segment scaling from the static trial (<code class="docutils literal notranslate"><span class="pre">M2M_SCALE=segments</span></code>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo/cli.py</span></code></p></td>
+<td><p>The <code class="docutils literal notranslate"><span class="pre">mocap2myo</span></code> command: init, check, run, demo, models</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pipeline/check.py</span></code></p></td>
+<td><p>The pre-flight check of a dataset</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pipeline/confidence.py</span></code></p></td>
+<td><p>Per-joint confidence of the IK (a ±1 SD band in the viewer)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pipeline/solve_ik.py</span></code></p></td>
+<td><p>Calibration and IK for all trials in parallel</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pipeline/qa.py</span></code></p></td>
+<td><p>QA of an IK run (with the task’s checks)</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">tasks/box_lift/</span></code>: <code class="docutils literal notranslate"><span class="pre">box_fit.py</span></code>, <code class="docutils literal notranslate"><span class="pre">build_reference.py</span></code>, <code class="docutils literal notranslate"><span class="pre">checks.py</span></code>, <code class="docutils literal notranslate"><span class="pre">build_dataset.py</span></code>, <code class="docutils literal notranslate"><span class="pre">motion_io.py</span></code>, <code class="docutils literal notranslate"><span class="pre">viewer_scene.py</span></code></p></td>
+<td><p>The lifting task: box and scene, reference, its QA checks, carry-cycle clips, motion-dataset writer, viewer objects</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pipeline/report.py</span></code>, <code class="docutils literal notranslate"><span class="pre">pipeline/validate/lomo.py</span></code>, <code class="docutils literal notranslate"><span class="pre">xsens.py</span></code>, <code class="docutils literal notranslate"><span class="pre">static_pose.py</span></code>, <code class="docutils literal notranslate"><span class="pre">pig_compare.py</span></code>, <code class="docutils literal notranslate"><span class="pre">addbio_compare.py</span></code></p></td>
+<td><p>Validation</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo/muscles.py</span></code>, <code class="docutils literal notranslate"><span class="pre">pipeline/muscles.py</span></code>, <code class="docutils literal notranslate"><span class="pre">mocap2myo/emg.py</span></code>, <code class="docutils literal notranslate"><span class="pre">pipeline/validate/emg_compare.py</span></code>, <code class="docutils literal notranslate"><span class="pre">tasks/box_lift/emg.py</span></code></p></td>
+<td><p>Muscle forces by static optimisation, and the comparison with EMG</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pipeline/validate/opensim_ik.py</span></code>, <code class="docutils literal notranslate"><span class="pre">opensim_compare.py</span></code></p></td>
+<td><p>OpenSim baseline on the same markers, and the side-by-side scores</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo/kinetics.py</span></code>, <code class="docutils literal notranslate"><span class="pre">pipeline/kinetics.py</span></code>, <code class="docutils literal notranslate"><span class="pre">tasks/box_lift/loads.py</span></code></p></td>
+<td><p>Inverse dynamics: subtree Newton–Euler at the subject’s size and mass, ground reaction and foot split, the box’s load on the hands</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">pipeline/opensim_id.py</span></code>, <code class="docutils literal notranslate"><span class="pre">pipeline/validate/kinetics_compare.py</span></code>, <code class="docutils literal notranslate"><span class="pre">tasks/box_lift/force_plates.py</span></code></p></td>
+<td><p>OpenSim joint centres and Inverse Dynamics with the same loads; the comparison; the force-plate check</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pipeline/export_c3d.py</span></code></p></td>
+<td><p>Gap-filled markers as C3D (rigid body fill, else the model’s marker)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">tests/</span></code>, <code class="docutils literal notranslate"><span class="pre">.github/workflows/ci.yml</span></code></p></td>
+<td><p>The tests (pytest) and the CI that runs them</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">pipeline/export_viewer.py</span></code>, <code class="docutils literal notranslate"><span class="pre">pipeline/viewer_layers.py</span></code></p></td>
+<td><p>Model and clip files for the browser viewer; plots, force arrows and the OpenSim overlay in a clip</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo/</span></code></p></td>
+<td><p>MyoFullBody model files (MuscleMimic; Apache-2.0, with a non-commercial restriction on the arm and hand parts derived from MoBL-ARMS: see the README and the model’s NOTICE) and small kinematic helpers</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../validation-scripts/"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Validation scripts</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../glossary/"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Glossary</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Mocap to MSK contributors
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026, Mocap to MSK contributors.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Oct 22, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+<div class="extra_footer">
+  <a href="../">Website</a> · <a href="../viewer/">Viewer</a>
+</div>
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,777 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Public data: Vicon Plug-in-Gait and every model &#8212; Mocap to MSK</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=4418a689" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=5a5f2542" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../_static/documentation_options.js?v=55b5f74b"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'validation/public-data';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <script src="../../_static/redirects.js?v=686ecdf4"></script>
+    <link rel="icon" href="../../_static/favicon.svg"/>
+    <link rel="index" title="Index" href="../../genindex/" />
+    <link rel="search" title="Search" href="../../search/" />
+    <link rel="next" title="Against AddBiomechanics" href="../addbiomechanics/" />
+    <link rel="prev" title="Joint angles: what the residual cannot show" href="../joint-angles/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Oct 22, 2026"/>
+  
+    
+    <script src="../../_static/searchtools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script src="../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search/"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../../_static/logo-dark.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Mocap to MSK</p>
+  
+</a></div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://fitz-yuan.github.io/mocap-to-myofullbody/" title="Website" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-house fa-lg" aria-hidden="true"></i><span class="visually-hidden">Website</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/" title="Viewer" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-person-walking fa-lg" aria-hidden="true"></i><span class="visually-hidden">Viewer</span></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../../">
+                    Mocap to MSK
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/installation/">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/demo/">The demo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/your-data/">Your own data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/results/">Reading the results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/troubleshooting/">When something goes wrong</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How it works</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/overview/">Pipeline overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/reading/">Reading recordings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/markers/">Marker conditioning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/gap-filling/">Gap filling</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/ik/">Calibration and inverse kinematics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/qa/">Quality checks and the report</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/kinetics/">Inverse dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/muscles/">Muscle forces</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/models/">Models and marker sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../pipeline/box-lift/">Task: box lifting</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Validation</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../summary/">Validation summary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../parameters/">Parameters and their sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../sensitivity/">Sensitivity analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../joint-angles/">Joint angles: what the residual cannot show</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Public data: Vicon Plug-in-Gait and every model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../addbiomechanics/">Against AddBiomechanics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../xsens/">Against Xsens inertial capture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../opensim/">Against OpenSim</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../inverse-dynamics/">Inverse dynamics against OpenSim and force plates</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../markers/">Marker prediction: leave one marker out</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../gap-benchmark/">Gap filling against established methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../case-study/">The case study: box lifting with OptiTrack</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../reference/cli/">Command line</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/settings/">Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/outputs/">Files and formats</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/validation-scripts/">Validation scripts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/code/">Source layout</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/glossary/">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/reading/">Further reading</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/license/">License and credits</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody/edit/main/docs-src/validation/public-data.md" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody/issues/new?title=Issue%20on%20page%20%2Fvalidation/public-data.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../_sources/validation/public-data.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Public data: Vicon Plug-in-Gait and every model</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#validation-on-public-data-vicon-plug-in-gait-outputs-and-every-model-on-the-same-trials">Validation on public data: Vicon Plug-in-Gait outputs, and every model on the same trials</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#joint-angles-and-moments-against-vicon-plug-in-gait-36-level-walking-trials-3-subjects">Joint angles and moments against Vicon Plug-in-Gait (36 level-walking trials, 3 subjects)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#every-model-on-one-trial-of-each-dataset">Every model on one trial of each dataset</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="public-data-vicon-plug-in-gait-and-every-model">
+<h1>Public data: Vicon Plug-in-Gait and every model<a class="headerlink" href="#public-data-vicon-plug-in-gait-and-every-model" title="Link to this heading">#</a></h1>
+<section id="validation-on-public-data-vicon-plug-in-gait-outputs-and-every-model-on-the-same-trials">
+<span id="public"></span><h2>Validation on public data: Vicon Plug-in-Gait outputs, and every model on the same trials<a class="headerlink" href="#validation-on-public-data-vicon-plug-in-gait-outputs-and-every-model-on-the-same-trials" title="Link to this heading">#</a></h2>
+<p>Two public gait datasets (both CC BY 4.0) go through the same stages as the case study, read from their C3D files with their force plates. <strong>Vielemeyer et al. 2026</strong>: level and ramp walking, Vicon, Plug-in-Gait markers, 200 Hz, three inclined AMTI plates; its C3D files also carry Vicon’s own Plug-in-Gait joint angles and moments, an independent reference. <strong>Moissenet and Schreiber 2019</strong>: gait at five speeds, Qualisys, the 52-marker ISB / Dumas set, 100 Hz, plates and EMG.</p>
+</section>
+<section id="joint-angles-and-moments-against-vicon-plug-in-gait-36-level-walking-trials-3-subjects">
+<span id="pig"></span><h2>Joint angles and moments against Vicon Plug-in-Gait (36 level-walking trials, 3 subjects)<a class="headerlink" href="#joint-angles-and-moments-against-vicon-plug-in-gait-36-level-walking-trials-3-subjects" title="Link to this heading">#</a></h2>
+<p>MyoFullBody, static-trial calibration, the default settings, per-trial comparison with the Plug-in-Gait outputs in each C3D (<code class="docutils literal notranslate"><span class="pre">pipeline/validate/pig_compare.py</span></code>): correlation, mean difference (offset) and RMS difference after removing it, median over trials. Moments are compared only while that side’s foot is on a plate, where Vicon includes the ground reaction.</p>
+<p>36 trials; body-marker residual median 7.0 mm, 95th percentile 24 mm (medians over trials).</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Quantity</p></th>
+<th class="head"><p>r (L / R)</p></th>
+<th class="head"><p>Offset (L / R)</p></th>
+<th class="head"><p>RMS after the offset (L / R)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>hip flexion</p></td>
+<td><p>0.991 / 0.994</p></td>
+<td><p>-9.4 / -10.9 °</p></td>
+<td><p>2.5 / 2.4 °</p></td>
+</tr>
+<tr class="row-odd"><td><p>hip adduction</p></td>
+<td><p>0.770 / 0.799</p></td>
+<td><p>+1.8 / +2.9 °</p></td>
+<td><p>3.3 / 2.8 °</p></td>
+</tr>
+<tr class="row-even"><td><p>knee flexion</p></td>
+<td><p>0.995 / 0.997</p></td>
+<td><p>+1.7 / +0.8 °</p></td>
+<td><p>2.0 / 1.6 °</p></td>
+</tr>
+<tr class="row-odd"><td><p>ankle dorsiflexion</p></td>
+<td><p>0.838 / 0.804</p></td>
+<td><p>+2.8 / +3.3 °</p></td>
+<td><p>5.3 / 6.2 °</p></td>
+</tr>
+<tr class="row-even"><td><p>elbow flexion</p></td>
+<td><p>0.956 / 0.974</p></td>
+<td><p>-6.2 / -11.6 °</p></td>
+<td><p>9.6 / 7.4 °</p></td>
+</tr>
+<tr class="row-odd"><td><p>hip extension moment</p></td>
+<td><p>0.918 / 0.949</p></td>
+<td><p>+11.1 / +12.7 N m</p></td>
+<td><p>13.3 / 9.6 N m</p></td>
+</tr>
+<tr class="row-even"><td><p>knee extension moment</p></td>
+<td><p>0.803 / 0.925</p></td>
+<td><p>+13.6 / +8.2 N m</p></td>
+<td><p>14.3 / 9.2 N m</p></td>
+</tr>
+<tr class="row-odd"><td><p>ankle plantarflexion moment</p></td>
+<td><p>0.968 / 0.975</p></td>
+<td><p>-16.3 / -16.9 N m</p></td>
+<td><p>10.1 / 8.8 N m</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Knee and hip flexion follow Plug-in-Gait closely in shape. The hip flexion offset of about −10° is a difference of definition: Plug-in-Gait measures the thigh against its own pelvis frame from the ASIS and PSIS markers, the model against its pelvis bone. The ankle agrees least (r 0.80–0.84), partly because the two define the foot differently (Plug-in-Gait from the heel and toe markers). Its frame-to-frame smoothing matters here: the case study’s 0.3 (<code class="docutils literal notranslate"><span class="pre">M2M_IK_ANKLE_SMOOTH</span></code>), set to steady the ankle in deep squats, lags the faster ankle of walking (r 0.38–0.51), so the gait profiles set 0.08; that also lowered the frames at the joint speed limit (0.11 → 0.05 %) and the marker residual (7.8 → 7.6 mm). Moments agree in shape (hip and ankle r 0.94–0.98, knee 0.81–0.93) with offsets of 8–18 N m, which come from where each model puts the joint centres relative to the plates’ centre of pressure.</p>
+</section>
+<section id="every-model-on-one-trial-of-each-dataset">
+<span id="allmodels"></span><h2>Every model on one trial of each dataset<a class="headerlink" href="#every-model-on-one-trial-of-each-dataset" title="Link to this heading">#</a></h2>
+<p>Ramp: trial Ref01 level up 04 (200 Hz). Moissenet: trial 2014001 C3 03 (100 Hz). Static-trial calibration (pelvis and legs) for every model, the default settings. Residual: median / 95th percentile distance between measured and model markers. Plates: RMS of the predicted total vertical force against the plates, in % of body weight. No unsolved frames and no joint flips on either trial.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>Model</p></th>
+<th class="head"><p>Ramp: markers fitted</p></th>
+<th class="head"><p>Ramp: residual med / p95 (mm)</p></th>
+<th class="head"><p>Ramp: plates (% BW)</p></th>
+<th class="head"><p>Moissenet: markers fitted</p></th>
+<th class="head"><p>Moissenet: residual (mm)</p></th>
+<th class="head"><p>Moissenet: plates (% BW)</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>MyoFullBody</p></td>
+<td><p>39</p></td>
+<td><p>6.8 / 24</p></td>
+<td><p>3.2</p></td>
+<td><p>52</p></td>
+<td><p>6.2 / 21</p></td>
+<td><p>6.1</p></td>
+</tr>
+<tr class="row-odd"><td><p>MS-Human-700</p></td>
+<td><p>39</p></td>
+<td><p>7.3 / 29</p></td>
+<td><p>6.0</p></td>
+<td><p>52</p></td>
+<td><p>7.6 / 27</p></td>
+<td><p>2.8</p></td>
+</tr>
+<tr class="row-even"><td><p>MS-Human-700 legs</p></td>
+<td><p>16</p></td>
+<td><p>7.0 / 17</p></td>
+<td><p>6.4</p></td>
+<td><p>26</p></td>
+<td><p>7.4 / 18</p></td>
+<td><p>4.1</p></td>
+</tr>
+<tr class="row-odd"><td><p>MASS</p></td>
+<td><p>39</p></td>
+<td><p>3.5 / 12</p></td>
+<td><p>3.4</p></td>
+<td><p>52</p></td>
+<td><p>3.7 / 12</p></td>
+<td><p>3.0</p></td>
+</tr>
+<tr class="row-even"><td><p>Rajagopal 2016</p></td>
+<td><p>39</p></td>
+<td><p>5.2 / 13</p></td>
+<td><p>3.9</p></td>
+<td><p>52</p></td>
+<td><p>5.3 / 15</p></td>
+<td><p>5.9</p></td>
+</tr>
+<tr class="row-odd"><td><p>Lai–Uhlrich 2022</p></td>
+<td><p>39</p></td>
+<td><p>5.0 / 12</p></td>
+<td><p>3.1</p></td>
+<td><p>52</p></td>
+<td><p>5.1 / 13</p></td>
+<td><p>2.3</p></td>
+</tr>
+<tr class="row-even"><td><p>Gait2354</p></td>
+<td><p>22</p></td>
+<td><p>4.6 / 11</p></td>
+<td><p>3.4</p></td>
+<td><p>30</p></td>
+<td><p>4.6 / 12</p></td>
+<td><p>2.4</p></td>
+</tr>
+<tr class="row-odd"><td><p>MyoLeg</p></td>
+<td><p>15</p></td>
+<td><p>5.0 / 12</p></td>
+<td><p>3.2</p></td>
+<td><p>26</p></td>
+<td><p>5.4 / 14</p></td>
+<td><p>2.2</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>The quiet-standing knee is 0° for every model on both datasets (Gait2354 −2° on one side): the static trial pins it. Models with fewer markers (legs only) fit the markers they have more tightly, which is not higher accuracy. The plate RMS stays within a few per cent of body weight for every model; the plates are low-passed like the motion, which removed most of the difference the ramp data showed before (7–9 % with unfiltered plates). IK takes 8–74 s per trial on one core, depending on the model.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../joint-angles/"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Joint angles: what the residual cannot show</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../addbiomechanics/"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Against AddBiomechanics</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#validation-on-public-data-vicon-plug-in-gait-outputs-and-every-model-on-the-same-trials">Validation on public data: Vicon Plug-in-Gait outputs, and every model on the same trials</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#joint-angles-and-moments-against-vicon-plug-in-gait-36-level-walking-trials-3-subjects">Joint angles and moments against Vicon Plug-in-Gait (36 level-walking trials, 3 subjects)</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#every-model-on-one-trial-of-each-dataset">Every model on one trial of each dataset</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Mocap to MSK contributors
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026, Mocap to MSK contributors.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Oct 22, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+<div class="extra_footer">
+  <a href="../">Website</a> · <a href="../viewer/">Viewer</a>
+</div>
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

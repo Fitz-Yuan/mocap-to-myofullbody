@@ -1,0 +1,740 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Gap filling &#8212; Mocap to MSK</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=4418a689" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=5a5f2542" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../_static/documentation_options.js?v=55b5f74b"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'pipeline/gap-filling';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <script src="../../_static/redirects.js?v=686ecdf4"></script>
+    <link rel="icon" href="../../_static/favicon.svg"/>
+    <link rel="index" title="Index" href="../../genindex/" />
+    <link rel="search" title="Search" href="../../search/" />
+    <link rel="next" title="Calibration and inverse kinematics" href="../ik/" />
+    <link rel="prev" title="Marker conditioning" href="../markers/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Oct 22, 2026"/>
+  
+    
+    <script src="../../_static/searchtools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script src="../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search/"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+    <button class="pst-navbar-icon sidebar-toggle secondary-toggle" aria-label="On this page">
+      <span class="fa-solid fa-outdent"></span>
+    </button>
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../../_static/logo-dark.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Mocap to MSK</p>
+  
+</a></div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://fitz-yuan.github.io/mocap-to-myofullbody/" title="Website" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-house fa-lg" aria-hidden="true"></i><span class="visually-hidden">Website</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/" title="Viewer" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-person-walking fa-lg" aria-hidden="true"></i><span class="visually-hidden">Viewer</span></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../../">
+                    Mocap to MSK
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/installation/">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/demo/">The demo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/your-data/">Your own data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/results/">Reading the results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/troubleshooting/">When something goes wrong</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How it works</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../overview/">Pipeline overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reading/">Reading recordings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../markers/">Marker conditioning</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Gap filling</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../ik/">Calibration and inverse kinematics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../qa/">Quality checks and the report</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../kinetics/">Inverse dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../muscles/">Muscle forces</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/">Models and marker sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../box-lift/">Task: box lifting</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Validation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../validation/summary/">Validation summary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/parameters/">Parameters and their sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/sensitivity/">Sensitivity analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/joint-angles/">Joint angles: what the residual cannot show</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/public-data/">Public data: Vicon Plug-in-Gait and every model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/addbiomechanics/">Against AddBiomechanics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/xsens/">Against Xsens inertial capture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/opensim/">Against OpenSim</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/inverse-dynamics/">Inverse dynamics against OpenSim and force plates</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/markers/">Marker prediction: leave one marker out</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/gap-benchmark/">Gap filling against established methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/case-study/">The case study: box lifting with OptiTrack</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../reference/cli/">Command line</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/settings/">Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/outputs/">Files and formats</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/validation-scripts/">Validation scripts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/code/">Source layout</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/glossary/">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/reading/">Further reading</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/license/">License and credits</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody/edit/main/docs-src/pipeline/gap-filling.md" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody/issues/new?title=Issue%20on%20page%20%2Fpipeline/gap-filling.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../_sources/pipeline/gap-filling.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+<button class="sidebar-toggle secondary-toggle btn btn-sm pst-navbar-icon" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Gap filling</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tracking-loss-recovery">Tracking-loss recovery</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#gap-filled-markers-for-other-software">Gap-filled markers for other software</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="gap-filling">
+<span id="gaps"></span><h1>Gap filling<a class="headerlink" href="#gap-filling" title="Link to this heading">#</a></h1>
+<p>Markers drop out whenever the cameras cannot see them: an arm in front of the body, the box against the belly. In a manual workflow an operator fills every gap in Motive or Nexus before anything else. Here nothing is invented ahead of the IK: wrong samples are removed, the pelvis is rebuilt as a rigid body, short gaps are interpolated by spline, and longer gaps are left to the IK, where the skeleton itself determines where a hidden marker must be. For other software, the gaps can be filled afterwards and written out (<a class="reference internal" href="#c3d-export"><span class="std std-ref">Gap-filled markers for other software</span></a>).</p>
+<figure class="fig">
+<svg aria-label="Left: a marker's coordinate over time with a gap; a straight line across the gap misses the bump the marker really made. Right: a leg with hip, knee and ankle; the knee marker is hidden but the rigid femur, fixed at the hip and seen through the thigh marker, places it." role="img" viewbox="0 0 760 300">
+<text class="t" x="20" y="24">Interpolation: a line across the gap</text>
+<path class="ax" d="M30 250 H360 M30 250 V50"></path>
+<text x="300" y="270">time</text>
+<text x="34" y="64">marker position</text>
+<rect fill="var(--m2m-warn-soft)" height="194" stroke="none" width="58" x="172" y="56"></rect>
+<text x="178" y="246">gap</text>
+<circle class="dot" cx="40" cy="150.0" r="2.6"></circle><circle class="dot" cx="54" cy="148.1" r="2.6"></circle><circle class="dot" cx="68" cy="145.7" r="2.6"></circle><circle class="dot" cx="82" cy="143.0" r="2.6"></circle><circle class="dot" cx="96" cy="140.2" r="2.6"></circle><circle class="dot" cx="110" cy="137.2" r="2.6"></circle><circle class="dot" cx="124" cy="134.0" r="2.6"></circle><circle class="dot" cx="138" cy="130.8" r="2.6"></circle><circle class="dot" cx="152" cy="127.4" r="2.6"></circle><circle class="dot" cx="166" cy="124.0" r="2.6"></circle><circle class="dot" cx="236" cy="124.0" r="2.6"></circle><circle class="dot" cx="250" cy="124.9" r="2.6"></circle><circle class="dot" cx="264" cy="125.8" r="2.6"></circle><circle class="dot" cx="278" cy="126.7" r="2.6"></circle><circle class="dot" cx="292" cy="127.6" r="2.6"></circle><circle class="dot" cx="306" cy="128.4" r="2.6"></circle><circle class="dot" cx="320" cy="129.3" r="2.6"></circle><circle class="dot" cx="334" cy="130.2" r="2.6"></circle><circle class="dot" cx="348" cy="131.1" r="2.6"></circle><circle class="dot" cx="362" cy="132.0" r="2.6"></circle>
+<path class="faint" d="M166 124 C 186 70, 214 64, 236 124"></path>
+<text class="k" style="fill:var(--m2m-faint)" x="168" y="62">where it went</text>
+<path class="acc dash" d="M166 124 L 236 124"></path>
+<text class="a" x="150" y="146">straight line</text>
+<path class="ax" d="M400 30 V280"></path>
+<text class="t" x="430" y="24">Model: the bones place a hidden marker</text>
+<path class="bone" d="M560 70 L 585 165"></path>
+<path class="bone" d="M585 165 L 572 262"></path>
+<path class="ln" d="M520 62 L 600 62 L 610 80 L 512 80 Z"></path>
+<circle class="jt" cx="560" cy="70" r="7"></circle>
+<circle class="jt" cx="585" cy="165" r="7"></circle>
+<circle class="jt" cx="572" cy="262" r="7"></circle>
+<circle class="mk" cx="516" cy="60" r="6"></circle><circle class="mk" cx="604" cy="60" r="6"></circle>
+<circle class="mk" cx="590" cy="116" r="6"></circle>
+<circle class="mkh" cx="604" cy="166" r="8"></circle>
+<circle class="mk" cx="592" cy="214" r="6"></circle>
+<circle class="mk" cx="586" cy="262" r="6"></circle>
+<text class="k" x="620" y="64">pelvis markers: hip centre</text>
+<text class="k" x="604" y="120">thigh marker, seen</text>
+<text class="a" x="620" y="170">knee marker, hidden</text>
+<text class="a" x="620" y="186">placed by the femur</text>
+<text class="k" x="606" y="218">shank markers, seen</text>
+<text x="440" y="122">femur: rigid,</text>
+<text x="440" y="138">fixed length</text>
+<path class="ln" d="M520 128 L 566 118"></path>
+<text x="440" y="270">joints: hip, knee, ankle</text>
+</svg>
+<figcaption>Left: over a long gap a straight line (or a spline) assumes the marker kept moving smoothly, which it rarely does during a lift or a step. Right: the knee marker is hidden, but it rides on the femur, a rigid bone of fixed length whose upper end (the hip centre, from the pelvis markers) and middle (the thigh marker) are seen, and whose lower end is held by the shank markers through the knee joint. The femur's pose, and with it the hidden marker, is determined.</figcaption>
+</figure><ol class="arabic simple">
+<li><p><strong>Mislabelled samples are removed first</strong> (<code class="docutils literal notranslate"><span class="pre">pipeline/prepare_markers.py</span></code>, <code class="docutils literal notranslate"><span class="pre">reject_mislabels</span></code>). Each marker’s partners are the three markers whose distance to it varies least over the trial (the same or the next segment). A sample whose distance to two or more of its partners is more than 4 cm off the usual is a wrong label (e.g. C7 jumping onto another marker) and becomes a gap, rather than pulling the model the wrong way.</p></li>
+<li><p><strong>The pelvis is rebuilt as a rigid body</strong> (<code class="docutils literal notranslate"><span class="pre">fix_pelvis</span></code>). A template of the four pelvis markers comes from the frames where their six distances stay within 5 mm of their medians; each frame is fitted to it (Kabsch). A missing pelvis marker is reconstructed from the other three, and one more than 12 mm off, whose removal makes the other three consistent, is replaced. The pelvis is the model’s root, so its markers get the strictest treatment.</p></li>
+<li><p><strong>Short gaps are interpolated</strong> (<code class="docutils literal notranslate"><span class="pre">mocap2myo/ik.py</span></code>, <code class="docutils literal notranslate"><span class="pre">load_trial</span></code>): up to 200 ms (<code class="docutils literal notranslate"><span class="pre">M2M_MAX_GAP_S</span></code>), only where the marker is seen on both sides, by a cubic spline through the samples within 200 ms on either side (at least two on each; a straight line otherwise; <code class="docutils literal notranslate"><span class="pre">M2M_GAP_FILL</span></code>). This is the usual recommendation for short gaps (Howarth &amp; Callaghan 2010); on gaps cut out of measured trajectories it was 2–8 times more accurate than a straight line (<a class="reference internal" href="../../validation/gap-benchmark/"><span class="doc">Gap filling against established methods</span></a>). The 6 Hz low-pass filter runs over each gap-free stretch on its own, so it never smooths across a gap.</p></li>
+<li><p><strong>Longer gaps are left to the IK.</strong> Each frame’s least squares uses the markers that are there; a missing marker simply drops out of the sum. Bones are rigid, joints have limits, and each frame starts from the previous one and is pulled gently toward it, so the remaining markers on a segment and on its neighbours fix its pose; the hidden marker is wherever the bone puts it. A marker that is present but far from anywhere the model can put it pulls less (a Cauchy loss with a 2.5 cm scale), so one bad sample cannot drag the pose.</p></li>
+<li><p><strong>A limb the IK lost is found again</strong> (<code class="docutils literal notranslate"><span class="pre">M2M_IK_RECOVER=1</span></code>, see below).</p></li>
+</ol>
+<section id="tracking-loss-recovery">
+<span id="recovery"></span><h2>Tracking-loss recovery<a class="headerlink" href="#tracking-loss-recovery" title="Link to this heading">#</a></h2>
+<p>Solving frame by frame from the previous frame has one failure: once a limb slides into a wrong pose, the next frames start there too. The robust loss then fades the very markers that are right (a marker 30 cm off weighs about 1 % of one that fits), and the smoothing pulls toward the wrong previous pose, so the limb can stay lost for seconds. In the case study this happened while the box was put down: the measured wrist and finger markers stayed on the box, the model’s left hand was 28–48 cm away for 1.7 s (S01 Spring, 24.2–25.9 s).</p>
+<p>With <code class="docutils literal notranslate"><span class="pre">M2M_IK_RECOVER=1</span></code> the IK checks every frame after solving it (on the CPU; it becomes the default once the GPU IK does the same): if two or more seen body markers are more than 6 cm from the model (1.5 times the largest marker error OpenSim’s guidelines accept), it solves the frame again from scratch, from four starts (the tracked pose and three random poses within the joint limits) without the smoothing and without the joint-speed limit, keeps the floor and stance constraints, and takes the result if it fits the markers better (the sum of squared marker distances, each capped at 15 cm so a mislabelled marker cannot decide, at least 20 % lower). The frames after it then start from the recovered pose.</p>
+<p>Separately from the IK, the QA marks every frame where two or more of a limb’s markers are more than 6 cm off or were rejected (<code class="docutils literal notranslate"><span class="pre">limb_lost_s</span></code>, the longest such stretch per limb); a task dataset drops a clip that loses a limb for 0.2 s or more (<a class="reference internal" href="../qa/"><span class="doc">Quality checks and the report</span></a>).</p>
+</section>
+<section id="gap-filled-markers-for-other-software">
+<span id="c3d-export"></span><h2>Gap-filled markers for other software<a class="headerlink" href="#gap-filled-markers-for-other-software" title="Link to this heading">#</a></h2>
+<p>The pipeline itself never writes filled markers back into the data. For software that needs complete trajectories (OpenSim, Visual3D, …), <code class="docutils literal notranslate"><span class="pre">pipeline/export_c3d.py</span></code> writes each trial’s markers as C3D with every gap of a solved frame filled, in the order Camargo et al. (2020) automate the manual tools:</p>
+<ol class="arabic simple">
+<li><p><strong>Rigid body fill</strong> from the three markers nearest to the target (over the trial) that are seen throughout the gap and at both its ends: the target’s position relative to them at each end, carried by each end’s rigid fit (Kabsch) and blended linearly over the gap (Vicon Nexus’ rigid body fill; Smolka &amp; Lukasik 2016). Where it applies it is the most accurate fill in marker space (<a class="reference internal" href="../../validation/gap-benchmark/"><span class="doc">Gap filling against established methods</span></a>).</p></li>
+<li><p><strong>The model’s marker</strong> otherwise: the same marker on the subject’s calibrated model in the IK pose (as Nexus’ Kinematic Fill), shifted to meet the measurement at both ends of the gap (the measured-minus-model offsets before and after it, blended linearly), so the trajectory does not step at the gap’s edges.</p></li>
+</ol>
+<p>Measured samples are written unchanged (residual 0), filled ones with residual 1, and the parameter group <code class="docutils literal notranslate"><span class="pre">M2M</span></code> lists how many frames of each marker were filled.</p>
+<div class="tip admonition">
+<p class="admonition-title">Nothing filled is hidden</p>
+<p>The marker files keep, per frame, which pelvis markers were rebuilt (<code class="docutils literal notranslate"><span class="pre">pelvis_fixed</span></code>) and which samples were rejected as mislabels (<code class="docutils literal notranslate"><span class="pre">mislabel_rejected</span></code>); the IK output keeps each marker’s residual, the markers it set aside and the frames it could not solve; the QA report grades every trial on its worst marker gap.</p>
+</div>
+<p><strong>Why not interpolate everything.</strong> A line or a spline across a gap is a guess about the path; over a fraction of a second it is a good one, over a second of lifting it is not. The model makes no guess about the path: it uses the fact that the marker rides on a rigid bone whose other markers and joints are seen. This is the principle of OpenSim’s inverse kinematics and of model-based gap filling in Vicon Nexus (global optimisation, Lu and O’Connor 1999); what this pipeline adds is that it runs without an operator and records what it did.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p></p></th>
+<th class="head"><p>Manual gap filling (Motive, Nexus)</p></th>
+<th class="head"><p>This pipeline</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Who decides</p></td>
+<td><p>An operator, gap by gap: spline, pattern fill from a nearby marker, rigid-body fill</p></td>
+<td><p>Fixed rules, the same for every trial</p></td>
+</tr>
+<tr class="row-odd"><td><p>Long gaps</p></td>
+<td><p>Filled with a curve or a copied pattern</p></td>
+<td><p>Not filled; the IK places the marker from the skeleton (exported C3D: filled from neighbouring markers, else the model)</p></td>
+</tr>
+<tr class="row-even"><td><p>Afterwards</p></td>
+<td><p>Filled samples look like measured ones; the IK trusts them fully</p></td>
+<td><p>Rebuilt and rejected samples are flagged; inferred positions are the model’s, never mixed into the data</p></td>
+</tr>
+<tr class="row-odd"><td><p>Reproducible</p></td>
+<td><p>Depends on the operator</p></td>
+<td><p>Yes</p></td>
+</tr>
+<tr class="row-even"><td><p>Effort, 22 trials</p></td>
+<td><p>An estimated 15–40 person-hours with labelling and scaling</p></td>
+<td><p>Machine time only</p></td>
+</tr>
+<tr class="row-odd"><td><p>Physically consistent</p></td>
+<td><p>Not necessarily: a filled point can break a bone’s length</p></td>
+<td><p>Yes: bone lengths and joint limits hold by construction</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>How well it works.</strong></p>
+<ul class="simple">
+<li><p><strong>A gap with a known answer</strong>: <a class="reference internal" href="../../validation/markers/#lomo"><span class="std std-ref">leave one marker out</span></a> hides a marker that was seen, lets the model place it, and measures how far off it is. Median 14.5 mm per trial (12.3–24.0); ankle 8–10 mm, knee 11–13 mm, shank 7–9 mm, shoulder 23–25 mm, elbow about 19 mm. Skin markers themselves move 1–3 cm on the soft tissue. Where a segment has a single marker (finger, toe) it cannot be placed once hidden: 37–44 and 19–21 mm.</p></li>
+<li><p><strong>Against manual gap filling</strong>: the same takes, processed by hand in Motive by a collaborating group (in S03 alone, 5,765 filled samples the raw take lacks), give the same fit as the raw takes with their gaps: marker residual 9.2 vs 9.5 mm, 73 vs 76 usable carry cycles, joint angles within 1° in five of the eight subjects compared. In the other three, a whole-trial shift in hip flexion came from the subject calibration, fixed since by the static trial (<a class="reference internal" href="../../validation/case-study/#routes"><span class="std std-ref">input sensitivity</span></a>).</p></li>
+<li><p><strong>Where manual filling went wrong</strong>: Motive interpolated long ASIS gaps while the box was against the belly, which left the pelvis cluster 30–40 mm off rigid; the rigid refill does not.</p></li>
+<li><p><strong>An independent check</strong>: the knee angle against Xsens inertial capture, worn at the same time, r = 0.995 / 0.996 (<a class="reference internal" href="../../validation/xsens/#xsens"><span class="std std-ref">knee angle vs Xsens</span></a>).</p></li>
+</ul>
+<div class="warning admonition">
+<p class="admonition-title">Limits</p>
+<p>A segment that loses most of its markers for a long stretch is held only by its neighbours, the smoothing and its joint limits; the QA report flags such trials (S02 Solid: C7 missing in 98 % of frames, FAIL). Markers must be labelled: the labels the recording software assigned live are enough, but an unlabelled point cloud is not identified. If fewer than three pelvis markers are seen, the frame’s pelvis comes from the remaining markers (<code class="docutils literal notranslate"><span class="pre">M2M_PELVIS_GAP</span></code>).</p>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../markers/"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Marker conditioning</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../ik/"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Calibration and inverse kinematics</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <dialog id="pst-secondary-sidebar-modal"></dialog>
+                <div id="pst-secondary-sidebar" class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item"><div
+    id="pst-page-navigation-heading-2"
+    class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
+    <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#tracking-loss-recovery">Tracking-loss recovery</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#gap-filled-markers-for-other-software">Gap-filled markers for other software</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Mocap to MSK contributors
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026, Mocap to MSK contributors.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Oct 22, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+<div class="extra_footer">
+  <a href="../">Website</a> · <a href="../viewer/">Viewer</a>
+</div>
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,628 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Calibration and inverse kinematics &#8212; Mocap to MSK</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  <!--
+    this give us a css class that will be invisible only if js is disabled
+  -->
+  <noscript>
+    <style>
+      .pst-js-only { display: none !important; }
+
+    </style>
+  </noscript>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../../_static/styles/theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+<link href="../../_static/styles/pydata-sphinx-theme.css?digest=90905a2f556bf617f1a9" rel="stylesheet" />
+
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../_static/styles/sphinx-book-theme.css?v=4418a689" />
+    <link rel="stylesheet" type="text/css" href="../../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../../_static/custom.css?v=5a5f2542" />
+  
+  <!-- So that users can add custom icons -->
+  <script defer src="../../_static/scripts/fontawesome.js?digest=90905a2f556bf617f1a9"></script>
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9" />
+<link rel="preload" as="script" href="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9" />
+
+    <script src="../../_static/documentation_options.js?v=55b5f74b"></script>
+    <script src="../../_static/doctools.js?v=fd6eb6e6"></script>
+    <script src="../../_static/sphinx_highlight.js?v=6ffebe34"></script>
+    <script src="../../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../../_static/copybutton.js?v=f281be69"></script>
+    <script src="../../_static/scripts/sphinx-book-theme.js?v=fab101a9"></script>
+    <script src="../../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'pipeline/ik';</script>
+    <script>DOCUMENTATION_OPTIONS.search_as_you_type = false;</script>
+    <script src="../../_static/redirects.js?v=686ecdf4"></script>
+    <link rel="icon" href="../../_static/favicon.svg"/>
+    <link rel="index" title="Index" href="../../genindex/" />
+    <link rel="search" title="Search" href="../../search/" />
+    <link rel="next" title="Quality checks and the report" href="../qa/" />
+    <link rel="prev" title="Gap filling" href="../gap-filling/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  <meta name="docsearch:version" content="" />
+    <meta name="docbuild:last-update" content="Oct 22, 2026"/>
+  
+    
+    <script src="../../_static/searchtools.js"></script>
+    <script src="../../_static/language_data.js"></script>
+    <script src="../../searchindex.js"></script>
+  
+  </head>
+  <body data-default-mode="">
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+  
+  
+  
+  
+  <dialog id="pst-search-dialog">
+    
+<form class="bd-search d-flex align-items-center"
+      action="../../search/"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form>
+  </dialog>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header id="pst-header" class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+<div class="bd-header__inner bd-page-width">
+  <button class="pst-navbar-icon sidebar-toggle primary-toggle" aria-label="Site navigation">
+    <span class="fa-solid fa-bars"></span>
+  </button>
+  
+  
+  <div class="col-lg-9 navbar-header-items">
+    
+    
+    <div class="navbar-header-items__end">
+      
+        <div class="navbar-item navbar-persistent--container">
+          
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+        </div>
+      
+      
+    </div>
+    
+  </div>
+  
+  
+    <div class="navbar-persistent--mobile">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button>
+    </div>
+  
+
+  
+</div>
+
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <dialog id="pst-primary-sidebar-modal"></dialog>
+      <div id="pst-primary-sidebar" class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../../">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../../_static/logo.svg" class="logo__image only-light" alt=""/>
+    <img src="../../_static/logo-dark.svg" class="logo__image only-dark pst-js-only" alt=""/>
+  
+  
+    <p class="title logo__title">Mocap to MSK</p>
+  
+</a></div>
+        <div class="sidebar-primary-item"><ul class="navbar-icon-links"
+    aria-label="Icon Links">
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://fitz-yuan.github.io/mocap-to-myofullbody/" title="Website" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-house fa-lg" aria-hidden="true"></i><span class="visually-hidden">Website</span></a>
+        </li>
+        <li class="nav-item">
+          
+          
+          
+          
+          
+          
+          
+          
+          <a href="https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/" title="Viewer" class="nav-link pst-navbar-icon" rel="noopener" target="_blank" data-bs-toggle="tooltip" data-bs-placement="bottom"><i class="fa-solid fa-person-walking fa-lg" aria-hidden="true"></i><span class="visually-hidden">Viewer</span></a>
+        </li>
+</ul></div>
+        <div class="sidebar-primary-item">
+
+<button class="btn search-button-field search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+ <i class="fa-solid fa-magnifying-glass"></i>
+ <span class="search-button__default-text">Search</span>
+ <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+</button></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        
+        <ul class="nav bd-sidenav bd-sidenav__home-link">
+            <li class="toctree-l1">
+                <a class="reference internal" href="../../">
+                    Mocap to MSK
+                </a>
+            </li>
+        </ul>
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Getting started</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/installation/">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/demo/">The demo</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/your-data/">Your own data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/results/">Reading the results</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/troubleshooting/">When something goes wrong</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">How it works</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../overview/">Pipeline overview</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reading/">Reading recordings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../markers/">Marker conditioning</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../gap-filling/">Gap filling</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Calibration and inverse kinematics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../qa/">Quality checks and the report</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../kinetics/">Inverse dynamics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../muscles/">Muscle forces</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../models/">Models and marker sets</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../box-lift/">Task: box lifting</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Validation</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../validation/summary/">Validation summary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/parameters/">Parameters and their sources</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/sensitivity/">Sensitivity analysis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/joint-angles/">Joint angles: what the residual cannot show</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/public-data/">Public data: Vicon Plug-in-Gait and every model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/addbiomechanics/">Against AddBiomechanics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/xsens/">Against Xsens inertial capture</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/opensim/">Against OpenSim</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/inverse-dynamics/">Inverse dynamics against OpenSim and force plates</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/markers/">Marker prediction: leave one marker out</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/gap-benchmark/">Gap filling against established methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../validation/case-study/">The case study: box lifting with OptiTrack</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../../reference/cli/">Command line</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/settings/">Settings</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/outputs/">Files and formats</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/validation-scripts/">Validation scripts</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/code/">Source layout</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/glossary/">Glossary</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/reading/">Further reading</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../reference/license/">License and credits</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+      <div class="sidebar-primary-item">
+<div id="ethical-ad-placement"
+      class="flat"
+      data-ea-publisher="readthedocs"
+      data-ea-type="readthedocs-sidebar"
+      data-ea-manual="true">
+</div></div>
+  </div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-source-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Source repositories">
+    <i class="fab fa-github"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody" target="_blank"
+   class="btn btn-sm btn-source-repository-button dropdown-item"
+   title="Source repository"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fab fa-github"></i>
+  </span>
+<span class="btn__text-container">Repository</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody/edit/main/docs-src/pipeline/ik.md" target="_blank"
+   class="btn btn-sm btn-source-edit-button dropdown-item"
+   title="Suggest edit"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-pencil-alt"></i>
+  </span>
+<span class="btn__text-container">Suggest edit</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li><a href="https://github.com/Fitz-Yuan/mocap-to-myofullbody/issues/new?title=Issue%20on%20page%20%2Fpipeline/ik.html&body=Your%20issue%20content%20here." target="_blank"
+   class="btn btn-sm btn-source-issues-button dropdown-item"
+   title="Open an issue"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-lightbulb"></i>
+  </span>
+<span class="btn__text-container">Open issue</span>
+</a>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../../_sources/pipeline/ik.md" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.md</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button pst-navbar-icon"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<div class="theme-switch-container dropdown pst-js-only" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Color mode">
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button dropdown-toggle" aria-label="Color mode" data-bs-toggle="dropdown">
+    <i class="theme-switch fa-solid fa-sun fa-lg fa-fw" data-mode="light" title="Light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg fa-fw" data-mode="dark" title="Dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg fa-fw" data-mode="auto" title="System Settings"></i>
+  </button>
+  <ul class="dropdown-menu dropdown-menu-end">
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="auto"><i class="fa-solid fa-circle-half-stroke fa-lg fa-fw me-1"></i>System Settings</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="light"><i class="fa-solid fa-sun fa-lg fa-fw me-1"></i>Light</button></li>
+    <li><button class="dropdown-item d-flex align-items-center theme-change-button" data-mode="dark"><i class="fa-solid fa-moon fa-lg fa-fw me-1"></i>Dark</button></li>
+  </ul>
+</div>
+
+
+<button class="btn btn-sm pst-navbar-icon search-button search-button__button pst-js-only" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+</button>
+
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Calibration and inverse kinematics</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section class="tex2jax_ignore mathjax_ignore" id="calibration-and-inverse-kinematics">
+<span id="stage-ik"></span><h1>Calibration and inverse kinematics<a class="headerlink" href="#calibration-and-inverse-kinematics" title="Link to this heading">#</a></h1>
+<div class="m2m-files docutils container">
+<p><code class="docutils literal notranslate"><span class="pre">pipeline/solve_ik.py</span></code> · <code class="docutils literal notranslate"><span class="pre">mocap2myo/ik.py</span></code> (the solver)</p>
+</div>
+<p>IK finds the joint angles that bring the model’s virtual markers as close as possible to the measured ones. It is the same idea as OpenSim’s IK, written directly on MuJoCo’s MyoFullBody and solved with <code class="docutils literal notranslate"><span class="pre">scipy.optimize.least_squares</span></code>; joint limits are the bounds of the variables.</p>
+<ul class="simple">
+<li><p><strong>Scaling.</strong> The model stays as it is; the markers are scaled by the ratio of model height to subject height.</p></li>
+<li><p><strong>Calibration, once per subject.</strong> 40 frames with varied poses are taken from all of the subject’s trials, plus standing frames, which must have flat feet. The solver alternates between solving IK with the current marker placements and updating where each marker sits on its segment from the solved poses, like OpenSim’s Scale plus Marker Placer. A marker may move from its starting position on the segment by up to 6 cm, 10 cm for the foot markers (on thick-soled slides) and 15 cm for the wand, trunk and head markers, whose placement varies most.</p></li>
+<li><p><strong>Static trial (the default).</strong> The subject’s static standing trial joins the calibration: in its frames the hips, knees, ankles and subtalar joints are pulled toward 0°, and they carry half the weight of every update of the marker placements. They place only the pelvis and leg markers (<code class="docutils literal notranslate"><span class="pre">M2M_STATIC_MARKERS=legs</span></code>); the arm and trunk markers come from the motion trials. <code class="docutils literal notranslate"><span class="pre">run_all.sh</span></code> turns this on (<code class="docutils literal notranslate"><span class="pre">M2M_STATIC=1</span></code>); the default in <code class="docutils literal notranslate"><span class="pre">pipeline/config.py</span></code> is off, so a stage run on its own needs <code class="docutils literal notranslate"><span class="pre">M2M_STATIC=1</span></code>. Why it is needed: see <a class="reference internal" href="../../validation/joint-angles/#validation"><span class="std std-ref">joint-angle validation</span></a> and <a class="reference internal" href="../../validation/joint-angles/#static"><span class="std std-ref">static-trial calibration</span></a>.</p></li>
+<li><p><strong>Per-frame solve.</strong> 37 degrees of freedom: pelvis 6, legs 14, lumbar 3, arms 14. Other joints follow the model’s coupling constraints. Each frame starts from the previous one, and the pelvis starting pose comes from a rigid fit to the four pelvis markers.</p></li>
+<li><p><strong>Safeguards.</strong> Markers are low-pass filtered at 6 Hz (the usual cut-off for whole-body motion; <a class="reference internal" href="../../validation/parameters/"><span class="doc">Parameters and their sources</span></a>). A robust loss weakens the pull of a marker that is far off. Feet may not go through the floor, a standing foot stays where it was planted, and joint speed is capped at 15 rad/s so the solution cannot flip between frames. Each frame is pulled toward the previous one: weight 0.05 per frame at 100 Hz for most joints (<code class="docutils literal notranslate"><span class="pre">M2M_IK_SMOOTH</span></code>), 0.08 for the ankle and subtalar joints (<code class="docutils literal notranslate"><span class="pre">M2M_IK_ANKLE_SMOOTH</span></code>), scaled with the square root of the frame rate so the lag is the same in seconds at any rate; the shoulder’s elevation plane is held while the arm hangs (it is undefined there).</p></li>
+<li><p><strong>Tracking-loss recovery</strong> (<code class="docutils literal notranslate"><span class="pre">M2M_IK_RECOVER=1</span></code>, CPU, opt-in for now). A frame that leaves two or more seen markers more than 6 cm off is solved again from scratch and the better fit kept (<a class="reference internal" href="../gap-filling/#recovery"><span class="std std-ref">Tracking-loss recovery</span></a>).</p></li>
+</ul>
+<div class="m2m-io docutils container">
+<p><strong>In</strong> stage 2 markers</p>
+<p><strong>Out</strong> <code class="docutils literal notranslate"><span class="pre">ik/</span></code>: joint angles (qpos) per frame, each marker’s residual, and the frames the IK could not solve</p>
+</div>
+<div class="tip admonition">
+<p class="admonition-title">Fit (final run)</p>
+<p>Body-marker residual per trial: median 7.7–14.3 mm, 95th percentile 25–48 mm (the IK’s own measure, on the height-scaled, filtered markers). Against the raw markers in the subject’s own size, as used for the OpenSim comparison: median 7.9–14.3 mm per trial (9.2 mm, median over trials); OpenSim IK on the same markers 14.6–27.5 mm (19.8 mm; S09: 16.0 and 14.9 mm).</p>
+</div>
+<div class="danger admonition">
+<p class="admonition-title">Why the static trial</p>
+<p>From the motion trials alone, the calibration can trade where markers sit on a segment against the pose itself: a knee marker a few centimetres further back fits as well as a knee bent 20°, which shifts the joint angles of every frame of that subject. The static trial removes that freedom; see <a class="reference internal" href="../../validation/joint-angles/#validation"><span class="std std-ref">joint-angle validation</span></a> and <a class="reference internal" href="../../validation/joint-angles/#static"><span class="std std-ref">static-trial calibration</span></a>.</p>
+</div>
+<div class="tip admonition">
+<p class="admonition-title">On the GPU</p>
+<p>(<code class="docutils literal notranslate"><span class="pre">--gpu</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_IK_DEVICE=gpu</span></code>, <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">&quot;.[gpu]&quot;</span></code>; <code class="docutils literal notranslate"><span class="pre">mocap2myo/ik_gpu.py</span></code>). The same per-frame problem (markers, robust loss, toe prior, floor, stance anchors, smoothing, speed and joint limits), with the kinematics and marker Jacobians in Warp kernels (float64) and a projected Levenberg–Marquardt step per frame, for every model, marker set and frame rate. The frame-to-frame recursion runs in parallel over time: each trial is cut into 64-frame chunks that step through their own frames, and chunks whose start differs from where the previous chunk ended are run again until every chunk starts where the one before it ended. All trials of a dataset go into one batch (with segment scaling, one batch per subject). The subject calibration and each trial’s first frame stay on the CPU. The 22 case-study trials (about 41 min of motion at 100 Hz) take 122 s in all (101 s on the GPU), against 45–50 min on 22 CPU cores; joint angles agree with the CPU’s to 0.002–0.03° RMS per trial and the residuals to 0.01 mm.</p>
+</div>
+<div class="warning admonition">
+<p class="admonition-title">Model limits</p>
+<p>The knee has no axial rotation, so all twisting during turns goes to the hip. Deep squats go past the model’s 120° joint limits. There is no neck joint, so head markers carry a low weight (an optional neck for the IK, <code class="docutils literal notranslate"><span class="pre">M2M_NECK=1</span></code>, lets the head follow its markers; it is not validated).</p>
+</div>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../gap-filling/"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Gap filling</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../qa/"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Quality checks and the report</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By Mocap to MSK contributors
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026, Mocap to MSK contributors.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    <p class="last-updated">
+  Last updated on Oct 22, 2026.
+  <br/>
+</p>
+  </div>
+  
+  <div class="footer-item">
+    
+<div class="extra_footer">
+  <a href="../">Website</a> · <a href="../viewer/">Viewer</a>
+</div>
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script defer src="../../_static/scripts/bootstrap.js?digest=90905a2f556bf617f1a9"></script>
+<script defer src="../../_static/scripts/pydata-sphinx-theme.js?digest=90905a2f556bf617f1a9"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>
