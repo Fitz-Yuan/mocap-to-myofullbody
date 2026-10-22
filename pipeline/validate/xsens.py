@@ -20,6 +20,7 @@ systems), so this is supporting evidence, not ground truth.
 """
 
 import os
+import struct
 import sys
 
 import mujoco
@@ -62,12 +63,63 @@ def harrington_hjc(rasi, lasi, rpsi, lpsi):
   return out
 
 
+def c3d_points(path):
+  """Point labels, rate and points [T, n, 3] (file units, NaN where invalid) of an
+  Intel-format C3D read directly: an Xsens MVN export of more than 32767 frames stores
+  POINT:FRAMES as a REAL, which ezc3d refuses ("FRAMES parameter is not an INT")."""
+  b = open(path, "rb").read()
+  pb = b[0]
+  if b[512 * (pb - 1) + 3] != 84:
+    raise ValueError(f"{path}: not an Intel-format C3D")
+  n, na = struct.unpack("<HH", b[2:6])
+  scale, start = struct.unpack("<f", b[12:16])[0], struct.unpack("<H", b[16:18])[0]
+  rate = struct.unpack("<f", b[20:24])[0]
+  par, groups, i = {}, {}, 512 * (pb - 1) + 4
+  while True:  # parameter records: name length, group id, name, offset to the next, type, dims, data
+    nl, gid = struct.unpack("bb", b[i:i + 2])
+    if nl == 0:
+      break
+    name = b[i + 2:i + 2 + abs(nl)].decode("latin1")
+    j = i + 2 + abs(nl)
+    off = struct.unpack("<h", b[j:j + 2])[0]
+    if gid < 0:
+      groups[-gid] = name
+    else:
+      t, nd = struct.unpack("bB", b[j + 2:j + 4])
+      dims = list(b[j + 4:j + 4 + nd])
+      d0 = j + 4 + nd
+      if t == -1:  # characters: [length, count]
+        L, k = (dims + [1])[:2] if dims else (1, 1)
+        val = [b[d0 + q * L:d0 + (q + 1) * L].decode("latin1").strip() for q in range(k)]
+      else:
+        cnt = int(np.prod(dims)) if dims else 1
+        val = np.frombuffer(b[d0:d0 + abs(t) * cnt], {1: "i1", 2: "<i2", 4: "<f4"}[abs(t)]).tolist()
+      par[(groups.get(gid), name)] = val
+    if off == 0:
+      break
+    i = j + off
+  labels = par[("POINT", "LABELS")] + par.get(("POINT", "LABELS2"), [])
+  T = int(round(par[("POINT", "FRAMES")][0]))
+  # float data (scale < 0) or int16 times the scale; a negative 4th word marks an invalid point
+  D = np.frombuffer(b, "<f4" if scale < 0 else "<i2", count=T * (4 * n + na),
+                    offset=512 * (start - 1)).reshape(T, -1)
+  P = D[:, :4 * n].reshape(T, n, 4).astype(np.float64)
+  X = np.where(P[:, :, 3:4] < 0, np.nan, P[:, :, :3] * (1.0 if scale < 0 else scale))
+  return labels[:n], float(rate), X
+
+
 def xsens_angles(path):
   import ezc3d  # optional dependency (pip install -e ".[xsens]"), only needed here
-  c = ezc3d.c3d(path)
-  lab = c["parameters"]["POINT"]["LABELS"]["value"]
-  rate = float(c["parameters"]["POINT"]["RATE"]["value"][0])
-  X = c["data"]["points"][:3].transpose(2, 1, 0) / 1000.0  # T, n, 3 (m)
+  try:
+    c = ezc3d.c3d(path)
+    lab = c["parameters"]["POINT"]["LABELS"]["value"]
+    rate = float(c["parameters"]["POINT"]["RATE"]["value"][0])
+    X = c["data"]["points"][:3].transpose(2, 1, 0) / 1000.0  # T, n, 3 (m)
+  except ValueError as e:  # long MVN exports: POINT:FRAMES as a REAL
+    if "FRAMES parameter is not an INT" not in str(e):
+      raise
+    lab, rate, X = c3d_points(path)
+    X = X / 1000.0
   g = lambda n: X[:, lab.index(n)]
   hjc = harrington_hjc(g("pRightASI"), g("pLeftASI"), g("pRightCSI"), g("pLeftCSI"))
   a = {}
