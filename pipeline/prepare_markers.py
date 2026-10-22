@@ -130,11 +130,12 @@ def reject_mislabels(P, tol=0.04, n_partners=3):
 def choose_alias(names):
   """The alias set (take label -> marker label) the take's labels use, or None (the set's
   own labels): the allowed alias set (M2M_MARKER_ALIASES) that covers most of the labels,
-  if it covers more than the set's own labels do."""
+  if it covers more than the set's own labels do. A label the alias set does not name keeps
+  its own meaning, so a set may rename just a few markers (AnDy's forearm wands)."""
   own = sum(n in ms.markers for n in names)
   best, nbest = None, own
   for a in config.marker_aliases(ms).values():
-    k = sum(n in a for n in names)
+    k = sum(n in a or n in ms.markers for n in names)
     if k > nbest:
       best, nbest = a, k
   return best
@@ -152,8 +153,8 @@ def body_markers(names, A):
   head, renamed = [], {}
   alias = choose_alias(names)
   for i, n in enumerate(names):
-    l = alias.get(n) if alias is not None else n
-    if l == "HEAD" or (alias is None and l in ms.HEAD_LABELS):
+    l = alias.get(n, n) if alias is not None else n
+    if l == "HEAD" or l in ms.HEAD_LABELS:
       head.append((ms.HEAD_LABELS.index(l) if l in ms.HEAD_LABELS else len(head), i))
     elif l in cand:
       cand[l].append(i)
