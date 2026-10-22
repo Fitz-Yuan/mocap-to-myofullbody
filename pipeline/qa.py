@@ -48,11 +48,19 @@ def qa(name, m, d, foot, task, task_kw=None):
     d.qpos[:] = Q[f]
     mujoco.mj_kinematics(m, d)
     sole[k] = sole_height(m, d, foot) if not callable(foot) else foot(d)
+  Eb = E[:, body][~np.isnan(E[:, body]).all(1)]
+  fr, fm = np.sqrt(np.nanmean(Eb ** 2, 1)), np.nanmax(Eb, 1)
   r = {
     "seconds": round(len(Q) / rate, 1), "scale": round(s, 4),
     "marker_err_body_mm": [round(float(np.nanmedian(E[:, body])) * 1e3, 1),
                            round(float(np.nanpercentile(E[:, body], 95)) * 1e3, 1)],
     "frames_p95_err_over_40mm": round(float(np.mean(np.nanpercentile(E[:, body], 95, axis=1) > 0.04)), 4),
+    # per frame over the body markers, as OpenSim's IK reports it (its guideline: RMS < 2 cm,
+    # largest marker error < 2-4 cm): [median, p95] over frames, and the share of frames above
+    "frame_rms_mm": [round(float(np.percentile(fr, q)) * 1e3, 1) for q in (50, 95)],
+    "frame_max_mm": [round(float(np.percentile(fm, q)) * 1e3, 1) for q in (50, 95)],
+    "frames_rms_over_20mm": round(float(np.mean(fr > 0.02)), 4),
+    "frames_max_over_40mm": round(float(np.mean(fm > 0.04)), 4),
     "joint_speed_over_15rad_s_frac": round(float(np.mean(qd.max(1) > 15)), 4),
   }
   if floor is not None:
