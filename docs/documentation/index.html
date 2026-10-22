@@ -235,6 +235,7 @@
 <li class="toctree-l1"><a class="reference internal" href="getting-started/installation/">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting-started/demo/">The demo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting-started/your-data/">Your own data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting-started/optitrack/">From OptiTrack (Motive)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting-started/results/">Reading the results</a></li>
 <li class="toctree-l1"><a class="reference internal" href="getting-started/troubleshooting/">When something goes wrong</a></li>
 </ul>
@@ -350,7 +351,7 @@
   <section class="tex2jax_ignore mathjax_ignore" id="mocap-to-msk">
 <h1>Mocap to MSK<a class="headerlink" href="#mocap-to-msk" title="Link to this heading">#</a></h1>
 <p><strong>Motion capture in, musculoskeletal motion and joint loads out.</strong></p>
-<p>Mocap to MSK turns optical motion capture (OptiTrack <code class="docutils literal notranslate"><span class="pre">.tak</span></code>, C3D, TRC, AddBiomechanics <code class="docutils literal notranslate"><span class="pre">.b3d</span></code>) into the motion and joint loads of a MuJoCo musculoskeletal model: MyoFullBody by default, or MS-Human-700, MASS, Rajagopal 2016, Lai–Uhlrich 2022, Gait2354 and MyoLeg. It reads the raw recordings itself, calibrates each subject, solves the inverse kinematics frame by frame, computes the joint loads by inverse dynamics (and, optionally, muscle forces), and grades every trial so you can see how far to trust it. Every step was checked against an independent reference: Vicon Plug-in-Gait, AddBiomechanics, OpenSim, Xsens inertial capture and force plates.</p>
+<p>Mocap to MSK turns optical motion capture (OptiTrack <code class="docutils literal notranslate"><span class="pre">.tak</span></code> or Motive’s CSV export, C3D, TRC, AddBiomechanics <code class="docutils literal notranslate"><span class="pre">.b3d</span></code>) into the motion and joint loads of a MuJoCo musculoskeletal model: MyoFullBody by default, or MS-Human-700, MASS, Rajagopal 2016, Lai–Uhlrich 2022, Gait2354 and MyoLeg. It reads the raw recordings itself, calibrates each subject, solves the inverse kinematics frame by frame, computes the joint loads by inverse dynamics (and, optionally, muscle forces), and grades every trial so you can see how far to trust it. Every step was checked against an independent reference: Vicon Plug-in-Gait, AddBiomechanics, OpenSim, Xsens inertial capture and force plates.</p>
 <div class="sd-container-fluid sd-sphinx-override sd-mb-4 docutils">
 <div class="sd-row sd-row-cols-1 sd-row-cols-xs-1 sd-row-cols-sm-2 sd-row-cols-md-2 sd-row-cols-lg-4 sd-g-2 sd-g-xs-2 sd-g-sm-2 sd-g-md-2 sd-g-lg-2 docutils">
 <div class="sd-col sd-d-flex-row docutils">

@@ -29,16 +29,23 @@ knee = K["qpos"][:, 7 + names.index("knee_angle_r") - 1]   # the root (a free jo
 ## Watch a trial
 
 ```bash
-python pipeline/export_viewer.py model viewer/              # once per model
-python pipeline/export_viewer.py clip S01_walk01 viewer/    # one trial
+mocap2myo export viewer viewer/ S01_walk01 --dataset my_study.toml
 ```
 
-Drop the files on the [viewer](https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/). Use the same settings as for the run (`M2M_DATASET=...`).
+writes the model and the trial's clip into `viewer/`. Drop both files on the [viewer](https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/).
 
 ## Gap-filled markers for other software
 
 ```bash
-python pipeline/export_c3d.py filled_c3d/
+mocap2myo export c3d filled_c3d/ --dataset my_study.toml
 ```
 
 writes each trial's markers as C3D with the gaps filled: from three neighbouring markers where they are seen (a rigid body fill), else from the subject's model in the IK pose. Residual 0 marks a measured sample, 1 a filled one. {doc}`../pipeline/gap-filling` explains the method and {doc}`../validation/gap-benchmark` its accuracy.
+
+## Motion for training
+
+```bash
+mocap2myo export motion clips/ --dataset my_study.toml --fps 100
+```
+
+writes every trial's motion as clips at a fixed rate with the feet on the floor, for imitation learning or animation: each tracked body's position and velocity, the root's position and orientation, the joint angles, and `index.json` (where each clip comes from, with the trial's QA numbers). A trial is cut where the IK lost a limb for 0.2 s or longer; clips shorter than 1 s (`--min-s`) are left out. {doc}`../reference/outputs` lists the arrays.

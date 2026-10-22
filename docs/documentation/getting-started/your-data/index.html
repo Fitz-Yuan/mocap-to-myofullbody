@@ -55,7 +55,7 @@
     <link rel="icon" href="../../_static/favicon.svg"/>
     <link rel="index" title="Index" href="../../genindex/" />
     <link rel="search" title="Search" href="../../search/" />
-    <link rel="next" title="Reading the results" href="../results/" />
+    <link rel="next" title="From OptiTrack (Motive)" href="../optitrack/" />
     <link rel="prev" title="The demo" href="../demo/" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -230,6 +230,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../installation/">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../demo/">The demo</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">Your own data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../optitrack/">From OptiTrack (Motive)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../results/">Reading the results</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">When something goes wrong</a></li>
 </ul>
@@ -336,8 +337,8 @@
 <span id="own-data"></span><h1>Your own data<a class="headerlink" href="#your-own-data" title="Link to this heading">#</a></h1>
 <p>A dataset needs labelled markers, a known marker set and one static standing trial per subject. Its settings (file kind and naming, units, subjects, marker set, task) go into a small profile, so nothing in the code changes.</p>
 <ol class="arabic simple">
-<li><p><strong>Labelled marker trajectories</strong>: OptiTrack <code class="docutils literal notranslate"><span class="pre">.tak</span></code> takes, C3D or TRC files. The labels the recording software assigned are enough; unlabelled point clouds are not. Force plates (C3D) and any frame rate are taken as they are.</p></li>
-<li><p><strong>A known marker set</strong>: Plug-in-Gait and the 52-marker ISB / Dumas set ship with the code; another set is one TOML file in <code class="docutils literal notranslate"><span class="pre">mocap2myo/markersets/</span></code> (see <a class="reference internal" href="../../pipeline/models/#models"><span class="std std-ref">models and marker sets</span></a>).</p></li>
+<li><p><strong>Labelled marker trajectories</strong>: OptiTrack <code class="docutils literal notranslate"><span class="pre">.tak</span></code> takes or Motive’s CSV export (<a class="reference internal" href="../optitrack/"><span class="doc">From OptiTrack (Motive)</span></a>), C3D or TRC files. The labels the recording software assigned are enough; unlabelled point clouds are not. Force plates (C3D) and any frame rate are taken as they are.</p></li>
+<li><p><strong>A known marker set</strong>: Plug-in-Gait, the 52-marker ISB / Dumas set and Motive’s Baseline (37), Baseline (41) and Baseline + 13 Additional Markers (50) ship with the code; another set is one TOML file in <code class="docutils literal notranslate"><span class="pre">mocap2myo/markersets/</span></code> (see <a class="reference internal" href="../../pipeline/models/#models"><span class="std std-ref">models and marker sets</span></a>).</p></li>
 <li><p><strong>Enough markers per segment</strong> to fix its orientation (ideally three).</p></li>
 <li><p><strong>A static standing trial per subject</strong>, to anchor the joint angles (<a class="reference internal" href="../../validation/joint-angles/#static"><span class="std std-ref">static-trial calibration</span></a>).</p></li>
 <li><p><strong>Subject height</strong> (for scaling) and mass (for the joint loads): a CSV, or the C3D parameters.</p></li>
@@ -405,11 +406,11 @@
       </div>
     </a>
     <a class="right-next"
-       href="../results/"
+       href="../optitrack/"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Reading the results</p>
+        <p class="prev-next-title">From OptiTrack (Motive)</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>

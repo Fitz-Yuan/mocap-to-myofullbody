@@ -234,6 +234,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/installation/">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/demo/">The demo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/your-data/">Your own data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/optitrack/">From OptiTrack (Motive)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/results/">Reading the results</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/troubleshooting/">When something goes wrong</a></li>
 </ul>
@@ -332,6 +333,7 @@
             </div>
             <nav aria-label="Page">
                 <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#motive-csv">Motive CSV</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#addbiomechanics-b3d">AddBiomechanics <code class="docutils literal notranslate"><span class="pre">.b3d</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#checking-a-dataset-before-running">Checking a dataset before running</a></li>
 </ul>
@@ -368,6 +370,14 @@
 <p class="admonition-title">Checked on public data</p>
 <p>Vielemeyer et al. 2026 (Vicon, Plug-in-Gait, 200 Hz, three AMTI plates, subject Ref01): the 39 markers found by name, 76 segment points and 82 model outputs kept apart; body mass from the plates 67.0 kg (12 level trials, mean vertical force between two plate contacts corrected for the pelvis’s vertical acceleration, range 66.8–67.2; the static trial 67.1 kg; the article lists 65 kg), the same on the inclined plates of the ramp trials; centre of pressure inside the plate and under the stance foot (from the heel marker to just past the toe marker) in every loaded frame. IK on one level trial (1.65 s): body-marker residual median 7.0 mm, 95th percentile 23 mm; static pose knees 0°, hips −2° (without the static trial: hips −11°, ankles 7–9°). Moissenet and Schreiber 2019 (Qualisys, 100 Hz, one subject, 25 trials): 52 markers, height and mass from the C3D, mass from single support on the plates 67.1 kg (C3D: 67.0). The TRC route reproduces the take route on a Motive TRC export (static trial, largest difference 0.005 mm).</p>
 </div>
+<section id="motive-csv">
+<h2>Motive CSV<a class="headerlink" href="#motive-csv" title="Link to this heading">#</a></h2>
+<p>A CSV export from Motive (<code class="docutils literal notranslate"><span class="pre">M2M_INPUT=csv</span></code>; format versions 1.1 to 1.25) is read from its header rows: the columns of type <em>Marker</em> are the measured markers, named without their skeleton’s prefix (<code class="docutils literal notranslate"><span class="pre">Skeleton:LHeel</span></code> → <code class="docutils literal notranslate"><span class="pre">LHeel</span></code>); the frame rate and the length unit come from the first line; an empty cell is a gap. <em>Bone Marker</em> columns are where Motive’s solved skeleton expects its markers, not measurements, and are not read; an export with only bones or rigid bodies stops with a message saying to export the markers. Motive’s <em>Coordinate Space</em> option moves bones and rigid bodies, not markers, which are always in the world frame (Y up). In a take with several people, a name two skeletons share keeps its prefix, so their markers are never mixed, and <code class="docutils literal notranslate"><span class="pre">M2M_POINTS_EXCLUDE</span></code> leaves the others out (<a class="reference internal" href="../../getting-started/optitrack/"><span class="doc">From OptiTrack (Motive)</span></a>).</p>
+<div class="tip admonition">
+<p class="admonition-title">Checked</p>
+<p>Exports from Motive 2 and 3 (format versions 1.21 to 1.25) by other labs read as described: a Baseline (37) take at 360 Hz, a Baseline + 13 (50) take, a Conventional Lower Body (16) take at 120 Hz; bones-only and rigid-body-only exports stop with the message.</p>
+</div>
+</section>
 <section id="addbiomechanics-b3d">
 <h2>AddBiomechanics <code class="docutils literal notranslate"><span class="pre">.b3d</span></code><a class="headerlink" href="#addbiomechanics-b3d" title="Link to this heading">#</a></h2>
 <p>An AddBiomechanics <code class="docutils literal notranslate"><span class="pre">.b3d</span></code> file holds one subject’s trials (<code class="docutils literal notranslate"><span class="pre">M2M_INPUT=b3d</span></code>, <code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">nimblephysics</span></code>); each trial is read as <code class="docutils literal notranslate"><span class="pre">&lt;file&gt;.b3d#&lt;trial&gt;</span></code>, and the profile’s <code class="docutils literal notranslate"><span class="pre">trial_regex</span></code> sees that path. The markers come as AddBiomechanics received them (names stripped of stray characters), in OpenSim’s Y-up world (<code class="docutils literal notranslate"><span class="pre">up</span> <span class="pre">=</span> <span class="pre">&quot;y&quot;</span></code>); the force plates as force, centre of pressure and free moment. The file has no plate corners, so each plate gets a rectangle on the plane of its centre of pressure (for the filter, <a class="reference internal" href="../kinetics/"><span class="doc">Inverse dynamics</span></a>), and a plate channel whose centre of pressure lies at several heights (one channel for several stair steps) is split into one plate per height. The subject’s height, mass and sex come from the file (<code class="docutils literal notranslate"><span class="pre">anthro</span> <span class="pre">=</span> <span class="pre">&quot;c3d&quot;</span></code> in the profile). Example: <code class="docutils literal notranslate"><span class="pre">datasets/addbiomechanics_falisse2017.toml</span></code>, and the comparison with AddBiomechanics’ own results: <a class="reference internal" href="../../validation/addbiomechanics/"><span class="doc">Against AddBiomechanics</span></a>.</p>
@@ -425,6 +435,7 @@
   </div>
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#motive-csv">Motive CSV</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#addbiomechanics-b3d">AddBiomechanics <code class="docutils literal notranslate"><span class="pre">.b3d</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#checking-a-dataset-before-running">Checking a dataset before running</a></li>
 </ul>

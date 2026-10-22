@@ -2,7 +2,7 @@
 
 **Motion capture in, musculoskeletal motion and joint loads out.**
 
-Mocap to MSK turns optical motion capture (OptiTrack `.tak`, C3D, TRC, AddBiomechanics `.b3d`) into joint angles and joint loads of a MuJoCo musculoskeletal model: MyoFullBody by default, or MS-Human-700, MASS, Rajagopal 2016, Lai–Uhlrich 2022, Gait2354 and MyoLeg. It reads the raw recordings itself (no Motive or Nexus needed), calibrates each subject, solves the inverse kinematics frame by frame, computes the joint loads by inverse dynamics, and grades every trial so you can see how far to trust it.
+Mocap to MSK turns optical motion capture (OptiTrack `.tak` or Motive's CSV export, C3D, TRC, AddBiomechanics `.b3d`) into joint angles and joint loads of a MuJoCo musculoskeletal model: MyoFullBody by default, or MS-Human-700, MASS, Rajagopal 2016, Lai–Uhlrich 2022, Gait2354 and MyoLeg. It reads the raw recordings itself (no Motive or Nexus needed), calibrates each subject, solves the inverse kinematics frame by frame, computes the joint loads by inverse dynamics, and grades every trial so you can see how far to trust it.
 
 **[Website](https://fitz-yuan.github.io/mocap-to-myofullbody/)** · **[Documentation](https://fitz-yuan.github.io/mocap-to-myofullbody/documentation/)** · **[Viewer](https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/)**
 
@@ -11,7 +11,7 @@ Mocap to MSK turns optical motion capture (OptiTrack `.tak`, C3D, TRC, AddBiomec
 - **Joint angles** per frame (`ik/<trial>.npz`), with each marker's fit error.
 - **Joint loads** per frame (`kin/<trial>.npz`): low back (L5/S1), shoulders, elbows, hips, knees, ankles, and the ground reaction.
 - **A report** (`ik/report.md`) that grades every trial PASS / WARN / FAIL and says why.
-- **Viewer clips** (`.elvw`) to watch any trial in the browser, and **gap-filled C3D files** for other software (OpenSim, Visual3D, ...).
+- **Viewer clips** (`.elvw`) to watch any trial in the browser, **gap-filled C3D files** for other software (OpenSim, Visual3D, ...), and **motion clips for training** (imitation learning, animation).
 
 ## Step by step
 
@@ -43,9 +43,11 @@ This downloads one public walking trial (about 0.4 MB, Moissenet & Schreiber 201
 Put the files of one study in one folder. You need:
 
 - **Labelled markers.** The labels your capture software assigned are enough. Gaps are fine.
-- **A known marker set.** Plug-in-Gait and ISB / Dumas are built in. Another set is one TOML file in `mocap2myo/markersets/`.
+- **A known marker set.** Plug-in-Gait, ISB / Dumas and OptiTrack Motive's Baseline (37), Baseline (41) and Baseline + 13 Additional Markers (50) are built in. Another set is one TOML file in `mocap2myo/markersets/`.
 - **Each subject's height and mass**, in the C3D files or in a CSV (subject, height in cm, mass in kg).
 - **A static standing trial per subject** (recommended). Without one, the calibration uses quiet standing from the trials.
+
+**From OptiTrack:** use the `.tak` files as they are, or export CSV from Motive (*File → Export Tracking Data*) with **Markers** ticked; Motive's skeleton bones are not needed. Details: [From OptiTrack](https://fitz-yuan.github.io/mocap-to-myofullbody/documentation/getting-started/optitrack/).
 
 For example:
 
@@ -102,14 +104,19 @@ All results go into the folder the profile names as `root`:
 To watch a trial, export it and drop the files on the [viewer](https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/):
 
 ```bash
-M2M_DATASET=my_study.toml python pipeline/export_viewer.py model viewer/              # once per model
-M2M_DATASET=my_study.toml python pipeline/export_viewer.py clip S01_walk01 viewer/    # one trial
+mocap2myo export viewer viewer/ S01_walk01 --dataset my_study.toml
 ```
 
 To use the markers in other software, write them with their gaps filled (from neighbouring markers where they are seen, else from the model):
 
 ```bash
-M2M_DATASET=my_study.toml python pipeline/export_c3d.py filled_c3d/
+mocap2myo export c3d filled_c3d/ --dataset my_study.toml
+```
+
+To use the motion for training (imitation learning, animation), write it as clips at a fixed rate with the feet on the floor; stretches where the IK lost a limb are cut out:
+
+```bash
+mocap2myo export motion clips/ --dataset my_study.toml --fps 100
 ```
 
 ## When something goes wrong
@@ -119,6 +126,8 @@ M2M_DATASET=my_study.toml python pipeline/export_c3d.py filled_c3d/
 | `x no trial files match ...` | the file pattern in the profile (`raw_trials`) does not find your files: compare it with `mocap2myo check`'s folder and fix the pattern |
 | `marker set ...: 12 of 39 markers` | your labels differ from the marker set's: choose another set, or add your names as an alias set (`[aliases]` in the marker set's TOML) |
 | `x pelvis markers missing` | the IK needs at least 3 of the 4 pelvis markers |
+| `no measured markers (columns of type ['Bone'])` | a Motive CSV with only the skeleton: export again with **Markers** ticked |
+| `a lower-body recording` | set `model = "myoleg"` in the profile (fetch it once: `mocap2myo models myoleg`) |
 | `no height / mass for S03` | add the subject to the CSV, with the name the trials use |
 | a trial is FAIL in the report | the report says which check failed: marker fit, a limb lost by the IK, standing posture, marker gaps, joint flips. The [documentation](https://fitz-yuan.github.io/mocap-to-myofullbody/documentation/) explains each check |
 
@@ -131,7 +140,7 @@ M2M_DATASET=my_study.toml python pipeline/export_c3d.py filled_c3d/
 
 | Step | Script | What it does |
 |---|---|---|
-| Read | `pipeline/read_raw.py` | `.tak`, C3D, TRC or `.b3d` → markers in metres, Z up; force plates; analog channels |
+| Read | `pipeline/read_raw.py` | `.tak`, Motive CSV, C3D, TRC or `.b3d` → markers in metres, Z up; force plates; analog channels |
 | Markers | `pipeline/prepare_markers.py` | labels onto the marker set, mislabelled samples dropped, pelvis gaps refilled |
 | Calibration + IK | `pipeline/solve_ik.py` | where each marker sits on the body (static trial), then the pose per frame; short gaps (≤ 200 ms) by spline, longer ones left to the model |
 | QA | `pipeline/qa.py`, `pipeline/report.py` | the grades |

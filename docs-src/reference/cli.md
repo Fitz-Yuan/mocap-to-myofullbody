@@ -10,6 +10,7 @@ The command installed by `pip install -e .`:
 | `mocap2myo init [PROFILE.toml]` | writes a dataset profile from a few questions: the folder, the file kind (found), the marker set (guessed from the labels), how subjects and static trials are named, where heights and masses come from |
 | `mocap2myo check --dataset P` | what the pipeline would read, before it runs (`pipeline/check.py`) |
 | `mocap2myo run --dataset P [trials]` | the steps in order: read, markers, IK, the task's reference, QA, the task's dataset, report, joint loads |
+| `mocap2myo export motion\|c3d\|viewer OUT [trials]` | motion clips for training (`--fps`), gap-filled C3D, viewer files (the model and one clip per trial) |
 | `mocap2myo demo [DIR]` | one public walking trial end to end (about 0.4 MB) |
 | `mocap2myo models [PROFILE ...]` | fetch and build the models other than MyoFullBody (`models/fetch.py`) |
 

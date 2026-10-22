@@ -2,7 +2,7 @@
 
 **Motion capture in, musculoskeletal motion and joint loads out.**
 
-Mocap to MSK turns optical motion capture (OptiTrack `.tak`, C3D, TRC, AddBiomechanics `.b3d`) into the motion and joint loads of a MuJoCo musculoskeletal model: MyoFullBody by default, or MS-Human-700, MASS, Rajagopal 2016, Lai–Uhlrich 2022, Gait2354 and MyoLeg. It reads the raw recordings itself, calibrates each subject, solves the inverse kinematics frame by frame, computes the joint loads by inverse dynamics (and, optionally, muscle forces), and grades every trial so you can see how far to trust it. Every step was checked against an independent reference: Vicon Plug-in-Gait, AddBiomechanics, OpenSim, Xsens inertial capture and force plates.
+Mocap to MSK turns optical motion capture (OptiTrack `.tak` or Motive's CSV export, C3D, TRC, AddBiomechanics `.b3d`) into the motion and joint loads of a MuJoCo musculoskeletal model: MyoFullBody by default, or MS-Human-700, MASS, Rajagopal 2016, Lai–Uhlrich 2022, Gait2354 and MyoLeg. It reads the raw recordings itself, calibrates each subject, solves the inverse kinematics frame by frame, computes the joint loads by inverse dynamics (and, optionally, muscle forces), and grades every trial so you can see how far to trust it. Every step was checked against an independent reference: Vicon Plug-in-Gait, AddBiomechanics, OpenSim, Xsens inertial capture and force plates.
 
 ::::{grid} 1 2 2 4
 :gutter: 2
@@ -52,6 +52,7 @@ The demo downloads one public walking trial (about 0.4 MB) and runs every step o
 getting-started/installation
 getting-started/demo
 getting-started/your-data
+getting-started/optitrack
 getting-started/results
 getting-started/troubleshooting
 ```

@@ -234,6 +234,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/installation/">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/demo/">The demo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/your-data/">Your own data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/optitrack/">From OptiTrack (Motive)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/results/">Reading the results</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/troubleshooting/">When something goes wrong</a></li>
 </ul>
@@ -334,6 +335,7 @@
                 <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-inputs-and-outputs">Stage inputs and outputs</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#viewer-files">Viewer files</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#motion-clips-for-training">Motion clips for training</a></li>
 </ul>
             </nav>
         </div>
@@ -400,7 +402,31 @@
 </section>
 <section id="viewer-files">
 <span id="id1"></span><h2>Viewer files<a class="headerlink" href="#viewer-files" title="Link to this heading">#</a></h2>
-<p><code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">pipeline/export_viewer.py</span> <span class="pre">model</span> <span class="pre">OUT_DIR</span></code> once per model, then <code class="docutils literal notranslate"><span class="pre">clip</span> <span class="pre">TRIAL</span> <span class="pre">OUT_DIR</span></code> per trial (<code class="docutils literal notranslate"><span class="pre">--clip</span> <span class="pre">N</span></code>: one carry cycle of the task; <code class="docutils literal notranslate"><span class="pre">--public</span> <span class="pre">NAME</span></code>: a de-identified clip; <code class="docutils literal notranslate"><span class="pre">--ghost-ref-dir</span></code>: a second run overlaid; <code class="docutils literal notranslate"><span class="pre">--help</span></code> lists the rest). Joint loads and the OpenSim overlay are included when <code class="docutils literal notranslate"><span class="pre">kin/</span></code> and <code class="docutils literal notranslate"><span class="pre">opensim_id/</span></code> exist. A clip carries body poses per frame, measured and model markers, joint-angle and joint-load curves, force arrows, the QA grades, and two task-neutral lists the viewer draws as given: objects (shape, size, pose) and state tracks (e.g. hand contact). The viewer reads the files in the browser; nothing is uploaded.</p>
+<p><code class="docutils literal notranslate"><span class="pre">mocap2myo</span> <span class="pre">export</span> <span class="pre">viewer</span> <span class="pre">OUT_DIR</span> <span class="pre">TRIAL</span> <span class="pre">...</span></code> writes both; the script itself, <code class="docutils literal notranslate"><span class="pre">python</span> <span class="pre">pipeline/export_viewer.py</span> <span class="pre">model</span> <span class="pre">OUT_DIR</span></code> once per model, then <code class="docutils literal notranslate"><span class="pre">clip</span> <span class="pre">TRIAL</span> <span class="pre">OUT_DIR</span></code> per trial, has more options (<code class="docutils literal notranslate"><span class="pre">--clip</span> <span class="pre">N</span></code>: one carry cycle of the task; <code class="docutils literal notranslate"><span class="pre">--public</span> <span class="pre">NAME</span></code>: a de-identified clip; <code class="docutils literal notranslate"><span class="pre">--ghost-ref-dir</span></code>: a second run overlaid; <code class="docutils literal notranslate"><span class="pre">--help</span></code> lists the rest). Joint loads and the OpenSim overlay are included when <code class="docutils literal notranslate"><span class="pre">kin/</span></code> and <code class="docutils literal notranslate"><span class="pre">opensim_id/</span></code> exist. A clip carries body poses per frame, measured and model markers, joint-angle and joint-load curves, force arrows, the QA grades, and two task-neutral lists the viewer draws as given: objects (shape, size, pose) and state tracks (e.g. hand contact). The viewer reads the files in the browser; nothing is uploaded.</p>
+</section>
+<section id="motion-clips-for-training">
+<span id="motion-files"></span><h2>Motion clips for training<a class="headerlink" href="#motion-clips-for-training" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">mocap2myo</span> <span class="pre">export</span> <span class="pre">motion</span> <span class="pre">OUT_DIR</span> <span class="pre">[trials]</span> <span class="pre">--fps</span> <span class="pre">100</span></code> (<code class="docutils literal notranslate"><span class="pre">pipeline/export_motion.py</span></code>; <code class="docutils literal notranslate"><span class="pre">--stem</span></code>, <code class="docutils literal notranslate"><span class="pre">--min-s</span></code>) writes every trial’s IK as clips at one rate. A trial is cut where the IK lost a limb for 0.2 s or longer (<code class="docutils literal notranslate"><span class="pre">mocap2myo.ik.limb_lost</span></code>) or did not solve a frame; stretches of at least <code class="docutils literal notranslate"><span class="pre">--min-s</span></code> seconds (default 1) are the clips. Each is resampled (joint angles and root position linearly, root orientation by slerp) and lowered so that the feet stand on z = 0 (the median floor height under the still feet). Positions are in the model’s size, as the IK solves them.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<thead>
+<tr class="row-odd"><th class="head"><p>File</p></th>
+<th class="head"><p>Arrays</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">motion_&lt;stem&gt;_&lt;fps&gt;hz.npz</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">gts</span></code> [N, bodies, 3] and <code class="docutils literal notranslate"><span class="pre">gvs</span></code> the tracked bodies’ positions and velocities (m, m/s), <code class="docutils literal notranslate"><span class="pre">root_pos</span></code>, <code class="docutils literal notranslate"><span class="pre">root_vel</span></code>, <code class="docutils literal notranslate"><span class="pre">root_quat</span></code> (w, x, y, z), per clip <code class="docutils literal notranslate"><span class="pre">motion_num_frames</span></code>, <code class="docutils literal notranslate"><span class="pre">length_starts</span></code>, <code class="docutils literal notranslate"><span class="pre">motion_fps</span></code>, <code class="docutils literal notranslate"><span class="pre">motion_dt</span></code>, <code class="docutils literal notranslate"><span class="pre">motion_lengths</span></code> (s), <code class="docutils literal notranslate"><span class="pre">clip_file</span></code>; <code class="docutils literal notranslate"><span class="pre">tracked_bodies</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">initial_poses_&lt;stem&gt;_&lt;fps&gt;hz.npz</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">qpos_joints</span></code> [N, nq − 7] the joint angles, <code class="docutils literal notranslate"><span class="pre">joint_names</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">index.json</span></code></p></td>
+<td><p>per clip: the trial, its start and end in the trial (s), the frames, the floor height, the trial’s marker error and lost-limb time</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>N is the sum of the clips’ frames; clip k runs from <code class="docutils literal notranslate"><span class="pre">length_starts[k]</span></code> for <code class="docutils literal notranslate"><span class="pre">motion_num_frames[k]</span></code> frames.</p>
 </section>
 </section>
 
@@ -453,6 +479,7 @@
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-inputs-and-outputs">Stage inputs and outputs</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#viewer-files">Viewer files</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#motion-clips-for-training">Motion clips for training</a></li>
 </ul>
   </nav></div>
 

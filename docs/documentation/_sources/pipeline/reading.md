@@ -33,6 +33,16 @@ Other labs' data comes as C3D or TRC (`mocap2myo/readers.py`; C3D through ezc3d)
 Vielemeyer et al. 2026 (Vicon, Plug-in-Gait, 200 Hz, three AMTI plates, subject Ref01): the 39 markers found by name, 76 segment points and 82 model outputs kept apart; body mass from the plates 67.0 kg (12 level trials, mean vertical force between two plate contacts corrected for the pelvis's vertical acceleration, range 66.8–67.2; the static trial 67.1 kg; the article lists 65 kg), the same on the inclined plates of the ramp trials; centre of pressure inside the plate and under the stance foot (from the heel marker to just past the toe marker) in every loaded frame. IK on one level trial (1.65 s): body-marker residual median 7.0 mm, 95th percentile 23 mm; static pose knees 0°, hips −2° (without the static trial: hips −11°, ankles 7–9°). Moissenet and Schreiber 2019 (Qualisys, 100 Hz, one subject, 25 trials): 52 markers, height and mass from the C3D, mass from single support on the plates 67.1 kg (C3D: 67.0). The TRC route reproduces the take route on a Motive TRC export (static trial, largest difference 0.005 mm).
 ```
 
+## Motive CSV
+
+A CSV export from Motive (`M2M_INPUT=csv`; format versions 1.1 to 1.25) is read from its header rows: the columns of type *Marker* are the measured markers, named without their skeleton's prefix (`Skeleton:LHeel` → `LHeel`); the frame rate and the length unit come from the first line; an empty cell is a gap. *Bone Marker* columns are where Motive's solved skeleton expects its markers, not measurements, and are not read; an export with only bones or rigid bodies stops with a message saying to export the markers. Motive's *Coordinate Space* option moves bones and rigid bodies, not markers, which are always in the world frame (Y up). In a take with several people, a name two skeletons share keeps its prefix, so their markers are never mixed, and `M2M_POINTS_EXCLUDE` leaves the others out ({doc}`../getting-started/optitrack`).
+
+```{admonition} Checked
+:class: tip
+
+Exports from Motive 2 and 3 (format versions 1.21 to 1.25) by other labs read as described: a Baseline (37) take at 360 Hz, a Baseline + 13 (50) take, a Conventional Lower Body (16) take at 120 Hz; bones-only and rigid-body-only exports stop with the message.
+```
+
 ## AddBiomechanics `.b3d`
 
 An AddBiomechanics `.b3d` file holds one subject's trials (`M2M_INPUT=b3d`, `pip install nimblephysics`); each trial is read as `<file>.b3d#<trial>`, and the profile's `trial_regex` sees that path. The markers come as AddBiomechanics received them (names stripped of stray characters), in OpenSim's Y-up world (`up = "y"`); the force plates as force, centre of pressure and free moment. The file has no plate corners, so each plate gets a rectangle on the plane of its centre of pressure (for the filter, {doc}`kinetics`), and a plate channel whose centre of pressure lies at several heights (one channel for several stair steps) is split into one plate per height. The subject's height, mass and sex come from the file (`anthro = "c3d"` in the profile). Example: `datasets/addbiomechanics_falisse2017.toml`, and the comparison with AddBiomechanics' own results: {doc}`../validation/addbiomechanics`.
