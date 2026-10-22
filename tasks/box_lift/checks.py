@@ -3,7 +3,8 @@
 Floor and shelf consistency (box bottom while resting vs floor / shelf top),
 hand-box consistency while carrying (palm-sphere surface to box surface, palm
 centres in the box frame), carry cycles (box lifted off the platform -> back on
-it). Everything in the scaled-subject frame of the IK, on the frames qa.py samples.
+it). Everything in the scaled-subject frame of the IK (with M2M_SCALE=segments the subject's
+own frame), on the frames qa.py samples.
 """
 
 import mujoco
@@ -37,11 +38,15 @@ def cycles(bz, floor, rate):
   return out
 
 
-def qa_trial(D, Q, frames, step, s, rate, m, d):
+def qa_trial(D, Q, frames, step, s, rate, m, d, palm=None):
   """D: the trial's marker npz, Q: IK qpos [T, nq], frames: the sampled frames (every
-  step-th), s: subject scale, rate: Hz, m / d: the model. Returns (checks, log line)."""
+  step-th), s: subject scale, rate: Hz, m / d: the model; palm (optional): (hand bodies,
+  palm-sphere centres in them), l / r, of a model scaled to the subject (ik.MarkerModel
+  hand_b, palm_c; default the hand spheres of MyoFullBody). Returns (checks, log line)."""
   hand = [m.body("thirdmc_l").id, m.body("thirdmc_r").id]
   sph = O.hand_sphere_local()
+  if palm is not None:
+    hand, sph = list(palm[0]), dict(zip("lr", palm[1]))
   half = D["box_size"] * s / 2
   bpos, bquat = D["box_pos"] * s, D["box_quat"]
   floor = float(D["floor_z"]) * s

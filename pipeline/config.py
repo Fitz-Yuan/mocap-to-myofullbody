@@ -43,7 +43,9 @@ M2M_STATIC_NAME. Defaults, as the case study:
                                                  C3D / TRC)
     markers/     pipeline/prepare_markers.py     conditioned markers per trial, and
                                                  static/<subject>.npz (M2M_NPZ_DIR)
-    ik/          pipeline/solve_ik.py            <subject>_offsets.npz, <trial>.npz;
+    ik/          pipeline/solve_ik.py            <subject>_offsets.npz, <trial>.npz (with
+                                                 M2M_SCALE=segments also <subject>_scale.json
+                                                 and <subject>_model.xml);
                                                  qa.py, report.py and validate/lomo.py
                                                  add qa.json, report.json / .md,
                                                  lomo.json (M2M_IK_DIR)
@@ -462,6 +464,28 @@ IK_ANKLE_SMOOTH = float(_env("M2M_IK_ANKLE_SMOOTH", 0.3))
 # opt-in: a 3-hinge neck in the IK model (ik.NECK), so the head follows its markers; the
 # IK output keeps the plain model's qpos layout plus neck_qpos [T, 3]
 NECK = _flag("M2M_NECK", "0")
+# How the model and the subject are brought to one size (mocap2myo/scaling.py).
+# "uniform" (default): the markers are scaled to the model by model height / subject height
+# (ik.load_trial); the model keeps its proportions. "segments" (opt-in): the model is scaled
+# to each subject, segment by segment, from the static trial (as OpenSim's Scale: marker
+# distances against the model's marker guesses; pelvis width and depth, trunk length and
+# shoulder width, thigh, shank, foot, upper arm, forearm, hand; the head and any segment no
+# marker pair measures at subject height / model height), and the markers stay in the
+# subject's own size (the IK files' "scale" is 1). solve_ik.py measures each subject once
+# (<M2M_IK_DIR>/<subject>_scale.json, cached like the offsets) and writes the scaled model
+# with the subject's markers (<subject>_model.xml); every later stage rebuilds the subject's
+# model from the factors, and an IK run of the other mode stops them. The factors come from
+# the subject's static trial when there is one (whether or not M2M_STATIC calibrates on it),
+# else from quiet standing in its trials.
+SCALE = _choice("M2M_SCALE", "uniform", ("uniform", "segments"))
+# segments: scaling groups kept at the uniform factor anyway (mocap2myo.scaling.GROUP_NAMES,
+# comma separated; e.g. "foot" when the heel and toe markers sit on thick shoes)
+SCALE_UNIFORM = tuple(g.strip() for g in _env("M2M_SCALE_UNIFORM", "").split(",") if g.strip())
+_bad = [g for g in SCALE_UNIFORM if g not in ("pelvis", "torso", "thigh", "shank", "foot",
+                                               "upper_arm", "forearm", "hand", "head")]
+if _bad:
+  raise SystemExit(f"M2M_SCALE_UNIFORM: unknown scaling group(s) {_bad}; expected pelvis, torso, "
+                   "thigh, shank, foot, upper_arm, forearm, hand, head")
 IK_FRAMES = _env("M2M_IK_FRAMES", "")  # "a:b": tracking IK on that frame range only (pilot / timing)
 LOMO_EVERY_S = float(_env("M2M_LOMO_EVERY_S", 1.0))  # validate/lomo.py: one frame per this many s
 
@@ -531,10 +555,45 @@ def model_profile():
   return profile.load(MODEL)
 
 
-def marker_model(neck=False):
-  """ik.MarkerModel of the dataset's model and marker set."""
+def scale_file(subject, ik_dir=None):
+  """<ik_dir or M2M_IK_DIR>/<subject>_scale.json: the subject's segment scale factors."""
+  return os.path.join(ik_dir or IK_DIR, f"{subject}_scale.json")
+
+
+def marker_model(neck=False, subject=None, ik_dir=None, scale=None):
+  """ik.MarkerModel of the dataset's model and marker set. With M2M_SCALE=segments (or
+  scale="segments") and a subject: the model scaled to that subject (its factors from
+  scale_file(subject, ik_dir), written by solve_ik.py); without a subject, the model as it
+  is (for its layout)."""
   from mocap2myo import ik
+  if (scale or SCALE) == "segments" and subject is not None:
+    from mocap2myo import scaling
+    f = scale_file(subject, ik_dir)
+    if not os.path.exists(f):
+      raise SystemExit(f"M2M_SCALE=segments: no scale factors for {subject} ({f}); "
+                       "pipeline/solve_ik.py writes them")
+    return ik.MarkerModel(model_profile(), marker_set(), neck=neck, scaling=scaling.Scaling.load(f))
   return ik.MarkerModel(model_profile(), marker_set(), neck=neck)
+
+
+def scale_mode(data):
+  """M2M_SCALE an IK file or a subject calibration (npz data) was written with."""
+  return str(data["scale_mode"]) if "scale_mode" in data.files else "uniform"
+
+
+def check_scale(path, data):
+  """Stop if an IK file (its npz data) was written with the other M2M_SCALE."""
+  mode = scale_mode(data)
+  if mode != SCALE:
+    raise SystemExit(f"{path}: solved with M2M_SCALE={mode}, not M2M_SCALE={SCALE}")
+
+
+def run_marker_model(ik_dir, subject, neck=False):
+  """The model an IK run (ik_dir) solved this subject on, whatever M2M_SCALE is now: scaled
+  to the subject if that run's calibration says so (validation scripts comparing runs)."""
+  import numpy as np
+  cal = np.load(os.path.join(ik_dir, f"{subject}_offsets.npz"))
+  return marker_model(neck=neck, subject=subject, ik_dir=ik_dir, scale=scale_mode(cal))
 
 
 # a profile key that is no setting (a typo would otherwise be ignored quietly)

@@ -1,7 +1,8 @@
 """Inverse dynamics: net joint forces and moments from the IK (after the reference).
 
 For every trial in <M2M_IK_DIR>: the model (M2M_MODEL, default MyoFullBody; its profile's
-[kinetics] joints) at the subject's size and mass (the
+[kinetics] joints) at the subject's size and mass (uniformly scaled; with M2M_SCALE=segments
+the model scaled to the subject, solve_ik.py; masses: the
 anthropometrics; equipment worn: M2M_CARRIED_COLUMN, lumped at M2M_CARRIED_BODY: a body
 of the model, or a canonical segment such as torso), the task's external loads on the
 body (box_lift: the box on the hands while it is carried, tasks/box_lift/loads.py;
@@ -82,27 +83,44 @@ def force_plates(trial, n):
 
 def init():
   global KIN
-  KIN = kinetics.Kinetics(config.marker_model())
+  if config.SCALE != "segments":  # segments: each subject's own model (kin_of)
+    KIN = kinetics.Kinetics(config.marker_model())
 
 
-def carried_body(m):
+_KINS = {}  # M2M_SCALE=segments: the subject's model, per subject
+
+
+def kin_of(subj):
+  """The inverse dynamics of a subject's model: the model itself, or with M2M_SCALE=segments
+  the model scaled to the subject."""
+  if config.SCALE != "segments":
+    return KIN
+  if subj not in _KINS:
+    _KINS[subj] = kinetics.Kinetics(config.marker_model(subject=subj))
+  return _KINS[subj]
+
+
+def carried_body(m, kin=None):
   """M2M_CARRIED_BODY as a body of the model: the body of that name, else the body of
   that canonical segment (MASS has no "torso" body: its torso segment's)."""
   import mujoco
+  kin = kin or KIN
   b = config.CARRIED_BODY
   if mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, b) >= 0:
     return b
-  seg = KIN.mm.profile.segment_body(b)
+  seg = kin.mm.profile.segment_body(b)
   if seg is None:
-    raise SystemExit(f"M2M_CARRIED_BODY={b!r}: no such body or segment in {KIN.mm.profile.name}")
+    raise SystemExit(f"M2M_CARRIED_BODY={b!r}: no such body or segment in {kin.mm.profile.name}")
   return seg
 
 
 def run(trial):
   K = np.load(os.path.join(config.IK_DIR, f"{trial}.npz"))
+  config.check_scale(os.path.join(config.IK_DIR, f"{trial}.npz"), K)
   scale, rate = float(K["scale"]), float(K["rate"])
   Q, bad = fill_unsolved(K["qpos"].astype(np.float64), unsolved_frames(K))
   subj = config.subject_of(trial)
+  KIN = kin_of(subj)
   body = config.anthropometrics()[subj]["mass_kg"]
   extra = config.carried_mass().get(subj, 0.0)
   weighed = static_plate_mass(subj)
@@ -116,7 +134,7 @@ def run(trial):
   cal = os.path.join(config.IK_DIR, f"{trial}.npz")
   if "model_profile" in K.files and str(K["model_profile"]) != KIN.mm.profile.name:
     raise SystemExit(f"{cal}: IK of {K['model_profile']}, not M2M_MODEL={KIN.mm.profile.name}")
-  out = KIN.solve(kin, rate, scale, body, {carried_body(KIN.m): extra} if extra > 0 else None,
+  out = KIN.solve(kin, rate, scale, body, {carried_body(KIN.m, KIN): extra} if extra > 0 else None,
                   loads, lp_hz=config.KIN_LOWPASS_HZ, plates=force_plates(trial, len(Q)))
   out.update(more)
   out["unsolved"] = bad

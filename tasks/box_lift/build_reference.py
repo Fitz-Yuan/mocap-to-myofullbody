@@ -1,7 +1,8 @@
 """Per-trial reference of the box-lifting trials (input to the viewer and the motion
 dataset): human IK + measured box + scene, in one frame.
 
-Frame: scaled subject (markers x scale, see mocap2myo.ik.load_trial), floor at z = 0.
+Frame: scaled subject (markers x scale, see mocap2myo.ik.load_trial; with M2M_SCALE=segments
+the subject's own size, on the model scaled to the subject), floor at z = 0.
   Scene and box: shifted by -floor (the elevator markers' floor).
   Human: shifted so the median lowest sole point is on the floor while the
   feet are on the elevator platform (kinematics.sole_height); elsewhere the
@@ -95,6 +96,7 @@ def main():
   foot = foot_collision_geoms(m)
   hand = [m.body("thirdmc_l").id, m.body("thirdmc_r").id]
   sph = O.hand_sphere_local()
+  models = {}  # M2M_SCALE=segments: each subject's model, its feet and palms
   names = sys.argv[1:] or config.trials(IK_DIR)
   os.makedirs(REF_DIR, exist_ok=True)
   # pass 1: kinematics, shifts, palm positions in the box frame
@@ -102,9 +104,17 @@ def main():
   for n in names:
     D = np.load(os.path.join(NPZ_DIR, f"{n}.npz"))
     K = np.load(os.path.join(IK_DIR, f"{n}.npz"))
+    config.check_scale(os.path.join(IK_DIR, f"{n}.npz"), K)
     s, rate = float(K["scale"]), float(K["rate"])
     Q = K["qpos"].astype(np.float64)
-    sole, palm, feet_xy = kinematic_pass(m, d, Q, foot, hand, sph)
+    if config.SCALE == "segments":
+      subj = config.subject_of(n)
+      if subj not in models:
+        mm = config.marker_model(subject=subj)
+        models[subj] = (mm.m, mm.d, foot_collision_geoms(mm.m), list(mm.hand_b), dict(zip("lr", mm.palm_c)))
+      sole, palm, feet_xy = kinematic_pass(*models[subj][:2], Q, *models[subj][2:])
+    else:
+      sole, palm, feet_xy = kinematic_pass(m, d, Q, foot, hand, sph)
     floor = float(D["floor_z"]) * s
     # human: soles on z = 0 while standing on the elevator platform (where the
     # box is lifted / set down; the plates near the shelf sit ~1.5 cm higher,

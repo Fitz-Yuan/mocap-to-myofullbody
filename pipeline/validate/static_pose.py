@@ -9,7 +9,8 @@ markers visible; S07 has none):
   2. segment lengths from marker pairs (subject markers scaled to the model's
      height, as the IK does) against the same pairs of the model's anatomical
      marker guesses (markerset.anat_world), as ratios: a ratio away from 1 is a
-     segment the uniformly scaled model cannot match.
+     segment the uniformly scaled model cannot match. With M2M_SCALE=segments, the
+     subject's markers in their own size against the model scaled to that subject.
 Ratios use bony landmarks only (ASIS, PSIS, knee, ankle, heel, toe, shoulder,
 elbow, wrist, finger, C7; Plug-in-Gait labels). Subjects: the anthropometrics file.
 
@@ -45,12 +46,13 @@ JOINTS = ["knee_angle_r", "knee_angle_l", "hip_flexion_r", "hip_flexion_l",
 MM = config.marker_model()
 
 
-def static_markers(subj, anthro):
-  """Mean static pose [n, 3] in the IK's scaled-subject frame (Z up)."""
+def static_markers(subj, anthro, mm=MM):
+  """Mean static pose [n, 3] in the IK's scaled-subject frame (Z up; on a model scaled to the
+  subject, M2M_SCALE=segments, the subject's own size)."""
   names, A, _ = C.read_take(f"static/{config.static_name(subj)}")
   P, H, _ = C.body_markers(names, A)
   C.place_head(P, H)
-  scale = MM.model_height / (anthro[subj] / 100)
+  scale = 1.0 if mm.scaling is not None else MM.model_height / (anthro[subj] / 100)
   return np.nanmedian(P, 0) * scale
 
 
@@ -76,9 +78,16 @@ def main():
     if not os.path.exists(os.path.join(STATIC, f"{config.static_name(subj)}.npz")):
       print(f"{subj}  no static trial")
       continue
-    P = static_markers(subj, anthro)
-    ratio = {k: v / model_len[k] for k, v in seg(P).items()}
     off = os.path.join(IKD, f"{subj}_offsets.npz")
+    if config.SCALE == "segments":  # against the subject's own model (ratios ~1 where measured)
+      if not os.path.exists(off):
+        print(f"{subj}  no calibration in {IKD}")
+        continue
+      mm = config.marker_model(subject=subj)
+      mm.set_offsets(mk.anat_offsets(mm))
+      model_len = seg(mm.markers(mm.qref))
+    P = static_markers(subj, anthro, mm)
+    ratio = {k: v / model_len[k] for k, v in seg(P).items()}
     pose = ""
     if os.path.exists(off):
       mm.set_offsets(np.load(off)["offsets"])

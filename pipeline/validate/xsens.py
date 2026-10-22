@@ -86,7 +86,7 @@ def xsens_angles(path):
 def ik_angles(ik_dir):
   K = np.load(os.path.join(ik_dir, f"{TRIAL}.npz"))
   Q = K["qpos"].astype(np.float64)
-  mm = config.marker_model()
+  mm = config.run_marker_model(ik_dir, config.subject_of(TRIAL))  # the run's own model
   mm.set_offsets(np.load(os.path.join(ik_dir, f"{config.subject_of(TRIAL)}_offsets.npz"))["offsets"])
   m, d, p = mm.m, mm.d, mm.profile
   # hip, knee, ankle, shoulder, elbow, wrist: the origins of the femur, tibia, ankle-joint

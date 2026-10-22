@@ -5,7 +5,8 @@ Inputs: the cleaned markers every method was given (<M2M_NPZ_DIR>), our IK runs
 motion-trial and the static-trial calibration) and the OpenSim run (opensim_ik/,
 opensim_ik.py). All residuals are measured against the same unfiltered markers in
 the subject's own size (our IK works on height-scaled markers and a 6 Hz low-pass;
-its model markers are scaled back here).
+its model markers are scaled back here; a run with M2M_SCALE=segments is scored on the
+model it scaled to each subject, in the subject's size already).
 
 Per trial and method:
   residual     body markers (head excluded), median / 95th pct over marker-frames, mm
@@ -58,9 +59,16 @@ def flips(rad, rate):
   return float(np.mean(np.nanmax(sp, axis=1) > 15))
 
 
-def ours(trial, ikd, mm, P, st, rate):
+_MODELS = {}  # (IK run, subject) -> the model that run solved the subject on
+
+
+def ours(trial, ikd, P, st, rate):
   K = np.load(os.path.join(ikd, f"{trial}.npz"))
   Q, s = K["qpos"].astype(np.float64), float(K["scale"])
+  key = (ikd, config.subject_of(trial))
+  if key not in _MODELS:  # a run with M2M_SCALE=segments: the subject's own model
+    _MODELS[key] = config.run_marker_model(ikd, key[1])
+  mm = _MODELS[key]
   mm.set_offsets(np.load(os.path.join(ikd, f"{config.subject_of(trial)}_offsets.npz"))["offsets"])
   M = np.full((len(Q), len(mm.ms.LABELS), 3), np.nan)
   for t, q in enumerate(Q):
@@ -130,7 +138,7 @@ def main():
     D = np.load(os.path.join(NPZ, f"{trial}.npz"))
     P, rate = D["markers"].astype(np.float64), float(D["marker_rate"])
     st = mk.standing(P, rate, ms=mm.ms)
-    r = {name: ours(trial, ikd, mm, P, st, rate) for name, ikd in OURS.items()}
+    r = {name: ours(trial, ikd, P, st, rate) for name, ikd in OURS.items()}
     r["OpenSim"] = osim(trial, P, st, rate)
     a, b = r[last]["angles"], r["OpenSim"]["angles"]
     for j in ANGLES:

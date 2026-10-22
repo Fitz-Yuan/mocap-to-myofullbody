@@ -13,7 +13,10 @@ Two kinds of file, both in the ELVW container (below):
   clip   (per clip of the task's reference, or whole trial)   body poses per frame
                     (the viewer needs no kinematics of its own), measured and model
                     markers, joint-angle curves, per-frame marker residual, the trial's
-                    QA grades, and two task-neutral lists the viewer draws as given:
+                    QA grades, with M2M_SCALE=segments the subject's model as each body's
+                    scale matrix "body_scale" [nbody, 3, 3] (the viewer applies it to the
+                    shared model file's meshes, volumes and muscle sites), and two
+                    task-neutral lists the viewer draws as given:
                     "objects" (shape, size, a fixed pose or per-frame pose arrays) and
                     "tracks" (named per-frame states, binary or categorical), both
                     from the task (M2M_TASK; box_lift: the box, the shelf, the
@@ -254,12 +257,16 @@ def export_clip(a):
   fps = rate / step
   # an IK run with the optional neck stores its angles apart: draw the head with them
   ikf = np.load(os.path.join(a.ik_dir, f"{trial}.npz"))
+  config.check_scale(os.path.join(a.ik_dir, f"{trial}.npz"), ikf)
+  if a.public and config.SCALE == "segments":
+    raise SystemExit("--public: a clip in the subject's own size and proportions (M2M_SCALE="
+                     "segments) is not de-identified; export the demo from a uniform run")
   neck = ikf["neck_qpos"][idx].astype(np.float64) if "neck_qpos" in ikf.files else None
-  mm = config.marker_model(neck=neck is not None)
+  subj = config.subject_of(trial)
+  mm = config.marker_model(neck=neck is not None, subject=subj, ik_dir=a.ik_dir)
   m, d = mm.m, mm.d
   if "model_profile" in ikf.files and str(ikf["model_profile"]) != mm.profile.name:
     raise SystemExit(f"{trial}: IK of {ikf['model_profile']}, not M2M_MODEL={mm.profile.name}")
-  subj = config.subject_of(trial)
   mm.set_offsets(np.load(os.path.join(a.ik_dir, f"{subj}_offsets.npz"))["offsets"])
   Q = ref["qpos"][idx].astype(np.float64)
   if neck is not None:
@@ -286,9 +293,14 @@ def export_clip(a):
   for name, (kind, x) in extra.items():
     arrays[name] = q16(x, ps) if kind == "pos" else q16(x, 1 / 32767) if kind == "quat" else x
   arrays.update(curves=curves, resid_mm=(1e3 * resid).astype(np.float32))
+  if mm.scaling is not None:  # the subject's model: each body's meshes, volumes and sites x A
+    arrays["body_scale"] = mm.scaling.A.astype(np.float32)
   ghost = None
   if a.ghost_ref_dir:
     gref = np.load(os.path.join(a.ghost_ref_dir, f"{trial}.npz"))
+    if float(gref["scale"]) != s:
+      raise SystemExit(f"--ghost-ref-dir: that run's scale ({float(gref['scale']):g}) differs from "
+                       f"this one's ({s:g}): both runs must be solved with the same scaling")
     gQ = gref["qpos"][idx].astype(np.float64)
     if mm.neck:  # the ghost run is drawn with a straight neck
       gQ = mm.full_qpos(gQ, np.zeros((len(gQ), len(mk.NECK))))

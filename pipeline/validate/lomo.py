@@ -37,7 +37,8 @@ EVERY_S = E.LOMO_EVERY_S
 def trial(name):
   from mocap2myo import ik as mk
   K = np.load(os.path.join(IKD, f"{name}.npz"))
-  mm = E.marker_model()
+  E.check_scale(os.path.join(IKD, f"{name}.npz"), K)
+  mm = E.marker_model(subject=E.subject_of(name))
   P, rate, _ = mk.load_trial(os.path.join(NPZ, f"{name}.npz"), lowpass_hz=E.LOWPASS_HZ or None, mm=mm)
   Q = K["qpos"].astype(np.float64)
   mm.set_offsets(np.load(os.path.join(IKD, f"{E.subject_of(name)}_offsets.npz"))["offsets"])

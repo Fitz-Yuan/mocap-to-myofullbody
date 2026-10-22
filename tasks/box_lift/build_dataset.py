@@ -2,7 +2,10 @@
 
 One clip per carry cycle (box on the elevator floor -> shelf -> back on the
 floor; clip bounds at the middle of the floor rests between cycles), 100 Hz,
-scaled-subject frame with z = 0 at the elevator platform. The motion format
+scaled-subject frame with z = 0 at the elevator platform (with M2M_SCALE=segments: the
+subject's own size, qpos of the model scaled to that subject, which is not the model a
+policy is trained on; the dataset for a common model is built with the default uniform
+scaling). The motion format
 of motion_io.write, plus the per-clip object / scene descriptor:
   obj_mass [n] kg (the box mass of the reference, 13.6 kg in the case study),
   grip_local [n, 2, 3] (l, r palm-sphere centres in the box frame while grasped =
@@ -57,6 +60,7 @@ def main():
   m = mujoco.MjModel.from_xml_path(str(MYOFULLBODY_XML))
   d = mujoco.MjData(m)
   tb = [m.body(b).id for b in TRACKED]
+  models = {}  # M2M_SCALE=segments: each subject's model (the tracked bodies' positions)
   out = {k: [] for k in ("gts", "root_pos", "root_quat", "qj", "box_pos", "box_quat",
                          "grasp", "phase")}
   extra = {k: [] for k in ("obj_mass", "grip_local", "has_shelf", "shelf_pos", "shelf_half")}
@@ -67,6 +71,14 @@ def main():
       raise SystemExit(f"{name}: the reference is at {float(R['rate']):g} Hz; the dataset "
                        f"is written at {FPS:g} Hz (resample the markers to {FPS:g} Hz first)")
     K = np.load(os.path.join(IK_DIR, f"{name}.npz"))
+    config.check_scale(os.path.join(IK_DIR, f"{name}.npz"), K)
+    mq, dq = m, d
+    if config.SCALE == "segments":
+      subj = config.subject_of(name)
+      if subj not in models:
+        mms = config.marker_model(subject=subj)
+        models[subj] = (mms.m, mms.d)
+      mq, dq = models[subj]
     body = [i for i, l in enumerate(K["labels"]) if l not in ms.HEAD_LABELS]
     E = K["marker_err"][:, body]
     pel = [i for i, l in enumerate(K["labels"]) if l in ms.PELVIS_LABELS]
@@ -77,9 +89,9 @@ def main():
       q = Q[a:b]
       G = np.zeros((len(q), len(TRACKED), 3))
       for i in range(len(q)):
-        d.qpos[:] = q[i]
-        mujoco.mj_kinematics(m, d)
-        G[i] = d.xpos[tb]
+        dq.qpos[:] = q[i]
+        mujoco.mj_kinematics(mq, dq)
+        G[i] = dq.xpos[tb]
       grasp = R["grasp"][a:b]
       anyg = np.flatnonzero(grasp.any(1))
       e = E[a:b]
