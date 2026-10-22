@@ -55,6 +55,8 @@ def main():
       bad(f"no trial files match {config.RAW_DIR}/{config.RAW_TRIALS} (M2M_RAW_TRIALS)")
     else:
       ok(f"{len(trials)} trials of {len(subj)} subjects, e.g. {list(trials)[:3]}")
+    st_rel = {os.path.relpath(p, config.RAW_DIR).replace(os.sep, "/") for p in statics.values()}
+    skipped = [x for x in skipped if x not in st_rel]  # the static trials are meant to be left out
     if skipped:
       warn(f"{len(skipped)} files match the glob but not M2M_TRIAL_REGEX, e.g. {skipped[:2]}")
     if config.STATIC:

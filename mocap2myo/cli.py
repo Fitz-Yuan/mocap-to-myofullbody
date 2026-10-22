@@ -201,6 +201,9 @@ def cmd_init(args):
   word = _ask("A word in the static (standing) trial file names, or 'none'", "static").lower()
   static = [r for r in rel if word != "none" and word in r.lower()]
   trials = [r for r in rel if r not in static]
+  if static:  # the word as the files write it (globs and regexes are case-sensitive)
+    import re
+    word = re.search(re.escape(word), static[0], re.I).group(0)
   sample = files[rel.index(trials[0])]
   print(f"  {len(trials)} trial files, {len(static)} static; reading {trials[0]}")
   r = readers.read_trial(str(sample), kind, up="auto",
