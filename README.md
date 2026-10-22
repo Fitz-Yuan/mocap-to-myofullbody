@@ -44,7 +44,7 @@ Put the files of one study in one folder. You need:
 
 - **Labelled markers.** The labels your capture software assigned are enough. Gaps are fine.
 - **A known marker set.** Plug-in-Gait, ISB / Dumas and OptiTrack Motive's Baseline (37), Baseline (41) and Baseline + 13 Additional Markers (50) are built in. Another set is one TOML file in `mocap2myo/markersets/`.
-- **Each subject's height and mass**, in the C3D files or in a CSV (subject, height in cm, mass in kg).
+- **Each subject's height and mass**, in the C3D files or in a CSV with the columns `Subject, Height (cm), Weight (kg)`. `mocap2myo init` writes that CSV with your subjects' names; you fill in the numbers.
 - **A static standing trial per subject** (recommended). Without one, the calibration uses quiet standing from the trials.
 
 **From OptiTrack:** use the `.tak` files as they are, or export CSV from Motive (*File → Export Tracking Data*) with **Markers** ticked; Motive's skeleton bones are not needed. Details: [From OptiTrack](https://fitz-yuan.github.io/mocap-to-myofullbody/documentation/getting-started/optitrack/).
@@ -59,13 +59,15 @@ my_study/
   raw/S02/...
 ```
 
+**From a video** (no markers): `mocap2myo video` takes ordinary videos of one person, reconstructs the body with [GVHMR](https://github.com/zju3dv/GVHMR) (installed separately), places virtual markers on it and writes a study folder with its profile; then continue at step 5. Joint angles only, less accurate than markers. Details: [From video](https://fitz-yuan.github.io/mocap-to-myofullbody/documentation/getting-started/video/).
+
 ### 4. Describe your dataset
 
 ```bash
 mocap2myo init my_study.toml
 ```
 
-It asks where the files are, finds their format, guesses the marker set from the labels, and asks how subjects and static trials are named. It writes a dataset profile, `my_study.toml`. You can also copy one of the examples in `datasets/` and edit it: each one is commented, and each has its download link at the top.
+It asks where the files are, finds their format, finds the marker set from the labels, and asks how static trials are named. It writes a dataset profile, `my_study.toml`, and `anthropometrics.csv` next to the recordings' folder for the heights and masses. With the README's layout the trials are named like the files (`S01_walk01`); those names are what `run` and `export` take. You can also copy one of the examples in `datasets/` and edit it: each one is commented, and each has its download link at the top.
 
 ### 5. Check before running
 
@@ -101,7 +103,7 @@ All results go into the folder the profile names as `root`:
 | `ik/<trial>.npz` | joint angles (`qpos`, `joint_names`), marker errors (`marker_err`) |
 | `kin/<trial>.npz` | joint moments and forces, the ground reaction |
 
-To watch a trial, export it and drop the files on the [viewer](https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/):
+To watch a trial, export it and drop the clip (`viewer/S01_walk01.elvw`) on the [viewer](https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/):
 
 ```bash
 mocap2myo export viewer viewer/ S01_walk01 --dataset my_study.toml

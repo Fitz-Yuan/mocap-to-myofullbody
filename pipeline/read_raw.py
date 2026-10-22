@@ -38,6 +38,7 @@ Static standing trials (M2M_RAW_STATIC / M2M_STATIC_REGEX; a subject may have no
 to <M2M_CACHE_DIR>/static/<static name>.npz (M2M_STATIC_NAME) the same way.
 
   python pipeline/read_raw.py [trial ... | static/<static name> ...]
+(with trial names, also the static trials of their subjects)
 (.tak needs olefile, C3D ezc3d: pip install -e ".[tak,c3d]")
 """
 
@@ -195,7 +196,9 @@ def main():
   if unknown:
     raise SystemExit(f"{unknown}: no such trial / static trial in {config.RAW_DIR} "
                      f"(trials: {list(trials)[:5]}..., static: {list(static)[:3]}...)")
-  names = names or list(files)
+  # named trials: their subjects' static trials too (the calibration of a new subject needs it)
+  subs = {files[n][0] for n in names if not n.startswith("static/")}
+  names = names + [k for k, (s, _) in static.items() if s in subs and k not in names] if names else list(files)
   if not names:
     raise SystemExit(f"no trial files: {config.RAW_DIR}/{config.RAW_TRIALS}")
   if (skipped or skipped_s) and not sys.argv[1:]:

@@ -235,6 +235,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/demo/">The demo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/your-data/">Your own data</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/optitrack/">From OptiTrack (Motive)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/video/">From video</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/results/">Reading the results</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/troubleshooting/">When something goes wrong</a></li>
 </ul>
@@ -370,10 +371,13 @@
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo</span> <span class="pre">export</span> <span class="pre">motion|c3d|viewer</span> <span class="pre">OUT</span> <span class="pre">[trials]</span></code></p></td>
 <td><p>motion clips for training (<code class="docutils literal notranslate"><span class="pre">--fps</span></code>), gap-filled C3D, viewer files (the model and one clip per trial)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo</span> <span class="pre">demo</span> <span class="pre">[DIR]</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo</span> <span class="pre">video</span> <span class="pre">VIDEO</span> <span class="pre">...</span> <span class="pre">--subject</span> <span class="pre">S</span> <span class="pre">--mass</span> <span class="pre">KG</span> <span class="pre">--out</span> <span class="pre">DIR</span></code></p></td>
+<td><p>motion from video: GVHMR (installed separately) and virtual markers, written into a study folder with its profile (<a class="reference internal" href="../../getting-started/video/"><span class="doc">From video</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo</span> <span class="pre">demo</span> <span class="pre">[DIR]</span></code></p></td>
 <td><p>one public walking trial end to end (about 0.4 MB)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo</span> <span class="pre">models</span> <span class="pre">[PROFILE</span> <span class="pre">...]</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">mocap2myo</span> <span class="pre">models</span> <span class="pre">[PROFILE</span> <span class="pre">...]</span></code></p></td>
 <td><p>fetch and build the models other than MyoFullBody (<code class="docutils literal notranslate"><span class="pre">models/fetch.py</span></code>)</p></td>
 </tr>
 </tbody>

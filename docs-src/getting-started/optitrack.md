@@ -45,7 +45,7 @@ mocap2myo run --dataset my_study.toml
 
 Motive writes Y up; the up axis is found from the labels (`up = "auto"`).
 
-A lower-body set (Conventional Lower Body) has no trunk or arm markers: use a legs model, `model = "myoleg"` in the profile (fetch it once with `mocap2myo models myoleg`; `check` says so).
+A lower-body set (Conventional Lower Body) has no trunk or arm markers: it needs a legs model. `mocap2myo init` sees that and writes `model = "myoleg"` near the top of the profile, above the first `[section]`; fetch the model once with `mocap2myo models myoleg` (it goes to `~/data/mocap2myo/models`, or `M2M_MODELS_DIR`).
 
 ## 4. Motion for training
 
@@ -64,4 +64,6 @@ writes every trial's motion as clips at a fixed rate, with the feet on the floor
 | `no measured markers (columns of type ['Bone'])` | the CSV holds only the skeleton's bones: export again with **Markers** ticked |
 | `several people in this take (Alice, Bob)` | two skeletons in one take: leave all but one out with `points_exclude = 'Bob:.*'` in the profile; for the other person, a second profile |
 | `marker set ...: 30 of 37 markers` | some markers were renamed in Motive: add the names as an alias set (`[aliases.<name>]` in the marker set's TOML) |
+| `360 Hz: the IK solves every frame` | set `rate = 120` in the profile's `[input]`: every 3rd frame, three times faster, and still well above human movement's frequencies |
+| `no static trial and no quiet standing` (calibration) | the person never stood still: the joint angles may be offset. Record a few seconds of standing still, as its own take or at the start of a take |
 | `up axis: no head / upper-trunk or no foot marker labels` | set `up = "y"` in the profile (Motive's default) |

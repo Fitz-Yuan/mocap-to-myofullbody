@@ -37,12 +37,13 @@ unlabelled tracks), which this pipeline does its own way (fix_pelvis, short-gap
 interpolation in ik.load_trial, IK with missing markers).
 
   python pipeline/prepare_markers.py [trial ...]
-(with trial names, the static trials are left as they are)
+(with trial names, the static trials of their subjects only)
 """
 
 import itertools
 import os
 import sys
+import warnings
 
 import numpy as np
 
@@ -105,8 +106,10 @@ def reject_mislabels(P, tol=0.04, n_partners=3):
   the second ignores partners rejected in the first."""
   T, n, _ = P.shape
   D = np.linalg.norm(P[:, :, None] - P[:, None], axis=-1)  # T, n, n
-  med = np.nanmedian(D, 0)
-  spread = np.nanpercentile(D, 90, 0) - np.nanpercentile(D, 10, 0)
+  with warnings.catch_warnings():  # a marker never seen: NaN, it has no partners
+    warnings.simplefilter("ignore", RuntimeWarning)
+    med = np.nanmedian(D, 0)
+    spread = np.nanpercentile(D, 90, 0) - np.nanpercentile(D, 10, 0)
   np.fill_diagonal(spread, np.inf)
   head = ms.HEAD
   spread[:, head] = np.inf  # no neck joint in the model, but head markers are
@@ -156,6 +159,8 @@ def body_markers(names, A):
     l = alias.get(n, n) if alias is not None else n
     if l == "HEAD" or l in ms.HEAD_LABELS:
       head.append((ms.HEAD_LABELS.index(l) if l in ms.HEAD_LABELS else len(head), i))
+      if l in cand:  # under its own name: its column (place_head may reorder the columns by position)
+        cand[l].append(i)
     elif l in cand:
       cand[l].append(i)
       if l != n:
@@ -193,8 +198,9 @@ def assign_head(P, H):
 
 def place_head(P, H):
   """Head columns of P by position (assign_head), in place; returns the order (() for a
-  marker set without head markers). H None (not every head marker found): the columns
-  stay as labelled."""
+  marker set without head markers). H None (not every head marker found) or a marker set
+  whose head labels are reliable (head_reorder = false: Motive labels them through its
+  skeleton): the columns stay as labelled (body_markers)."""
   if not ms.HEAD_LABELS:
     return ()
   hk = [ms.LABELS.index(l) for l in ms.HEAD_LABELS]
@@ -280,7 +286,8 @@ def convert(name, anthro, task=None, task_state=None):
   order = place_head(P, H)
   missing = [l for k, l in enumerate(ms.LABELS) if np.isnan(P[:, k, 0]).all()]
   if renamed:
-    rel_note += f"alias labels renamed {renamed}, head by geometry {order}; "
+    head = f"head by position {order}" if H is not None and ms.HEAD_REORDER else "head as labelled"
+    rel_note += f"alias labels renamed { {str(k): v for k, v in renamed.items()} }, {head}; "
   elif tuple(order) != tuple(range(len(ms.HEAD_LABELS))):
     rel_note += f"HEAD LABELS REORDERED BY GEOMETRY {order}; "
   P, mislabel = reject_mislabels(P)
@@ -336,8 +343,9 @@ def main():
   names = sys.argv[1:] or config.trials(config.CACHE_DIR)
   for n in names:
     convert(n, anthro, task, task_state)
-  if not sys.argv[1:]:
-    for subj, _ in config.static_files(os.path.join(config.CACHE_DIR, "static"), ".npz"):
+  subs = {config.subject_of(n) for n in sys.argv[1:]}
+  for subj, _ in config.static_files(os.path.join(config.CACHE_DIR, "static"), ".npz"):
+    if not sys.argv[1:] or subj in subs:
       convert_static(subj, anthro)
 
 

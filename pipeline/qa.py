@@ -117,8 +117,11 @@ def main():
         subjects[s] = (*model_of(mm.m, profile), dict(mm=mm))
       out[n], line = qa(n, *subjects[s][:3], task, subjects[s][3])
     print(line)
-  if len(sys.argv) == 1:
-    json.dump(out, open(os.path.join(IK_DIR, "qa.json"), "w"), indent=1)
+  path = os.path.join(IK_DIR, "qa.json")
+  if sys.argv[1:] and os.path.exists(path):  # named trials: their entries updated, the others kept
+    out = {**json.load(open(path)), **out}
+  json.dump(out, open(path + ".part", "w"), indent=1)
+  os.replace(path + ".part", path)
 
 
 if __name__ == "__main__":

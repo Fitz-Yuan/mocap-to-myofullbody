@@ -159,6 +159,34 @@ class MarkerSet:
     return p + np.array([mk.lateral_sign * lt, -a, s])
 
 
+LEG_SEGMENTS = {"pelvis", "femur_l", "femur_r", "tibia_l", "tibia_r", "foot_l", "foot_r", "toes_l", "toes_r"}
+
+
+def coverage(ms: MarkerSet, labels, aliases=None) -> dict:
+  """How a recording's labels cover the marker set: the alias set that maps most of them (if
+  it beats the set's own names; as prepare_markers.choose_alias), the set's markers found and
+  missing, the labels outside the set, and whether it is a lower-body recording (the
+  bony leg and pelvis markers there, nothing above the pelvis but the head). aliases: the
+  alias sets to try (default all)."""
+  labels = [str(x) for x in labels if x and not str(x).startswith(("*", "Unlabeled"))]
+  aliases = ms.ALIASES if aliases is None else aliases
+  best, bname = None, None
+  nbest = sum(x in ms.markers or x in ms.HEAD_LABELS for x in labels)
+  for an, a in aliases.items():
+    k = sum(x in a or x in ms.markers for x in labels)
+    if k > nbest:
+      best, bname, nbest = a, an, k
+  mapped = {(best.get(x, x) if best else x) for x in labels}
+  have = [x for x in ms.LABELS if x in mapped]
+  legs = [x for x in ms.LABELS if ms.segment(x) in LEG_SEGMENTS]
+  legs_only = (len(have) < 0.8 * len(ms.LABELS)
+               and all(x in mapped for x in legs if ms.markers[x].group != "loose")
+               and not any(x in mapped for x in ms.LABELS if ms.segment(x) not in LEG_SEGMENTS and x not in ms.head))
+  return dict(alias=bname, alias_map=best, have=have, missing=[x for x in ms.LABELS if x not in mapped],
+              unknown=[x for x in labels if (best.get(x, x) if best else x) not in (*ms.LABELS, "HEAD")],
+              legs_only=legs_only)
+
+
 def load(name: str | MarkerSet) -> MarkerSet:
   """The marker set mocap2myo/markersets/<name>.toml (a MarkerSet passes through)."""
   if isinstance(name, MarkerSet):

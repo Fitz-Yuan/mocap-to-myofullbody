@@ -14,8 +14,8 @@ Writes OUT_DIR/motion_<stem>_<fps>hz.npz: gts [N, bodies, 3] (tracked bodies' po
 (their velocities), root_pos, root_vel, root_quat (w, x, y, z), motion_num_frames,
 length_starts, motion_fps, motion_dt, motion_lengths (per clip), tracked_bodies, clip_file;
 OUT_DIR/initial_poses_<stem>_<fps>hz.npz: qpos_joints [N, nq - 7], joint_names; and
-OUT_DIR/index.json: per clip the trial, its start and end in the trial (s), frames and the
-trial's QA numbers.
+OUT_DIR/index.json: per clip the trial, its start and end in the trial (s), frames, the trial's
+verdict in ik/report.json (PASS / WARN / FAIL) and QA numbers.
 """
 
 import argparse
@@ -78,8 +78,9 @@ def main():
   a = ap.parse_args()
   os.makedirs(a.out_dir, exist_ok=True)
   names = a.trials or config.trials(config.IK_DIR)
-  qa_p = os.path.join(config.IK_DIR, "qa.json")
+  qa_p, rep_p = os.path.join(config.IK_DIR, "qa.json"), os.path.join(config.IK_DIR, "report.json")
   qa = json.load(open(qa_p)) if os.path.exists(qa_p) else {}
+  rep = json.load(open(rep_p)) if os.path.exists(rep_p) else {}
   ms = config.marker_set()
   models = {}
   clips, index = [], []
@@ -88,7 +89,7 @@ def main():
     subj = config.subject_of(n)
     if subj not in models:
       mm = config.run_marker_model(config.IK_DIR, subj)
-      tb = tracked_bodies(mm.profile, mm.m)
+      tb = tracked_bodies(mm.profile, mm.m, partial=True)
       models[subj] = (mm, tb, [mm.m.body(b).id for b in tb])
     mm, tb, bid = models[subj]
     m, d = mm.m, mm.d
@@ -116,7 +117,8 @@ def main():
       clips.append((q, G))
       index.append(dict(clip=len(index), file=f"{n}_c{c + 1}", trial=n, subject=subj,
                         start_s=round(s0 / rate, 3), end_s=round(s1 / rate, 3), frames=len(q),
-                        seconds=round(len(q) / a.fps, 2), floor_m=round(floor, 4), **{
+                        seconds=round(len(q) / a.fps, 2), floor_m=round(floor, 4),
+                        trial_verdict=rep.get(n, {}).get("verdict", "-"), **{
                           k: qa[n][k] for k in ("marker_err_body_mm", "limb_lost_s") if k in qa.get(n, {})}))
     kept = sum((b - a_) for a_, b in runs(ok)) / rate
     print(f"{n}: {len(Q) / rate:.1f} s, {kept:.1f} s usable, "

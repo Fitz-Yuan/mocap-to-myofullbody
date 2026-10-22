@@ -1,0 +1,53 @@
+# Virtual markers on the SMPL body mesh, for motion reconstructed from video (mocap2myo
+# video; GVHMR). Format: mocap2myo/markerset.py. Each marker is one vertex of the SMPL mesh
+# (mocap2myo/gvhmr_markers.py), on the skin over the bony landmark it is named after. The
+# vertex choice is OpenCapBench's (Gozlan et al. 2024; MIT License, see NOTICE) for the
+# marker set of OpenCap (Uhlrich et al. 2023, PLoS Comput Biol): the pelvis, both sides of
+# the knee, ankle, elbow and wrist, the heel, the toe (2nd metatarsal head), the 5th
+# metatarsal head, the shoulder, C7, T6, T11 and the sternum. No head or hand markers: the
+# video reconstruction does not track the hands, and the models have no neck joint.
+# Offsets: the skin over the landmark, about 5 mm (no marker radius).
+name = "SMPL virtual markers (OpenCap)"
+description = "32 virtual markers on the SMPL mesh (OpenCap's set), for motion reconstructed from video"
+sides = { l = "l_", r = "r_" }
+
+[markers]
+l_ASIS = { segment = "pelvis", landmark = "asis_l", offset_mm = [5, 0, 0], weight = 1.0 }
+r_ASIS = { segment = "pelvis", landmark = "asis_r", offset_mm = [5, 0, 0], weight = 1.0 }
+l_PSIS = { segment = "pelvis", landmark = "psis_l", offset_mm = [-5, 0, 0], weight = 1.0 }
+r_PSIS = { segment = "pelvis", landmark = "psis_r", offset_mm = [-5, 0, 0], weight = 1.0 }
+l_knee = { segment = "femur_l", landmark = "femur_epi_lat_l", offset_mm = [0, 0, 5], weight = 1.0 }
+l_mknee = { segment = "femur_l", landmark = "femur_epi_med_l", offset_mm = [0, 0, -5], weight = 1.0 }
+r_knee = { segment = "femur_r", landmark = "femur_epi_lat_r", offset_mm = [0, 0, 5], weight = 1.0 }
+r_mknee = { segment = "femur_r", landmark = "femur_epi_med_r", offset_mm = [0, 0, -5], weight = 1.0 }
+l_ankle = { segment = "tibia_l", landmark = "malleolus_lat_l", offset_mm = [0, 0, 5], weight = 1.0, group = "foot" }
+l_mankle = { segment = "tibia_l", landmark = "malleolus_med_l", offset_mm = [0, 0, -5], weight = 1.0, group = "foot" }
+r_ankle = { segment = "tibia_r", landmark = "malleolus_lat_r", offset_mm = [0, 0, 5], weight = 1.0, group = "foot" }
+r_mankle = { segment = "tibia_r", landmark = "malleolus_med_r", offset_mm = [0, 0, -5], weight = 1.0, group = "foot" }
+l_calc = { segment = "foot_l", landmark = "heel_l", offset_mm = [-5, 0, 0], weight = 1.0, group = "foot" }
+l_toe = { segment = "foot_l", landmark = "mt2_head_l", offset_mm = [0, 5, 0], weight = 1.0, group = "foot" }
+l_5meta = { segment = "foot_l", landmark = "mt5_head_l", offset_mm = [0, 0, 5], weight = 1.0, group = "foot" }
+r_calc = { segment = "foot_r", landmark = "heel_r", offset_mm = [-5, 0, 0], weight = 1.0, group = "foot" }
+r_toe = { segment = "foot_r", landmark = "mt2_head_r", offset_mm = [0, 5, 0], weight = 1.0, group = "foot" }
+r_5meta = { segment = "foot_r", landmark = "mt5_head_r", offset_mm = [0, 0, 5], weight = 1.0, group = "foot" }
+C7 = { segment = "torso", landmark = "c7", offset_mm = [-5, 0, 0], weight = 1.0 }
+T6 = { segment = "torso", landmark = "c7", along = ["t10", 0.6], offset_mm = [-5, 0, 0], weight = 0.5, group = "loose" }
+T11 = { segment = "torso", landmark = "t10", offset_mm = [-5, -25, 0], weight = 0.5, group = "loose" }
+sternum = { segment = "torso", landmark = "jugular", offset_mm = [5, 0, 0], weight = 1.0 }
+l_shoulder = { segment = "scapula_l", landmark = "acromion_tip_l", offset_mm = [0, 5, 5], weight = 1.0 }
+r_shoulder = { segment = "scapula_r", landmark = "acromion_tip_r", offset_mm = [0, 5, 5], weight = 1.0 }
+l_lelbow = { segment = "humerus_l", landmark = "epicondyle_lat_l", offset_mm = [0, 0, 5], weight = 1.0 }
+l_melbow = { segment = "humerus_l", landmark = "epicondyle_med_l", offset_mm = [0, 0, -5], weight = 1.0 }
+r_lelbow = { segment = "humerus_r", landmark = "epicondyle_lat_r", offset_mm = [0, 0, 5], weight = 1.0 }
+r_melbow = { segment = "humerus_r", landmark = "epicondyle_med_r", offset_mm = [0, 0, -5], weight = 1.0 }
+l_lwrist = { segment = "radius_l", landmark = "styloid_rad_l", offset_mm = [5, 0, 5], weight = 1.0 }
+l_mwrist = { segment = "ulna_l", landmark = "styloid_uln_l", offset_mm = [-5, 0, 0], weight = 1.0 }
+r_lwrist = { segment = "radius_r", landmark = "styloid_rad_r", offset_mm = [5, 0, 5], weight = 1.0 }
+r_mwrist = { segment = "ulna_r", landmark = "styloid_uln_r", offset_mm = [-5, 0, 0], weight = 1.0 }
+
+[roles]
+head = {}                                   # no head markers
+pelvis = ["l_ASIS", "r_ASIS", "l_PSIS", "r_PSIS"]
+heel = { l = "l_calc", r = "r_calc" }
+toe = { l = "l_toe", r = "r_toe" }
+ankles = ["l_ankle", "r_ankle"]

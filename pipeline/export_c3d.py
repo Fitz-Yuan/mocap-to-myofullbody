@@ -139,12 +139,15 @@ def main():
   names = sys.argv[2:] or config.trials(config.IK_DIR)
   for n in names:
     labels, X, fill, rate, rigid = filled_markers(n)
+    seen = ~np.isnan(X[..., 0]).all(0)  # a marker the recording never had (a lower-body set) is left out
+    dropped = [l for l, s in zip(labels, seen) if not s]
+    labels, X, fill = [l for l, s in zip(labels, seen) if s], X[:, seen], fill[:, seen]
     write_c3d(os.path.join(out, f"{n}.c3d"), labels, X, fill, rate,
               source=f"mocap2myo IK fill ({config.MODEL}, {os.path.basename(config.IK_DIR)})")
     gaps = np.isnan(X[..., 0]).mean()
     print(f"{n}: {len(labels)} markers, {fill.sum()} samples filled ({100 * fill.mean():.2f} %; "
           f"{rigid.sum()} from 3 neighbouring markers, the rest from the model), {100 * gaps:.2f} % "
-          f"left empty -> {out}/{n}.c3d")
+          f"left empty -> {out}/{n}.c3d" + (f" (never recorded, left out: {dropped})" if dropped else ""))
 
 
 if __name__ == "__main__":

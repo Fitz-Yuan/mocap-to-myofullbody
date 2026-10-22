@@ -1,5 +1,6 @@
 [
   {"id": "lift", "title": "Lifting · lab recording, MyoFullBody", "file": "demo_1.elvw"},
+  {"id": "video", "title": "Walking · phone video (GVHMR), MyoFullBody", "file": "video/walk_phone_myofullbody.elvw"},
   {"id": "walk", "title": "Walking · public data, seven models", "model": "myofullbody", "models": {
     "myofullbody": {"file": "walk/myofullbody.elvw", "label": "MyoFullBody · 416 muscles", "credit": "Apache-2.0; arm and hand from MoBL-ARMS, non-commercial use"},
     "ms_human_700": {"file": "walk/ms_human_700.elvw", "label": "MS-Human-700 · 700 muscles", "credit": "Apache-2.0"},

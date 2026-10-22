@@ -379,26 +379,42 @@ def _anthro_subject(cell):
   return ANTHRO_SUBJECT.format(int(num))
 
 
+def _col_key(name):
+  """A header's comparable form: case, spaces and a unit in brackets ignored, mass = weight
+  ("Height (cm)" = "height", "Mass [kg]" = "weight")."""
+  k = re.sub(r"[\(\[].*?[\)\]]", "", name).strip().lower().replace(" ", "")
+  return "weight" if k == "mass" else k
+
+
 def _anthro_rows():
-  """(subject, row dict) per CSV row with a subject (header names as written)."""
+  """(subject, row dict) per CSV row with a subject; the row's keys are ANTHRO_COLUMNS (and
+  CARRIED_COLUMN, SEX_COLUMN) whatever the header writes (_col_key)."""
   import csv
   with open(ANTHRO_CSV, newline="", encoding="utf-8-sig") as f:
-    rows = [{(k or "").strip(): (v or "").strip() for k, v in r.items()}
-            for r in csv.DictReader(f)]
+    raw = [{(k or "").strip(): (v or "").strip() for k, v in r.items()} for r in csv.DictReader(f)]
+  have = list(raw[0]) if raw else []
+  by_key = {_col_key(h): h for h in have}
+  want = list(ANTHRO_COLUMNS) + [c for c in (CARRIED_COLUMN, SEX_COLUMN) if c]
+  missing = [c for c in ANTHRO_COLUMNS if _col_key(c) not in by_key]
+  if missing:
+    raise SystemExit(f"{ANTHRO_CSV}: no column {missing} (its columns: {have}); name them "
+                     f"{', '.join(ANTHRO_COLUMNS)} (height in cm, mass in kg), or set anthro_columns "
+                     "in the profile (M2M_ANTHRO_COLUMNS)")
+  rows = [{c: r[by_key[_col_key(c)]] for c in want if _col_key(c) in by_key} for r in raw]
   sc = ANTHRO_COLUMNS[0]
-  need = list(ANTHRO_COLUMNS) + ([CARRIED_COLUMN] if CARRIED_COLUMN else [])
-  have = set(rows[0]) if rows else set()
-  missing = [c for c in need if c not in have]
-  if missing and set(missing) != {CARRIED_COLUMN}:
-    raise SystemExit(f"{ANTHRO_CSV}: no column {missing} (columns: {sorted(have)}; "
-                     "set M2M_ANTHRO_COLUMNS / M2M_CARRIED_COLUMN)")
   return [(_anthro_subject(r[sc]), r) for r in rows if r.get(sc)]
 
 
 def anthropometrics():
   """{subject: {"height_cm", "mass_kg"}} from ANTHRO_CSV."""
   _, hc, mc = ANTHRO_COLUMNS
-  return {s: {"height_cm": float(r[hc]), "mass_kg": float(r[mc])} for s, r in _anthro_rows()}
+  out = {}
+  for s, r in _anthro_rows():
+    try:
+      out[s] = {"height_cm": float(r[hc]), "mass_kg": float(r[mc])}
+    except ValueError:  # a blank cell (mocap2myo init's template) or no number: not given yet
+      continue
+  return out
 
 
 def usage(doc):
@@ -556,7 +572,7 @@ KIN_BSIP = _choice("M2M_KIN_BSIP", "deleva", ("deleva", "dempster", "model"))
 # Mass while recorded, if the subjects wore equipment (here the COSMED K5 metabolic
 # system, about 1-3 kg): a column of the anthropometrics CSV with the total mass; the
 # difference to the body mass is lumped at CARRIED_BODY's centre of mass. "" = none.
-CARRIED_COLUMN = _env("M2M_CARRIED_COLUMN", "Wgt+K5")
+CARRIED_COLUMN = _env("M2M_CARRIED_COLUMN", "" if PROFILE else "Wgt+K5")  # the case study: the metabolic system worn
 CARRIED_BODY = _env("M2M_CARRIED_BODY", "torso")
 
 

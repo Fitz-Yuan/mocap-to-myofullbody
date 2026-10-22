@@ -74,8 +74,10 @@ class TaskBody:
     return float(self.mm.foot_points()[:, 2].min())
 
 
-def tracked_bodies(profile, m):
-  """The motion dataset's tracked bodies on this model (MyoFullBody: motion_io.TRACKED)."""
+def tracked_bodies(profile, m, partial=False):
+  """The motion dataset's tracked bodies on this model (MyoFullBody: motion_io.TRACKED).
+  partial: leave out the segments the model does not have (a legs model has no arms);
+  else stop there (the lifting dataset needs them all)."""
   out = []
   for seg in TRACKED_SEGMENTS:
     if seg.startswith("ankle_"):
@@ -85,6 +87,8 @@ def tracked_bodies(profile, m):
     else:
       b = profile.segment_body(seg)
     if b is None:
+      if partial:
+        continue
       raise SystemExit(f"{profile.name}: no body for the tracked segment {seg}")
     out.append(b)
   return tuple(out)

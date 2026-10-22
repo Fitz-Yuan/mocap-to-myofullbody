@@ -32,7 +32,7 @@ knee = K["qpos"][:, 7 + names.index("knee_angle_r") - 1]   # the root (a free jo
 mocap2myo export viewer viewer/ S01_walk01 --dataset my_study.toml
 ```
 
-writes the model and the trial's clip into `viewer/`. Drop both files on the [viewer](https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/).
+writes the trial's clip (`viewer/S01_walk01.elvw`) and the model into `viewer/`. Drop the clip on the [viewer](https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/); it loads the eight built-in models itself (for another model, drop its `*_model.elvw` too). Without trial names, every solved trial is exported.
 
 ## Gap-filled markers for other software
 

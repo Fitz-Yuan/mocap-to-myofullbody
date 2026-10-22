@@ -119,6 +119,9 @@ def static_frames(subj, loaded, mm, n=10):
     src = "quiet standing in the trials (no static trial)"
   out = P[idx[:: max(1, len(idx) // n)][:n]]
   print(f"  {subj} static frames: {len(out)} from {src}", flush=True)
+  if not len(out):
+    print(f"  ! {subj}: no static trial and no quiet standing in the trials: the calibration has no "
+          "standing pose, so the joint angles may be offset (record a few seconds of standing still)", flush=True)
   return out
 
 
@@ -163,9 +166,10 @@ def calib(subj):
                           max_gap_s=config.MAX_GAP_S, gap_fill=config.GAP_FILL)[:2]
             for t in config.trials(NPZ) if config.subject_of(t) == subj]
   trials = [P for P, _ in loaded]
+  static = static_frames(subj, loaded, mm) if STATIC else None
   off = mk.calibrate(mm, trials, n_frames=40, iters=8, max_shift=max_shift(mm.ms),
                      outlier=OUTLIER, stand=standing_frames(loaded, mm.ms), flat=FLAT_W,
-                     static=static_frames(subj, loaded, mm) if STATIC else None,
+                     static=static,
                      static_share=STATIC_SHARE, static_w=STATIC_W,
                      static_segments={"legs": mk.STATIC_SEGMENTS_LEGS,
                                       "legs_only": mk.STATIC_SEGMENTS_LEGS_ONLY}.get(STATIC_MARKERS))
@@ -180,6 +184,8 @@ def calib(subj):
     scaling.write_mjcf(mm.profile, mm.scaling, os.path.join(OUT, f"{subj}_model.xml"),
                        markers=(mm.ms, off, mm.active))
   np.savez(f[:-4] + ".part.npz", offsets=off, labels=np.array(mm.ms.LABELS), static=STATIC,
+           static_frames=-1 if static is None else len(static),
+           static_source="static trial" if os.path.exists(os.path.join(NPZ, "static", f"{subj}.npz")) else "trials",
            static_share=STATIC_SHARE, static_w=STATIC_W, static_markers=STATIC_MARKERS,
            neck=config.NECK, model_profile=mm.profile.name, marker_set=mm.ms.key,
            active=mm.active, **extra)
@@ -263,7 +269,9 @@ def ik(name):
   if t is None:
     return name, "cached", 0.0
   mm = t["mm"]
-  Q, E = mk.ik_trial(mm, t["P"], rate=t["rate"], **track_args())
+  Q, E = mk.ik_trial(mm, t["P"], rate=t["rate"], **track_args(),
+                     progress=lambda k, T: print(f"  {name}: {round(100 * k / T)} % of {T} frames, "
+                                                 f"{time.time() - t0:.0f} s", flush=True))
   return name, save(t, mm, mm.active, Q, E), time.time() - t0
 
 

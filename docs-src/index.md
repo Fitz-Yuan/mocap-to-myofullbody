@@ -53,6 +53,7 @@ getting-started/installation
 getting-started/demo
 getting-started/your-data
 getting-started/optitrack
+getting-started/video
 getting-started/results
 getting-started/troubleshooting
 ```

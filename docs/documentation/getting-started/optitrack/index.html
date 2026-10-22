@@ -55,7 +55,7 @@
     <link rel="icon" href="../../_static/favicon.svg"/>
     <link rel="index" title="Index" href="../../genindex/" />
     <link rel="search" title="Search" href="../../search/" />
-    <link rel="next" title="Reading the results" href="../results/" />
+    <link rel="next" title="From video" href="../video/" />
     <link rel="prev" title="Your own data" href="../your-data/" />
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <meta name="docsearch:language" content="en"/>
@@ -235,6 +235,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../demo/">The demo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../your-data/">Your own data</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">From OptiTrack (Motive)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../video/">From video</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../results/">Reading the results</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../troubleshooting/">When something goes wrong</a></li>
 </ul>
@@ -406,7 +407,7 @@ mocap2myo<span class="w"> </span>run<span class="w"> </span>--dataset<span class
 </pre></div>
 </div>
 <p>Motive writes Y up; the up axis is found from the labels (<code class="docutils literal notranslate"><span class="pre">up</span> <span class="pre">=</span> <span class="pre">&quot;auto&quot;</span></code>).</p>
-<p>A lower-body set (Conventional Lower Body) has no trunk or arm markers: use a legs model, <code class="docutils literal notranslate"><span class="pre">model</span> <span class="pre">=</span> <span class="pre">&quot;myoleg&quot;</span></code> in the profile (fetch it once with <code class="docutils literal notranslate"><span class="pre">mocap2myo</span> <span class="pre">models</span> <span class="pre">myoleg</span></code>; <code class="docutils literal notranslate"><span class="pre">check</span></code> says so).</p>
+<p>A lower-body set (Conventional Lower Body) has no trunk or arm markers: it needs a legs model. <code class="docutils literal notranslate"><span class="pre">mocap2myo</span> <span class="pre">init</span></code> sees that and writes <code class="docutils literal notranslate"><span class="pre">model</span> <span class="pre">=</span> <span class="pre">&quot;myoleg&quot;</span></code> near the top of the profile, above the first <code class="docutils literal notranslate"><span class="pre">[section]</span></code>; fetch the model once with <code class="docutils literal notranslate"><span class="pre">mocap2myo</span> <span class="pre">models</span> <span class="pre">myoleg</span></code> (it goes to <code class="docutils literal notranslate"><span class="pre">~/data/mocap2myo/models</span></code>, or <code class="docutils literal notranslate"><span class="pre">M2M_MODELS_DIR</span></code>).</p>
 </section>
 <section id="motion-for-training">
 <h2>4. Motion for training<a class="headerlink" href="#motion-for-training" title="Link to this heading">#</a></h2>
@@ -433,6 +434,12 @@ mocap2myo<span class="w"> </span>run<span class="w"> </span>--dataset<span class
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">marker</span> <span class="pre">set</span> <span class="pre">...:</span> <span class="pre">30</span> <span class="pre">of</span> <span class="pre">37</span> <span class="pre">markers</span></code></p></td>
 <td><p>some markers were renamed in Motive: add the names as an alias set (<code class="docutils literal notranslate"><span class="pre">[aliases.&lt;name&gt;]</span></code> in the marker set’s TOML)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">360</span> <span class="pre">Hz:</span> <span class="pre">the</span> <span class="pre">IK</span> <span class="pre">solves</span> <span class="pre">every</span> <span class="pre">frame</span></code></p></td>
+<td><p>set <code class="docutils literal notranslate"><span class="pre">rate</span> <span class="pre">=</span> <span class="pre">120</span></code> in the profile’s <code class="docutils literal notranslate"><span class="pre">[input]</span></code>: every 3rd frame, three times faster, and still well above human movement’s frequencies</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">no</span> <span class="pre">static</span> <span class="pre">trial</span> <span class="pre">and</span> <span class="pre">no</span> <span class="pre">quiet</span> <span class="pre">standing</span></code> (calibration)</p></td>
+<td><p>the person never stood still: the joint angles may be offset. Record a few seconds of standing still, as its own take or at the start of a take</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">up</span> <span class="pre">axis:</span> <span class="pre">no</span> <span class="pre">head</span> <span class="pre">/</span> <span class="pre">upper-trunk</span> <span class="pre">or</span> <span class="pre">no</span> <span class="pre">foot</span> <span class="pre">marker</span> <span class="pre">labels</span></code></p></td>
 <td><p>set <code class="docutils literal notranslate"><span class="pre">up</span> <span class="pre">=</span> <span class="pre">&quot;y&quot;</span></code> in the profile (Motive’s default)</p></td>
@@ -464,11 +471,11 @@ mocap2myo<span class="w"> </span>run<span class="w"> </span>--dataset<span class
       </div>
     </a>
     <a class="right-next"
-       href="../results/"
+       href="../video/"
        title="next page">
       <div class="prev-next-info">
         <p class="prev-next-subtitle">next</p>
-        <p class="prev-next-title">Reading the results</p>
+        <p class="prev-next-title">From video</p>
       </div>
       <i class="fa-solid fa-angle-right"></i>
     </a>

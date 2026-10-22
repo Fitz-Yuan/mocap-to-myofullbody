@@ -28,6 +28,7 @@ import collections
 import json
 import os
 import sys
+import warnings
 
 import numpy as np
 
@@ -56,8 +57,25 @@ LIMITS = {
 
 
 def grade(value, key):
+  """PASS / WARN / FAIL against LIMITS; "n/a" when the value could not be measured (e.g. a
+  trial without quiet standing has no standing angles), which does not count."""
+  if value is None or not np.isfinite(value):
+    return "n/a"
   w, f = LIMITS[key]
   return "FAIL" if value > f else "WARN" if value > w else "PASS"
+
+
+LEGEND = """
+Columns: gap_max, the share of frames the worst body marker is missing; resid_med_mm / resid_p95_mm,
+marker residual (median / 95th percentile over markers and frames); frame_rms_med_mm /
+frame_max_med_mm, the median frame's RMS and largest marker error (OpenSim's guideline: under 20 /
+40 mm); flips, the share of frames with a joint faster than 15 rad/s; limb_lost_s, the longest stretch
+in which the IK lost an arm or a leg (2+ of its markers over 6 cm off); lomo_med_mm, leave-one-marker-
+out prediction error (validate/lomo.py); stand_knee_deg / stand_hip_deg, knee and hip flexion in
+quiet standing (worse side); calib_stand, standing frames in the subject's calibration (0: no static
+trial and no quiet standing, so the angles may be offset). "-": not computed; "n/a": not measurable in
+this trial (e.g. no quiet standing). Limits and reasons: the documentation, Quality checks.
+"""
 
 
 def main():
@@ -92,8 +110,10 @@ def main():
     st = mk.standing(Pall, float(D["marker_rate"]), ms=ms)[:len(Q)]
     med = lambda a: float(np.degrees(adr[a][1] * np.nanmedian(Q[:len(st)][st, adr[a][0]])) if adr[a][1] != 1
                           else np.degrees(np.nanmedian(Q[:len(st)][st, adr[a][0]])))
-    knee = max(med(f"knee_flex_{s}") for s in "rl")
-    hip = max(abs(med(f"hip_flex_{s}")) for s in "rl")
+    with warnings.catch_warnings():  # no quiet standing in the trial: NaN ("n/a")
+      warnings.simplefilter("ignore", RuntimeWarning)
+      knee = max(med(f"knee_flex_{s}") for s in "rl")
+      hip = max(abs(med(f"hip_flex_{s}")) for s in "rl")
     r = dict(
       gap_max=float(gaps.max()),
       gap_worst=body[int(gaps.argmax())], absent=absent, stand_frames=int(st.sum()),
@@ -114,23 +134,30 @@ def main():
       r["clips_total"] = len(cl)
       r["clips_dropped"] = dict(collections.Counter(c["excluded"] or "failed QA"
                                                     for c in cl if not c["quality_ok"]))
+    calib = os.path.join(IKD, f"{config.subject_of(n)}_offsets.npz")
+    if os.path.exists(calib):
+      with np.load(calib) as cf:
+        if "static_frames" in cf.files and int(cf["static_frames"]) >= 0:
+          r["calib_stand"] = int(cf["static_frames"])
     r["grades"] = {k: grade(r[k], k) for k in LIMITS if k in r}
+    if r.get("calib_stand") == 0:
+      r["grades"]["calib_stand"] = "WARN"
     r["verdict"] = ("FAIL" if "FAIL" in r["grades"].values()
                     else "WARN" if "WARN" in r["grades"].values() else "PASS")
     rows[n] = r
   json.dump(rows, open(os.path.join(IKD, "report.json"), "w"), indent=1)
   cols = ["gap_max", "resid_med_mm", "resid_p95_mm", "frame_rms_med_mm", "frame_max_med_mm", "flips",
-          "limb_lost_s", "lomo_med_mm", "stand_knee_deg", "stand_hip_deg"]
+          "limb_lost_s", "lomo_med_mm", "stand_knee_deg", "stand_hip_deg", "calib_stand"]
   lines = ["| trial | verdict | " + " | ".join(cols) + " | clips ok | reasons |",
            "|" + "---|" * (len(cols) + 4)]
   for n, r in rows.items():
-    reasons = [f"{k} {r['grades'][k]}" for k in cols if r["grades"].get(k, "PASS") != "PASS"]
-    vals = [f"{r[k]:.3f}" if k in ("gap_max", "flips") else f"{r[k]:.1f}" if k in r else "-"
-            for k in cols]
+    reasons = [f"{k} {r['grades'][k]}" for k in cols if r["grades"].get(k, "PASS") not in ("PASS", "n/a")]
+    vals = ["-" if k not in r else "n/a" if not np.isfinite(r[k]) else f"{r[k]:.3f}" if k in ("gap_max", "flips")
+            else f"{r[k]:d}" if k == "calib_stand" else f"{r[k]:.1f}" for k in cols]
     kept = f"{r['clips_ok']}/{r['clips_total']}" if "clips_ok" in r else "-"
     lines.append(f"| {n} | {r['verdict']} | " + " | ".join(vals) +
                  f" | {kept} | {', '.join(reasons) or '-'} |")
-  open(os.path.join(IKD, "report.md"), "w").write("\n".join(lines) + "\n")
+  open(os.path.join(IKD, "report.md"), "w").write("\n".join(lines) + "\n" + LEGEND)
   print("\n".join(lines))
   print(dict(collections.Counter(r["verdict"] for r in rows.values())))
 

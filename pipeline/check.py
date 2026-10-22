@@ -68,22 +68,28 @@ def main():
       if lack:
         warn(f"no static trial for {lack[:6]}: their calibration takes quiet standing from the trials")
     print("subjects")
+    anth, err = None, False
     try:
       anth = config.anthropometrics() if os.path.exists(config.ANTHRO_CSV) else None
     except SystemExit as e:
-      anth = None
+      err = True
       bad(str(e))
-    if anth is None and config.ANTHRO == "csv":
+    if err:
+      pass
+    elif anth is None and config.ANTHRO == "csv":
       bad(f"no anthropometrics file {config.ANTHRO_CSV} (M2M_ANTHRO_CSV: subject, height cm, mass kg)")
     elif anth is None:
       ok(f"heights and masses from the files ({config.ANTHRO}); read_raw.py writes {config.ANTHRO_CSV}")
     else:
       miss = sorted(s for s in subj if s not in anth)
       if miss:
-        bad(f"no height / mass for {miss[:6]} in {config.ANTHRO_CSV} (M2M_ANTHRO_SUBJECT names them)")
+        bad(f"no height (cm) / mass (kg) for {miss[:6]} in {config.ANTHRO_CSV}")
       else:
         ok(f"height and mass for all {len(subj)} subjects")
-      odd = {s: v for s, v in anth.items() if not (120 < v["height_cm"] < 220 and 25 < v["mass_kg"] < 200)}
+      metres = {s: v["height_cm"] for s, v in anth.items() if v["height_cm"] < 3}
+      if metres:
+        bad(f"heights in metres? {dict(list(metres.items())[:4])}: {config.ANTHRO_CSV} needs centimetres")
+      odd = {s: v for s, v in anth.items() if s not in metres and not (120 < v["height_cm"] < 220 and 25 < v["mass_kg"] < 200)}
       if odd:
         warn(f"implausible values (height cm / mass kg): {dict(list(odd.items())[:4])}")
   if trials:
@@ -101,6 +107,10 @@ def main():
         labels, rate, units, up, plates = r["labels"], r["rate"], r["units"], r["up"], r["plates"]
         T = len(r["xyz"])
         ok(f"{name}: {T} frames at {rate:g} Hz ({T / rate:.1f} s), units {units}, up {up}")
+        if rate > 150 and config.RATE is None:
+          k = max(1, round(rate / 110))
+          warn(f"{rate:g} Hz: the IK solves every frame, about 0.1 s each on one core (~{T * 0.1 / 60:.0f} min "
+               f"for this trial); rate = {rate / k:g} in the profile's [input] keeps every {k}th frame")
         X = r["xyz"][:, [not l.startswith(("*", "Unlabeled")) for l in labels]]  # the labelled markers
         with np.errstate(all="ignore"), warnings.catch_warnings():
           warnings.simplefilter("ignore", RuntimeWarning)
@@ -119,7 +129,7 @@ def main():
     p.compile()
     ok(f"{p.name}: {p.title}")
   except (SystemExit, Exception) as e:  # noqa: BLE001
-    bad(f"M2M_MODEL={config.MODEL}: {e} (models/fetch.py fetches the models not in the repository)")
+    bad(f"M2M_MODEL={config.MODEL}: {e} (fetch it once: mocap2myo models {config.MODEL})")
   if config.TASK != "none":
     try:
       config.task()
@@ -132,30 +142,25 @@ def main():
 
 
 def check_markers(labels):
-  from mocap2myo import readers
+  from mocap2myo import markerset, readers
   ms = config.marker_set()
   labels = [l for l in labels if l and not l.startswith(("*", "Unlabeled"))]
-  own = [l for l in labels if l in ms.markers or l in ms.HEAD_LABELS]
-  best, bname = None, None
-  nbest = len(own)
-  for an, a in config.marker_aliases(ms).items():  # as prepare_markers.choose_alias
-    k = sum(l in a or l in ms.markers for l in labels)
-    if k > nbest:
-      best, bname, nbest = a, an, k
-  mapped = {(best.get(l, l) if best else l) for l in labels}
-  have = [l for l in ms.LABELS if l in mapped]
-  miss = [l for l in ms.LABELS if l not in mapped]
-  unknown = [l for l in labels if (best.get(l, l) if best else l) not in (*ms.LABELS, "HEAD")]
+  c = markerset.coverage(ms, labels, config.marker_aliases(ms))
+  have, miss, unknown, bname = c["have"], c["missing"], c["unknown"], c["alias"]
+  mapped = set(have)
   frac = len(have) / len(ms.LABELS)
   msg = (f"marker set {ms.name}{f' (alias set {bname})' if bname else ''}: {len(have)} of "
          f"{len(ms.LABELS)} markers; missing {miss[:10]}{'...' if len(miss) > 10 else ''}")
-  legs = {"pelvis", "femur_l", "femur_r", "tibia_l", "tibia_r", "foot_l", "foot_r", "toes_l", "toes_r"}
-  leg_labels = [l for l in ms.LABELS if ms.segment(l) in legs]
-  legs_only = frac < 0.8 and all(l in mapped for l in leg_labels if ms.markers[l].group != "loose") \
-    and not any(l in mapped for l in ms.LABELS if ms.segment(l) not in legs and not ms.HEAD[ms.LABELS.index(l)])
-  if legs_only:
-    warn(msg + ": a lower-body recording; use a legs model (M2M_MODEL=myoleg or ms_human_700_locomotion), "
-         "else the trunk and arms only follow the model's defaults")
+  if c["legs_only"]:
+    try:
+      legs_model = config.model_profile().segment_body("humerus_r") is None
+    except (SystemExit, Exception):  # noqa: BLE001  (the model is checked below)
+      legs_model = False
+    if legs_model:
+      ok(msg + f": a lower-body recording, on a legs model ({config.MODEL})")
+    else:
+      warn(msg + ': a lower-body recording; use a legs model (model = "myoleg" in the profile; fetch it '
+           "once: mocap2myo models myoleg), else the trunk and arms only follow the model's defaults")
   else:
     (ok if frac >= 0.8 else warn if frac >= 0.5 else bad)(msg + ("" if frac >= 0.5 else
                                                                 " (another M2M_MARKER_SET? mocap2myo/markersets)"))

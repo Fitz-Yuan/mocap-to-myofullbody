@@ -4,6 +4,7 @@
   mocap2myo check [--dataset P]          what the pipeline would read, before it runs
   mocap2myo run [--dataset P] [...]      the stages, raw files to joint loads
   mocap2myo export motion|c3d|viewer OUT motion clips for training, gap-filled C3D, viewer clips
+  mocap2myo video VIDEO ... --subject S  motion from video (GVHMR, installed separately) into a study
   mocap2myo demo [DIR]                   one public walking trial end to end (~0.5 MB download)
   mocap2myo models [PROFILE ...]         fetch and build the models not in the repository
 
@@ -15,6 +16,7 @@ command runs from a clone: git clone ...; pip install -e ".[c3d,tak]".
 import argparse
 import io
 import os
+import re
 import subprocess
 import sys
 import urllib.request
@@ -66,8 +68,19 @@ def _task(env):
   return out.stdout.strip().splitlines()[-1]
 
 
+def _solved(env):
+  """The trials the IK has solved (M2M_IK_DIR)."""
+  out = subprocess.run([sys.executable, "-c", "from pipeline import config; print(chr(10).join(config.trials(config.IK_DIR)))"],
+                       env=env, cwd=_repo(), capture_output=True, text=True)
+  if out.returncode:
+    raise SystemExit(out.stderr.strip().splitlines()[-1] if out.stderr.strip() else "mocap2myo: no settings")
+  return [t for t in out.stdout.splitlines() if t.strip()]
+
+
 def cmd_check(args):
-  _py("pipeline/check.py", _env(args))
+  r = subprocess.run([sys.executable, "-u", str(_repo() / "pipeline/check.py")], env=_env(args), cwd=_repo())
+  if r.returncode:  # the problems are listed above
+    raise SystemExit(1)
 
 
 def cmd_run(args):
@@ -171,16 +184,41 @@ def cmd_demo(args):
         "docs/viewer/index.html)")
 
 
+def cmd_video(args):
+  sys.path.insert(0, str(_repo()))
+  from mocap2myo import video
+  if args.result and len(args.video) != 1:
+    raise SystemExit("--result: one video at a time")
+  if not args.height:
+    print("! no --height: the size comes from the video, which fixes it only roughly", flush=True)
+  prof = None
+  for v in args.video:
+    prof = video.add_video(v, args.subject, args.mass, args.out, height_cm=args.height, gvhmr=args.gvhmr,
+                           python=args.gvhmr_python, static_cam=args.static_cam, result=args.result,
+                           floor=args.floor, lock=not args.no_foot_lock)
+  print(f"\nnext: mocap2myo check --dataset {prof}\n      mocap2myo run --dataset {prof}")
+
+
 def cmd_export(args):
   env = _env(args)
+  out = str(Path(args.out).resolve())  # the scripts run in the repository's folder
+  solved = _solved(env)
+  if not solved:
+    raise SystemExit("no trials solved yet: mocap2myo run first")
+  bad = [t for t in args.trials if t not in solved]
+  if bad:
+    raise SystemExit(f"{bad}: not solved (trials: {solved[:8]}{' ...' if len(solved) > 8 else ''})")
   if args.what == "motion":
-    _py("pipeline/export_motion.py", env, [args.out, "--fps", str(args.fps), *args.trials])
+    _py("pipeline/export_motion.py", env, [out, "--fps", str(args.fps), "--min-s", str(args.min_s), *args.trials])
   elif args.what == "c3d":
-    _py("pipeline/export_c3d.py", env, [args.out, *args.trials])
+    _py("pipeline/export_c3d.py", env, [out, *args.trials])
   else:  # viewer: the model once, then one clip per trial
-    _py("pipeline/export_viewer.py", env, ["model", args.out])
-    for t in args.trials:
-      _py("pipeline/export_viewer.py", env, ["clip", t, args.out])
+    trials = args.trials or solved
+    _py("pipeline/export_viewer.py", env, ["model", out])
+    for t in trials:
+      _py("pipeline/export_viewer.py", env, ["clip", t, out])
+    print(f"\nin {out}: drop a trial's .elvw on the viewer (https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/); "
+          "it brings the eight built-in models itself (another model: drop its *_model.elvw too)")
 
 
 def cmd_models(args):
@@ -190,7 +228,11 @@ def cmd_models(args):
 # --- init: a dataset profile from questions ------------------------------------------------
 
 def _ask(q, default=""):
-  a = input(f"{q}{f' [{default}]' if default else ''}: ").strip()
+  try:
+    a = input(f"{q}{f' [{default}]' if default else ''}: ").strip()
+  except EOFError:
+    raise SystemExit("\nmocap2myo init asks a few questions: run it in a terminal, or copy a profile "
+                     "from datasets/ and edit it") from None
   return a or default
 
 
@@ -218,29 +260,38 @@ def cmd_init(args):
   static = [r for r in rel if word != "none" and word in r.lower()]
   trials = [r for r in rel if r not in static]
   if static:  # the word as the files write it (globs and regexes are case-sensitive)
-    import re
     word = re.search(re.escape(word), static[0], re.I).group(0)
   sample = files[rel.index(trials[0])]
   print(f"  {len(trials)} trial files, {len(static)} static; reading {trials[0]}")
   r = readers.read_trial(str(sample), kind, up="auto",
                          anthro=("SUBJECT:height", "SUBJECT:weight") if kind == "c3d" else None)
-  labels = set(r["labels"])
-  cover = {}
-  for name in markerset.names():
-    ms = markerset.load(name)
-    al = [ms.markers.keys()] + [set(a) for a in ms.ALIASES.values()]
-    cover[name] = max(len(labels & set(a)) for a in al) / max(1, len(ms.LABELS))
-  mset = max(cover, key=cover.get)
-  print(f"  {r['rate']:g} Hz, units {r['units']}, up {r['up']}; marker set {mset} "
-        f"({100 * cover[mset]:.0f} % of its markers by name)")
-  if cover[mset] < 0.5:
-    print("  ! few markers match a known set: mocap2myo/markersets/ describes how to add yours")
+  cover = {name: markerset.coverage(markerset.load(name), r["labels"]) for name in markerset.names()}
+  mset = max(cover, key=lambda k: len(cover[k]["have"]) / len(markerset.load(k).LABELS))
+  c, n_set = cover[mset], len(markerset.load(mset).LABELS)
+  alias_note = f" (names of its alias set {c['alias']})" if c["alias"] else ""
+  print(f"  {r['rate']:g} Hz, units {r['units']}, up {r['up']}; marker set {mset}: {len(c['have'])} of "
+        f"{n_set} markers{alias_note}")
+  model = ""
+  if c["legs_only"]:
+    print('  a lower-body recording: the profile uses a legs model, model = "myoleg" '
+          "(fetch it once: mocap2myo models myoleg)")
+    model = 'model = "myoleg"                 # a lower-body recording (mocap2myo models myoleg)\n'
+  elif len(c["have"]) < 0.5 * n_set:
+    print("  ! few of the set's markers are found: if your marker set is not built in, "
+          "mocap2myo/markersets/ describes how to add it")
   if by_folder:
     print("  the files are in one folder per subject: subject = folder name")
-    sep = "-"
-    trial_regex = rf"(?P<subject>[^/]+)/(?!.*{word})(?P<trial>[^/]+)\.{kind}" if static else \
-      rf"(?P<subject>[^/]+)/(?P<trial>[^/]+)\.{kind}"
-    trial_name = "{subject}-{trial}"
+    seps = {Path(t).stem[len(Path(t).parent.name):][:1] for t in trials}
+    if all(Path(t).stem.startswith(Path(t).parent.name) for t in trials) and len(seps) == 1 and seps <= {"_", "-", "."}:
+      sep = seps.pop()  # S01/S01_walk01.c3d: the trial is S01_walk01
+      trial_regex = (rf"(?P<subject>[^/]+)/(?P=subject){re.escape(sep)}(?!.*{word})[^/]+\.{kind}" if static
+                     else rf"(?P<subject>[^/]+)/(?P=subject){re.escape(sep)}[^/]+\.{kind}")
+      trial_name = "{stem}"
+    else:  # P01/walk01.c3d: the trial is P01-walk01
+      sep = "-"
+      trial_regex = rf"(?P<subject>[^/]+)/(?!.*{word})(?P<trial>[^/]+)\.{kind}" if static else \
+        rf"(?P<subject>[^/]+)/(?P<trial>[^/]+)\.{kind}"
+      trial_name = "{subject}-{trial}"
     static_regex = rf"(?P<subject>[^/]+)/[^/]*{word}[^/]*\.{kind}"
   else:
     sep = _ask("Subject = the file name up to which character", "_")
@@ -253,9 +304,16 @@ def cmd_init(args):
   if anth.get("height_m") and anth.get("mass_kg"):
     anthro = 'anthro = "c3d"                   # SUBJECT:height / SUBJECT:weight of the C3D files'
   else:
-    csv = _ask("CSV with each subject's height (cm) and mass (kg)", "anthropometrics.csv")
-    cols = _ask("Its columns: subject, height, mass", "Subject,Height,Weight")
-    anthro = f'anthro = "csv"\nanthro_csv = "{csv}"\nanthro_columns = "{cols}"'
+    base = root.parent if by_folder else root
+    csv = _ask(f"CSV with each subject's height (cm) and mass (kg), relative to {base}", "anthropometrics.csv")
+    cols = "Subject,Height,Weight"
+    anthro = f'anthro = "csv"\nanthro_csv = "{csv}"                # columns Subject, Height (cm), Weight (kg)\nanthro_columns = "{cols}"'
+    path = base / csv
+    if not path.exists():
+      subjects = sorted({Path(t).parent.name for t in trials} if by_folder else
+                        {Path(t).stem.split(sep)[0] for t in trials})
+      path.write_text(cols + "\n" + "".join(f"{x},,\n" for x in subjects))
+      print(f"  wrote {path}: fill in each subject's height (cm) and mass (kg)")
   raw_static = (("*/" if by_folder else "") + f"*{word}*.{kind}") if static else f"none/*.{kind}"
   if not static:
     static_regex = r"none/(?P<subject>[^/]+)\." + kind
@@ -282,6 +340,7 @@ raw_static = "{raw_static}"
 static_regex = '{static_regex}'
 static_name = "{{subject}}{sep}static"
 
+{model}
 [subjects]
 {anthro}
 marker_set = "{mset}"
@@ -290,7 +349,7 @@ marker_set = "{mset}"
 task = "none"
 
 [ik]
-static = true
+static = true                      # the static trial; without one, quiet standing in the trials
 static_markers = "legs"
 '''
   out.write_text(text)
@@ -298,8 +357,9 @@ static_markers = "legs"
 
 
 def main(argv=None):
-  p = argparse.ArgumentParser(prog="mocap2myo", description=__doc__.split("\n\n")[0],
-                              formatter_class=argparse.RawDescriptionHelpFormatter, epilog=__doc__)
+  head, _, rest = __doc__.partition("\n\n")
+  p = argparse.ArgumentParser(prog="mocap2myo", description=head,
+                              formatter_class=argparse.RawDescriptionHelpFormatter, epilog=rest)
   sub = p.add_subparsers(dest="cmd", required=True)
   common = argparse.ArgumentParser(add_help=False)
   common.add_argument("--dataset", help="dataset profile (datasets/*.toml); default M2M_DATASET")
@@ -324,9 +384,26 @@ def main(argv=None):
   e = sub.add_parser("export", parents=[common], help="motion clips for training, gap-filled C3D, viewer clips")
   e.add_argument("what", choices=["motion", "c3d", "viewer"])
   e.add_argument("out", help="output folder")
-  e.add_argument("trials", nargs="*", help="only these trials (viewer: the trials to export)")
+  e.add_argument("trials", nargs="*", help="only these trials (default: every solved trial)")
   e.add_argument("--fps", type=float, default=100.0, help="motion: the clips' rate")
+  e.add_argument("--min-s", type=float, default=1.0, help="motion: the shortest clip kept (s)")
   e.set_defaults(fn=cmd_export)
+  v = sub.add_parser("video", help="motion from video (GVHMR, installed separately) into a study folder")
+  v.add_argument("video", nargs="+", help="video file(s) of one person")
+  v.add_argument("--subject", required=True, help="the person's name or code (letters, digits, '-')")
+  v.add_argument("--mass", type=float, required=True, help="body mass (kg)")
+  v.add_argument("--height", type=float, help="body height (cm); without it, the video's estimate")
+  v.add_argument("--out", required=True, help="the study folder (created; more videos and people can be added)")
+  v.add_argument("--gvhmr", default=os.environ.get("M2M_GVHMR"), help="GVHMR's folder (default M2M_GVHMR)")
+  v.add_argument("--gvhmr-python", default=os.environ.get("M2M_GVHMR_PYTHON", "python"),
+                 help="the Python of GVHMR's environment (default M2M_GVHMR_PYTHON, else python)")
+  v.add_argument("--static-cam", action="store_true", help="the camera did not move (tripod)")
+  v.add_argument("--floor", choices=["flat", "as-is"], default="flat",
+                 help="flat: level ground, the reconstruction's slow vertical drift removed (default); "
+                      "as-is: its heights kept (stairs, slopes)")
+  v.add_argument("--no-foot-lock", action="store_true", help="keep the reconstruction's foot sliding")
+  v.add_argument("--result", help="an existing GVHMR hmr4d_results.pt for the video (GVHMR is not run again)")
+  v.set_defaults(fn=cmd_video)
   m = sub.add_parser("models", help="fetch / build the other models (models/fetch.py)")
   m.add_argument("rest", nargs=argparse.REMAINDER)
   m.set_defaults(fn=cmd_models)

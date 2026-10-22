@@ -29,3 +29,15 @@ def test_kind_of():
 def test_cli_help():
   r = subprocess.run([sys.executable, "-m", "mocap2myo.cli", "--help"], cwd=REPO, capture_output=True, text=True)
   assert r.returncode == 0 and "mocap2myo" in r.stdout
+
+
+def test_anthropometrics_csv_headers(tmp_path):
+  """Headers with units or another case are read; the sex column (segment masses) is kept."""
+  (tmp_path / "a.csv").write_text("subject,Height (cm),Mass [kg],Sex\nS01,175,70,F\nS02,,,M\n")
+  env = dict(os.environ, M2M_DATASET=str(REPO / "datasets" / "moissenet2019.toml"), M2M_ROOT=str(tmp_path),
+             M2M_ANTHRO="csv", M2M_ANTHRO_CSV=str(tmp_path / "a.csv"), M2M_SEX_COLUMN="Sex")
+  code = "from pipeline import config; print(config.anthropometrics(), config.sexes())"
+  r = subprocess.run([sys.executable, "-c", code], cwd=REPO, env=env, capture_output=True, text=True)
+  assert r.returncode == 0, r.stderr
+  assert "{'S01': {'height_cm': 175.0, 'mass_kg': 70.0}}" in r.stdout  # S02's blank cells: not given yet
+  assert "'S01': 'f'" in r.stdout and "'S02': 'm'" in r.stdout

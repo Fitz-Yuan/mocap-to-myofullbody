@@ -799,8 +799,9 @@ def recover_frame(mm, P, xs, q_ref, x, err, seed, t, contact=None, outlier=None,
 def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
              v_joint=15.0, w_floor=10.0, w_anchor=3.0,
              ankle_smooth=0.08, outlier=None, mtp_prior=0.0, anchor_centroid=False,
-             pelvis_gap="carry", robust=None, root_init="prev", recover=False):
-  """Per-frame IK over a whole trial. Returns qpos [T, nq] and marker err [T, n]
+             pelvis_gap="carry", robust=None, root_init="prev", recover=False, progress=None):
+  """Per-frame IK over a whole trial. progress: called as progress(t, T) every tenth of the
+  trial. Returns qpos [T, nq] and marker err [T, n]
   (NaN where a marker is missing or was rejected, see MarkerModel.solve).
 
   Unsolved frames have an all-NaN row in marker err (that is how to find them):
@@ -888,6 +889,8 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
         anchors[i] = np.r_[fp[i, :2], max(fp[i, 2], floor)]
 
   for t in range(T):
+    if progress is not None and t and t % max(1, T // 10) == 0:
+      progress(t, T)
     if np.isnan(P[t, PELVIS]).any() and (x_prev is None or pelvis_gap == "carry"):
       if x_prev is not None:  # no pelvis -> carry previous pose
         Q[t] = mm.pose(x_prev, q_ref)

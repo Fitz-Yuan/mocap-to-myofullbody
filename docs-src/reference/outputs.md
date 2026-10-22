@@ -35,6 +35,6 @@ Run the scripts from the repository root; `run_all.sh` runs them in order, and e
 |---|---|
 | `motion_<stem>_<fps>hz.npz` | `gts` [N, bodies, 3] and `gvs` the tracked bodies' positions and velocities (m, m/s), `root_pos`, `root_vel`, `root_quat` (w, x, y, z), per clip `motion_num_frames`, `length_starts`, `motion_fps`, `motion_dt`, `motion_lengths` (s), `clip_file`; `tracked_bodies` |
 | `initial_poses_<stem>_<fps>hz.npz` | `qpos_joints` [N, nq − 7] the joint angles, `joint_names` |
-| `index.json` | per clip: the trial, its start and end in the trial (s), the frames, the floor height, the trial's marker error and lost-limb time |
+| `index.json` | per clip: the trial, its start and end in the trial (s), the frames, the floor height, the trial's verdict (PASS / WARN / FAIL), marker error and lost-limb time |
 
 N is the sum of the clips' frames; clip k runs from `length_starts[k]` for `motion_num_frames[k]` frames.

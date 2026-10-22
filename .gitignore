@@ -10,6 +10,10 @@ data/
 !docs/viewer/demos/demo_1.elvw
 !docs/viewer/models/*.elvw
 !docs/viewer/demos/walk/*.elvw
+# one walking clip reconstructed from a phone video (GVHMR): motion only, no video, de-identified
+!docs/viewer/demos/video/*.elvw
+# mocap2myo demo's output when run from the clone
+mocap2myo_demo/
 *.trc
 *.tak
 *.mot

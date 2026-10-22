@@ -50,6 +50,7 @@ C3D needs ezc3d (pip install -e ".[c3d]"), .tak olefile (".[tak]"), .b3d nimblep
 import os
 import re
 import sys
+import warnings
 
 import numpy as np
 
@@ -101,7 +102,8 @@ def detect_up(labels, xyz):
   if not up or not foot:
     raise ValueError("up axis: no head / upper-trunk or no foot marker labels to tell it "
                      "from; set it (z, y, x, or with a sign)")
-  with np.errstate(all="ignore"):
+  with np.errstate(all="ignore"), warnings.catch_warnings():  # frames without them: NaN, expected
+    warnings.simplefilter("ignore", RuntimeWarning)
     d = np.nanmedian(np.nanmean(xyz[:, up], 1) - np.nanmean(xyz[:, foot], 1), 0)
   if np.isnan(d).any():
     raise ValueError("up axis: head and foot markers never seen together; set it")
