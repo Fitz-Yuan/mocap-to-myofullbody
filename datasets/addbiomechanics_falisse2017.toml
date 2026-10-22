@@ -1,0 +1,42 @@
+# Dataset profile: AddBiomechanics Dataset v1.0 (Werling et al. 2024, ECCV; CC BY 4.0), its
+# Falisse 2017 part (Falisse et al. 2017, IEEE TBME 64:2253): Vicon Plug-in-Gait markers with
+# extra medial and cluster markers, force plates, walking and sit-to-stand. Each .b3d holds
+# one subject's trials and AddBiomechanics' own scaled model, IK and ID (the comparison:
+# pipeline/validate/addbio_compare.py). Reading .b3d needs nimblephysics.
+#   M2M_DATASET=datasets/addbiomechanics_falisse2017.toml python pipeline/read_raw.py
+# Layout under root: Falisse2017_With_Arm/<subject>/<subject>.b3d (as in the dataset).
+name = "addbiomechanics_falisse2017"
+description = """AddBiomechanics (Falisse 2017 part): Plug-in-Gait markers, force plates, ~100 Hz;
+walking and sit-to-stand; AddBiomechanics' IK and ID in the same file."""
+
+[paths]
+root = "~/data/addbiomechanics"
+raw_dir = "Falisse2017_With_Arm"
+
+[input]
+input = "b3d"
+up = "y"                         # OpenSim's world
+units = ""
+rate = "native"
+
+[naming]
+raw_trials = "*/*.b3d"
+trial_regex = '(?P<subject>[^/]+)/[^/]+\.b3d#(?P<trial>.+)'
+trial_name = "{subject}-{trial}"   # subject_2/subject_2.b3d#Gait_10_segment_0 -> subject_2-Gait_10_segment_0
+trial_glob = "*-*"
+subject_sep = "-"
+raw_static = "none/*.b3d"        # none: the calibration takes quiet standing from the trials
+static_regex = 'none/(?P<subject>[^/]+)\.b3d'
+static_name = "{subject}-static"
+
+[subjects]
+anthro = "c3d"                   # from the .b3d: height, mass, sex
+sex_column = "Sex"
+marker_set = "plug_in_gait"
+
+[task]
+task = "none"
+
+[ik]
+static = true
+static_markers = "legs"

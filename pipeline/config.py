@@ -182,7 +182,7 @@ else:  # a relative root in a profile: relative to the profile's folder
   ROOT = os.path.join(os.path.dirname(os.path.abspath(os.path.expanduser(PROFILE))),
                       os.path.expanduser(_PROFILE["M2M_ROOT"]))
 # input: the raw recordings (M2M_RAW_DIR -> read_raw.py -> M2M_CACHE_DIR)
-INPUT = _choice("M2M_INPUT", "tak", ("tak", "c3d", "trc"))  # kind of the raw files
+INPUT = _choice("M2M_INPUT", "tak", ("tak", "c3d", "trc", "b3d"))  # kind of the raw files
 RAW_DIR = _path("M2M_RAW_DIR", os.path.join(ROOT, "raw_tak"))
 CACHE_DIR = _path("M2M_CACHE_DIR",
                   os.path.join(ROOT, "tak_cache" if INPUT == "tak" else "raw_cache"))
@@ -257,8 +257,8 @@ os.environ["M2M_MODEL"] = MODEL
 ANTHRO = _choice("M2M_ANTHRO", "csv", ("csv", "c3d"))
 ANTHRO_C3D_HEIGHT = _env("M2M_ANTHRO_C3D_HEIGHT", "SUBJECT:height")
 ANTHRO_C3D_MASS = _env("M2M_ANTHRO_C3D_MASS", "SUBJECT:weight")
-if ANTHRO == "c3d" and INPUT != "c3d":
-  raise SystemExit("M2M_ANTHRO=c3d needs M2M_INPUT=c3d")
+if ANTHRO == "c3d" and INPUT not in ("c3d", "b3d"):  # .b3d: the subject's height, mass and sex
+  raise SystemExit("M2M_ANTHRO=c3d needs M2M_INPUT=c3d (or b3d)")
 ANTHRO_CSV = _path("M2M_ANTHRO_CSV", os.path.join(CACHE_DIR, "anthropometrics.csv")
                    if ANTHRO == "c3d" else os.path.join(ROOT, "meta", "anthropometrics.csv"))
 # CSV columns: subject, height (cm), mass (kg)
@@ -289,11 +289,16 @@ def _raw_files(pattern, regex):
     if not os.path.isfile(p):
       continue
     rel = os.path.relpath(p, RAW_DIR).replace(os.sep, "/")
-    m = re.fullmatch(regex, rel) if regex else None
-    if regex and m is None:
-      skipped.append(rel)
-      continue
-    out.append((p, os.path.splitext(os.path.basename(p))[0], m.groupdict() if m else {}))
+    entries = [(p, rel, os.path.splitext(os.path.basename(p))[0])]
+    if p.lower().endswith(".b3d"):  # one entry per trial in the file: "<path>#<trial>"
+      from mocap2myo.readers import b3d_trials
+      entries = [(f"{p}#{t}", f"{rel}#{t}", t) for t in b3d_trials(p)]
+    for path, rp, stem in entries:
+      m = re.fullmatch(regex, rp) if regex else None
+      if regex and m is None:
+        skipped.append(rp)
+        continue
+      out.append((path, stem, m.groupdict() if m else {}))
   return out, skipped
 
 

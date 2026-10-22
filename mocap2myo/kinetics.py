@@ -399,13 +399,15 @@ class Kinetics:
 
 
 def feet_from_plates(plates, foot_F, foot_cop, foot_free, contact, sole, sole_idx, F, M, floor_z,
-                     on_plate=0.25, min_fz=20.0):
+                     on_plate=0.25, min_fz=20.0, above=0.10):
   """Measured ground reactions where the feet are on force plates.
 
   plates: dict(force [T, P, 3] N on the body, cop [T, P, 3] m, free [T, P] N m) in the same world
   frame and units as the kinetics (subject size). A plate carrying more than min_fz belongs to
-  the foot whose centre is within `on_plate` of its centre of pressure (none if both are: the
-  two feet share the plate and stay estimated); that foot counts as on the ground. A foot gets the sum of its
+  the foot whose centre is within `on_plate` of its centre of pressure horizontally and whose
+  lowest sole point is within `above` of its height (on stairs, a foot swinging over the
+  plate or standing on the step below is not on it); none if both feet are (the two feet share the plate and stay
+  estimated); that foot counts as on the ground. A foot gets the sum of its
   plates (source 1). If only one foot is measured and the other is also on the ground, the
   other carries the rest of the total ground reaction from the whole-body dynamics (source 2),
   at the centre of pressure that balances the moments. Elsewhere the estimate stays (0).
@@ -413,9 +415,10 @@ def feet_from_plates(plates, foot_F, foot_cop, foot_free, contact, sole, sole_id
   T = len(F)
   foot_F, foot_cop, foot_free, contact = foot_F.copy(), foot_cop.copy(), foot_free.copy(), contact.copy()
   source = np.zeros((T, 2), np.int8)
-  centre = np.zeros((T, 2, 3))
+  centre, low = np.zeros((T, 2, 3)), np.zeros((T, 2))
   for i, s in enumerate("lr"):
     centre[:, i] = sole[:, sole_idx[s]].mean(1)
+    low[:, i] = sole[:, sole_idx[s], 2].min(1)
   pf, pc, pm = plates["force"], plates["cop"], plates["free"]
   for t in range(T):
     acc = [[np.zeros(3), np.zeros(3), 0.0, 0.0] for _ in range(2)]  # force, sum(Fz * cop), Fz, free
@@ -424,7 +427,8 @@ def feet_from_plates(plates, foot_F, foot_cop, foot_free, contact, sole, sole_id
       if not np.isfinite(fz) or fz < min_fz or not np.isfinite(pc[t, p]).all():
         continue
       d = np.linalg.norm(centre[t, :, :2] - pc[t, p, :2], axis=1)
-      near = [i for i in range(2) if d[i] < on_plate]  # the plate, not the kinematics, says which foot is down
+      # the plate, not the kinematics, says which foot is down
+      near = [i for i in range(2) if d[i] < on_plate and abs(low[t, i] - pc[t, p, 2]) < above]
       if len(near) != 1:
         continue
       a = acc[near[0]]

@@ -1,4 +1,5 @@
-"""Read one trial file of any supported kind into one structure: C3D, TRC, OptiTrack .tak.
+"""Read one trial file of any supported kind into one structure: C3D, TRC, OptiTrack .tak,
+AddBiomechanics .b3d (one trial of it: "<file>.b3d#<trial>").
 
 read_trial(path) -> dict
   kind        "c3d" | "trc" | "tak"
@@ -40,7 +41,7 @@ Up axis: up="z" | "y" | "x" (or "-z", ...) names the axis that points up in the 
 (…FHD, C7, CV7, CLAV, SJN, SHO, SAE, ...) sit farthest above foot markers (…HEE, TOE,
 FCC, FM1, ANK, ...), median over the frames.
 
-C3D needs ezc3d (pip install -e ".[c3d]"), .tak olefile (".[tak]").
+C3D needs ezc3d (pip install -e ".[c3d]"), .tak olefile (".[tak]"), .b3d nimblephysics.
 
   python -m mocap2myo.readers FILE [--up auto|x|y|z]     (a summary of one file)
 """
@@ -63,9 +64,9 @@ _AXES = {"x": 0, "y": 1, "z": 2}
 
 
 def kind_of(path):
-  ext = os.path.splitext(path)[1].lower().lstrip(".")
-  if ext not in ("c3d", "trc", "tak"):
-    raise ValueError(f"{path}: unknown file kind {ext!r} (c3d, trc, tak)")
+  ext = os.path.splitext(path.partition("#")[0])[1].lower().lstrip(".")
+  if ext not in ("c3d", "trc", "tak", "b3d"):
+    raise ValueError(f"{path}: unknown file kind {ext!r} (c3d, trc, tak, b3d)")
   return ext
 
 
@@ -332,6 +333,82 @@ def read_tak_file(path, up=None):
               rigid_bodies=tk["rigid_bodies"])
 
 
+def b3d_trials(path):
+  """Trial names of an AddBiomechanics .b3d file (nimblephysics)."""
+  import nimblephysics as nimble  # optional dependency (pip install nimblephysics): .b3d only
+  sub = nimble.biomechanics.SubjectOnDisk(path)
+  return [sub.getTrialName(i) for i in range(sub.getNumTrials())]
+
+
+def read_b3d(path, up=None, fp_min_fz=20.0):
+  """One trial of an AddBiomechanics .b3d file, path "<file>.b3d#<trial name>": the markers as
+  observed (names stripped: some carry a "\r"), the force plates (OpenSim world, Y up; the
+  torque is the free moment about the vertical through the centre of pressure; the file has
+  no plate corners, so a 0.6 x 0.4 m rectangle on the plate's surface plane, centred on the
+  median centre of pressure, stands in for them: corners_estimated; a plate whose centre of
+  pressure lies at several heights, more than 5 cm apart, is split into one plate per
+  height) and the subject's height, mass and sex."""
+  import nimblephysics as nimble  # optional dependency (pip install nimblephysics): .b3d only
+  file, _, trial = path.partition("#")
+  sub = nimble.biomechanics.SubjectOnDisk(file)
+  names = [sub.getTrialName(i) for i in range(sub.getNumTrials())]
+  if trial not in names:
+    raise ValueError(f"{file}: no trial {trial!r} (trials: {names[:5]}...)")
+  t = names.index(trial)
+  T = sub.getTrialLength(t)
+  fr = sub.readFrames(t, 0, T, includeSensorData=True, includeProcessingPasses=False)
+  labels = sorted({n.strip() for f in fr for n, _ in f.markerObservations})
+  idx = {n: i for i, n in enumerate(labels)}
+  X = np.full((T, len(labels), 3), np.nan)
+  for k, f in enumerate(fr):
+    for n, x in f.markerObservations:
+      X[k, idx[n.strip()]] = np.ravel(x)
+  X = _missing(X)
+  if up == "auto":
+    up = detect_up(labels, X)
+  R = up_rotation(up) if up else np.eye(3)
+  P = sub.getNumForcePlates(t)
+  plates = None
+  if P:
+    F = np.array([np.ravel(f.rawForcePlateForces) for f in fr]).reshape(T, P, 3) @ R.T
+    C = np.array([np.ravel(f.rawForcePlateCenterOfPressures) for f in fr]).reshape(T, P, 3) @ R.T
+    M = np.array([np.ravel(f.rawForcePlateTorques) for f in fr]).reshape(T, P, 3) @ R.T
+    sign = 1.0
+    loaded = F[..., 2] >= fp_min_fz
+    C = np.where(loaded[..., None], C, np.nan)
+    free = np.where(loaded, M[..., 2], np.nan)
+    # a plate whose centre of pressure sits at more than one height (one channel for the
+    # steps of a staircase) becomes one plate per height: each surface its own plane
+    Fs, Cs, Ms = [], [], []
+    for p in range(P):
+      z = C[loaded[:, p], p, 2]
+      levels = []
+      for v in np.sort(z):
+        if not levels or v - levels[-1][-1] > 0.05:
+          levels.append([v])
+        else:
+          levels[-1].append(v)
+      for lv in levels or [[0.0]]:
+        on = loaded[:, p] & (np.abs(C[:, p, 2] - np.median(lv)) <= 0.05) if len(levels) > 1 else np.ones(T, bool)
+        Fs.append(np.where(on[:, None], F[:, p], 0.0))
+        Cs.append(np.where(on[:, None], C[:, p], np.nan))
+        Ms.append(np.where(on, free[:, p], np.nan))
+    F, C, free = np.stack(Fs, 1), np.stack(Cs, 1), np.stack(Ms, 1)
+    corners = np.zeros((F.shape[1], 4, 3))
+    half = np.array([[-0.3, -0.2], [0.3, -0.2], [0.3, 0.2], [-0.3, 0.2]])
+    for p in range(F.shape[1]):
+      c = np.nanmedian(C[:, p], 0) if np.isfinite(C[:, p, 0]).any() else np.zeros(3)
+      corners[p, :, :2] = c[:2] + half
+      corners[p, :, 2] = c[2]
+    plates = dict(force=F, cop=C, free=free, corners=corners, sign=sign, cop_check_mm=0.0,
+                  corners_estimated=True, split_from=P)
+  sex = str(sub.getBiologicalSex()).lower()
+  anthro = dict(height_m=float(sub.getHeightM()) or None, mass_kg=float(sub.getMassKg()) or None,
+                sex="m" if sex.startswith("m") else "f" if sex.startswith("f") else None)
+  return dict(kind="b3d", labels=labels, xyz=X @ R.T, rate=1.0 / sub.getTrialTimestep(t), up=up, R=R,
+              units="m", other=None, analog=None, plates=plates, anthro=anthro)
+
+
 def read_trial(path, kind=None, up=None, units=None, exclude="", analog=".*",
                fp_sign="auto", fp_min_fz=20.0, anthro=None):
   """One trial file -> the structure in the module docstring. kind: from the extension
@@ -348,7 +425,9 @@ def read_trial(path, kind=None, up=None, units=None, exclude="", analog=".*",
     return read_trc_file(path, up, units)
   if kind == "tak":
     return read_tak_file(path, up)
-  raise ValueError(f"kind {kind!r}: expected c3d, trc or tak")
+  if kind == "b3d":
+    return read_b3d(path, up, fp_min_fz)
+  raise ValueError(f"kind {kind!r}: expected c3d, trc, tak or b3d")
 
 
 if __name__ == "__main__":

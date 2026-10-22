@@ -109,6 +109,8 @@ def cache_file(n, path):
                          X.reshape(T, -1)], 1)
   extra = dict(zup=True, source=r["kind"],
                source_file=os.path.relpath(path, config.RAW_DIR), up=r["up"], units=r["units"])
+  if r["plates"] is not None and r["plates"].get("corners_estimated"):
+    extra["fp_corners_estimated"] = True
   note = []
   pl = r["plates"]
   if pl is not None:
@@ -135,7 +137,7 @@ def cache_file(n, path):
                  other_units=np.array(ot["units"]), other_data=ot["data"][::k])
     note.append(f"other points {dict(collections.Counter(ot['groups']))}")
   an_vals = r.get("anthro") or {}
-  for key in ("height_m", "mass_kg"):
+  for key in ("height_m", "mass_kg", "sex"):
     if an_vals.get(key) is not None:
       extra[key] = an_vals[key]
   save(os.path.join(OUT, f"{n}.npz"), names=np.array(r["labels"]), data=data, rate=rate,
@@ -169,12 +171,16 @@ def write_anthropometrics(found):
       print(f"  {s}: heights {sorted(set(h))} m / masses {sorted(set(m))} kg differ between "
             "its files; the median is used")
     rows[s] = {sc: s, hc: f"{100 * np.median(h):.1f}", mc: f"{np.median(m):.2f}"}
+    sx = {v.get("sex") for v in vals} - {None}
+    if len(sx) == 1 and config.SEX_COLUMN:  # .b3d files carry the subject's sex
+      rows[s][config.SEX_COLUMN] = sx.pop()
   os.makedirs(os.path.dirname(os.path.abspath(config.ANTHRO_CSV)), exist_ok=True)
+  cols = [sc, hc, mc] + ([config.SEX_COLUMN] if config.SEX_COLUMN else [])
   with open(config.ANTHRO_CSV, "w", newline="") as f:
-    w = csv.DictWriter(f, fieldnames=[sc, hc, mc])
+    w = csv.DictWriter(f, fieldnames=cols)
     w.writeheader()
     for s in sorted(rows):
-      w.writerow({c: rows[s].get(c, "") for c in (sc, hc, mc)})
+      w.writerow({c: rows[s].get(c, "") for c in cols})
   print(f"anthropometrics ({len(rows)} subjects) -> {config.ANTHRO_CSV}")
 
 
