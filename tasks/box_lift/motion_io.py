@@ -8,15 +8,16 @@ import os
 import numpy as np
 
 FPS = 100.0
+# MyoFullBody's tracked bodies (another model's: body.tracked_bodies, the same segments)
 TRACKED = ("pelvis", "tibia_l", "tibia_r", "talus_l", "talus_r", "toes_l", "toes_r",
            "thorax", "head", "humerus_l", "ulna_l", "thirdmc_l",
            "humerus_r", "ulna_r", "thirdmc_r")
 
 
-def write(out_dir, tag, out, index, m, keep, stem, box_mass):
+def write(out_dir, tag, out, index, m, keep, stem, box_mass, tracked=TRACKED):
   """Save clips (all for keep=None, or the `keep` ids in order) as
   motion_<stem><tag>_100hz.npz and initial_poses_<stem><tag>_100hz.npz.
-  box_mass: kg of the carried box."""
+  box_mass: kg of the carried box; tracked: the bodies of gts (names)."""
   keep = list(range(len(index))) if keep is None else keep
   sel = lambda k: [out[k][i] for i in keep]
   n = np.array([index[i]["frames"] for i in keep])
@@ -32,7 +33,7 @@ def write(out_dir, tag, out, index, m, keep, stem, box_mass):
            motion_num_frames=n.astype(np.int64),
            length_starts=np.concatenate([[0], np.cumsum(n)[:-1]]).astype(np.int64),
            motion_fps=np.full(len(n), FPS, np.float32), motion_dt=np.full(len(n), 1 / FPS, np.float32),
-           motion_lengths=(n / FPS).astype(np.float32), tracked_bodies=np.array(TRACKED),
+           motion_lengths=(n / FPS).astype(np.float32), tracked_bodies=np.array(tracked),
            obj_kind=np.array([index[i]["object"] for i in keep]),
            obj_size=np.array([index[i]["obj_size"] for i in keep], np.float32),
            box_mass=np.float32(box_mass),

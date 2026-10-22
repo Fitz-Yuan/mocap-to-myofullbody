@@ -11,6 +11,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as sRot
 
 from mocap2myo import objects as O
+from tasks.box_lift.body import TaskBody
 
 
 def box_local(p, c, q):
@@ -37,11 +38,23 @@ def cycles(bz, floor, rate):
   return out
 
 
+_TB = None
+
+
+def task_body():
+  """The model's hands for the task (body.TaskBody of M2M_MODEL), built once."""
+  global _TB
+  if _TB is None:
+    from pipeline import config
+    _TB = TaskBody(mm=config.marker_model())
+  return _TB
+
+
 def qa_trial(D, Q, frames, step, s, rate, m, d):
   """D: the trial's marker npz, Q: IK qpos [T, nq], frames: the sampled frames (every
-  step-th), s: subject scale, rate: Hz, m / d: the model. Returns (checks, log line)."""
-  hand = [m.body("thirdmc_l").id, m.body("thirdmc_r").id]
-  sph = O.hand_sphere_local()
+  step-th), s: subject scale, rate: Hz, m / d: the model (M2M_MODEL; its palm points:
+  body.TaskBody). Returns (checks, log line)."""
+  tb = task_body()
   half = D["box_size"] * s / 2
   bpos, bquat = D["box_pos"] * s, D["box_quat"]
   floor = float(D["floor_z"]) * s
@@ -50,9 +63,7 @@ def qa_trial(D, Q, frames, step, s, rate, m, d):
   for k, f in enumerate(frames):
     d.qpos[:] = Q[f]
     mujoco.mj_kinematics(m, d)
-    for h in range(2):
-      R = d.xmat[hand[h]].reshape(3, 3)
-      palm[k, h] = d.xpos[hand[h]] + R @ sph["lr"[h]]
+    palm[k] = tb.palms(d)
   bp, bq = bpos[frames], bquat[frames]
   bz = bp[:, 2]
   v = np.linalg.norm(np.gradient(bp, axis=0), axis=1) * rate / step

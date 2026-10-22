@@ -409,12 +409,16 @@ TASK = _env("M2M_TASK", "box_lift")
 
 
 def task():
-  """The task package (tasks/<TASK>/), or None."""
+  """The task package (tasks/<TASK>/), or None. A task that needs something of the model
+  (box_lift: hands) checks M2M_MODEL here (its check_model) and stops the run if it lacks it."""
   if TASK in ("", "none"):
     return None
   if not os.path.exists(os.path.join(REPO, "tasks", TASK, "__init__.py")):
     raise SystemExit(f"M2M_TASK={TASK!r}: no package tasks/{TASK}/ (or 'none' for the body only)")
-  return importlib.import_module(f"tasks.{TASK}")
+  mod = importlib.import_module(f"tasks.{TASK}")
+  if hasattr(mod, "check_model"):
+    mod.check_model(model_profile())
+  return mod
 
 
 # --- IK (solve_ik.py; lomo.py repeats the tracking settings) ----------------------
