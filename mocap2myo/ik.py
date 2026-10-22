@@ -63,7 +63,8 @@ _NECK_RANGE = ((-1.2, 1.0), (-0.8, 0.8), (-1.4, 1.4))
 def load_trial(path, max_gap_s=0.25, lowpass_hz=None, mm=None):
   """Markers [T, n, 3] (the marker set's order) scaled to the model; short gaps interpolated.
   mm: the MarkerModel (its marker set and model height; default the selected marker set
-  and MyoFullBody's MODEL_HEIGHT).
+  and MyoFullBody's MODEL_HEIGHT). A model scaled to the subject (mm.scaling,
+  mocap2myo.scaling) takes the markers as recorded: scale 1.
   lowpass_hz (optional, default off; the stages pass M2M_LOWPASS_HZ, 6 Hz): zero-phase
   2nd-order Butterworth (filtfilt) per marker coordinate over each gap-free run, the
   usual marker filtering before IK (Winter: ~6 Hz for whole-body motion)."""
@@ -100,6 +101,8 @@ def load_trial(path, max_gap_s=0.25, lowpass_hz=None, mm=None):
         for r in np.split(idx, np.flatnonzero(np.diff(idx) != 1) + 1):
           if len(r) > pad:
             P[r, k] = filtfilt(bb, aa, P[r, k], axis=0)
+  if getattr(mm, "scaling", None) is not None:
+    return P, rate, 1.0
   s = height / float(d["height_m"])
   return P * s, rate, s
 
@@ -108,13 +111,19 @@ class MarkerModel:
   """A model profile with a marker set's markers as sites, the IK's free joints, sole points
   and palms. profile / markerset: names or objects (default M2M_MODEL / M2M_MARKER_SET).
   Markers on a segment the model lacks (e.g. arm markers on MyoLeg) get no weight
-  (self.active False): their columns stay in the arrays, their error is NaN."""
+  (self.active False): their columns stay in the arrays, their error is NaN.
+  scaling (optional): a subject's mocap2myo.scaling.Scaling; the model is then scaled to the
+  subject segment by segment (self.scaling.A: each body's matrix) and takes the markers in
+  the subject's own size (load_trial)."""
 
-  def __init__(self, profile=None, markerset=None, neck=False):
+  def __init__(self, profile=None, markerset=None, neck=False, scaling=None):
     self.profile = _prof.load(profile) if profile is not None else _prof.selected()
     self.ms = _ms.load(markerset) if markerset is not None else _ms.selected()
     p, ms = self.profile, self.ms
     spec = p.spec()
+    self.scaling = scaling
+    if scaling is not None:
+      scaling.apply(spec, p)
     root_body = p.root_body or spec.joint(p.root_joint).parent.name
     bodies = {l: p.segment_body(ms.segment(l)) for l in ms.LABELS}
     self.active = np.array([bodies[l] is not None for l in ms.LABELS])
@@ -125,8 +134,11 @@ class MarkerModel:
     if neck and nk is None:
       raise SystemExit(f"{p.name}: no optional neck for this model ([ik] neck in its profile)")
     if neck:
+      pivot = list(nk["pivot"])
+      if scaling is not None:  # the pivot scales with its body
+        pivot = (scaling.A[spec.body(nk["body"]).id] @ np.asarray(pivot, float)).tolist()
       for n, ax, rg in zip(NECK, nk["axes"], nk["ranges"]):
-        spec.body(nk["body"]).add_joint(name=n, type=mujoco.mjtJoint.mjJNT_HINGE, pos=list(nk["pivot"]),
+        spec.body(nk["body"]).add_joint(name=n, type=mujoco.mjtJoint.mjJNT_HINGE, pos=pivot,
                                         axis=list(ax), range=list(rg), limited=1)
     self.m = spec.compile()
     self.d = mujoco.MjData(self.m)
@@ -207,6 +219,11 @@ class MarkerModel:
       pl, sp = O.hand_palmar_local(), O.hand_sphere_local()
       self.palm_n = [pl["l"], pl["r"]]
       self.palm_c = [sp["l"], sp["r"]]
+      if self.scaling is not None:  # the sphere moves with the hand; the normal stays normal
+        A = [self.scaling.A[b] for b in self.hand_b]
+        self.palm_c = [a @ c for a, c in zip(A, self.palm_c)]
+        self.palm_n = [np.linalg.solve(a.T, n) / np.linalg.norm(np.linalg.solve(a.T, n))
+                       for a, n in zip(A, self.palm_n)]
       self.d.qpos[:] = self.qref
       mujoco.mj_kinematics(m, self.d)  # qpos0
       for sd, b in zip("lr", self.hand_b):  # distal (finger) axis in the thirdmc frame
@@ -457,7 +474,15 @@ def anat_offsets(mm):
   explicit guesses of its [override] for this model (Plug-in-Gait on MyoFullBody: world,
   qpos0 with the root at (0, 0, 0.99), identity), else each marker's landmark + offset on
   the model at its neutral pose (mocap2myo.landmarks; markers whose landmark the model
-  lacks stay at their body's origin and are switched off)."""
+  lacks stay at their body's origin and are switched off). On a model scaled to the subject
+  (mm.scaling) the guesses are those of the unscaled model, moved with their bodies (x A),
+  as a model's markers are scaled with it in OpenSim."""
+  if getattr(mm, "scaling", None) is not None:
+    mm0 = MarkerModel(mm.profile, mm.ms, neck=mm.neck)
+    off = anat_offsets(mm0)
+    mm.active &= mm0.active
+    mm.w = np.where(mm.active, mm.w, 0.0)
+    return np.einsum("kij,kj->ki", mm.scaling.A[mm.bid], off)
   m, d, ms = mm.m, mm.d, mm.ms
   LABELS = ms.LABELS
   off = np.zeros((len(LABELS), 3))

@@ -4,7 +4,8 @@ Body-marker IK error (head excluded: MyoFullBody has no neck joint), joint-speed
 flips), the lowest sole point of the model vs the measured floor (when the task
 measured one, floor_z in the marker npz), and the task's own checks (M2M_TASK;
 box_lift: box rest heights, hands on the box while carrying, carry cycles,
-tasks/box_lift/checks.py). Everything in the scaled-subject frame of the IK.
+tasks/box_lift/checks.py). Everything in the scaled-subject frame of the IK (with
+M2M_SCALE=segments the subject's own frame, on the model scaled to the subject).
 
   python pipeline/qa.py [trial ...]
 Writes <M2M_IK_DIR>/qa.json (all trials only).
@@ -27,9 +28,11 @@ NPZ_DIR = config.NPZ_DIR
 IK_DIR = config.IK_DIR
 
 
-def qa(name, m, d, foot, task):
+def qa(name, m, d, foot, task, task_kw=None):
+  """task_kw: extra arguments of the task's qa_trial (mm: the model scaled to the subject)."""
   D = np.load(os.path.join(NPZ_DIR, f"{name}.npz"))
   K = np.load(os.path.join(IK_DIR, f"{name}.npz"))
+  config.check_scale(os.path.join(IK_DIR, f"{name}.npz"), K)
   s, rate = float(K["scale"]), float(K["rate"])
   step = max(1, int(round(rate / QA_HZ)))
   Q = K["qpos"].astype(np.float64)
@@ -59,7 +62,7 @@ def qa(name, m, d, foot, task):
   if floor is not None:
     line += f", sole-floor {r['sole_minus_floor_mm_median']} mm"
   if task is not None:
-    extra, note = task.qa_trial(D, Q, frames, step, s, rate, m, d)
+    extra, note = task.qa_trial(D, Q, frames, step, s, rate, m, d, **(task_kw or {}))
     r.update(extra)
     line += f", {note}"
   if floor is not None:
@@ -67,10 +70,8 @@ def qa(name, m, d, foot, task):
   return r, line
 
 
-def main():
-  config.usage(__doc__)
-  profile = config.model_profile()
-  m = profile.compile()
+def model_of(m, profile):
+  """(m, d, foot): the model, its data and its sole (foot collision geoms, or a function of d)."""
   d = mujoco.MjData(m)
   foot = foot_collision_geoms(m, bodies=foot_bodies(profile))
   if not foot:  # no foot collision geoms (a converted OpenSim model): the lowest foot-bone vertex
@@ -81,11 +82,27 @@ def main():
                      m.mesh_vertadr[m.geom_dataid[g]] + m.mesh_vertnum[m.geom_dataid[g]]] for g in gs]
     foot = lambda d: min(float((d.geom_xpos[g] + v @ d.geom_xmat[g].reshape(3, 3).T)[:, 2].min())
                          for g, v in zip(gs, V))
+  return m, d, foot
+
+
+def main():
+  config.usage(__doc__)
+  profile = config.model_profile()
   task = config.task()
   names = sys.argv[1:] or config.trials(IK_DIR)
   out = {}
+  if config.SCALE != "segments":
+    m, d, foot = model_of(profile.compile(), profile)
+  subjects = {}  # M2M_SCALE=segments: each subject's model (and its MarkerModel, for the task)
   for n in names:
-    out[n], line = qa(n, m, d, foot, task)
+    if config.SCALE != "segments":
+      out[n], line = qa(n, m, d, foot, task)
+    else:
+      s = config.subject_of(n)
+      if s not in subjects:
+        mm = config.marker_model(subject=s)
+        subjects[s] = (*model_of(mm.m, profile), dict(mm=mm))
+      out[n], line = qa(n, *subjects[s][:3], task, subjects[s][3])
     print(line)
   if len(sys.argv) == 1:
     json.dump(out, open(os.path.join(IK_DIR, "qa.json"), "w"), indent=1)

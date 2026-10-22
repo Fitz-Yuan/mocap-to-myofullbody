@@ -3,7 +3,8 @@
 Floor and shelf consistency (box bottom while resting vs floor / shelf top),
 hand-box consistency while carrying (palm-sphere surface to box surface, palm
 centres in the box frame), carry cycles (box lifted off the platform -> back on
-it). Everything in the scaled-subject frame of the IK, on the frames qa.py samples.
+it). Everything in the scaled-subject frame of the IK (with M2M_SCALE=segments the subject's
+own frame), on the frames qa.py samples.
 """
 
 import mujoco
@@ -38,23 +39,27 @@ def cycles(bz, floor, rate):
   return out
 
 
-_TB = None
+_TB = {}
 
 
-def task_body():
-  """The model's hands for the task (body.TaskBody of M2M_MODEL), built once."""
-  global _TB
-  if _TB is None:
-    from pipeline import config
-    _TB = TaskBody(mm=config.marker_model())
-  return _TB
+def task_body(mm=None):
+  """The model's hands for the task (body.TaskBody of M2M_MODEL, or of mm: a model scaled to
+  the subject), built once per model."""
+  key = None if mm is None else id(mm)
+  if key not in _TB:
+    if mm is None:
+      from pipeline import config
+      mm = config.marker_model()
+    _TB[key] = TaskBody(mm=mm)
+  return _TB[key]
 
 
-def qa_trial(D, Q, frames, step, s, rate, m, d):
+def qa_trial(D, Q, frames, step, s, rate, m, d, mm=None):
   """D: the trial's marker npz, Q: IK qpos [T, nq], frames: the sampled frames (every
   step-th), s: subject scale, rate: Hz, m / d: the model (M2M_MODEL; its palm points:
-  body.TaskBody). Returns (checks, log line)."""
-  tb = task_body()
+  body.TaskBody); mm (optional): the ik.MarkerModel of a model scaled to the subject (m / d
+  are its own). Returns (checks, log line)."""
+  tb = task_body(mm)
   half = D["box_size"] * s / 2
   bpos, bquat = D["box_pos"] * s, D["box_quat"]
   floor = float(D["floor_z"]) * s

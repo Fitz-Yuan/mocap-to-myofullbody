@@ -481,29 +481,38 @@ function buildModel(m) {
     g.computeVertexNormals();
     return g;
   });
-  const makeBodies = (root, mat, shadow) => {
+  // a body's group follows its pose; its child "scale" node carries the body's scale matrix
+  // (a clip solved on a model scaled to its subject, meta body_scale; identity otherwise)
+  const bodyNodes = (root) => {
     const groups = [];
-    for (let b = 0; b < nb; b++) { const g = new THREE.Group(); groups.push(g); root.add(g); }
+    for (let b = 0; b < nb; b++) {
+      const g = new THREE.Group(), s = new THREE.Group();
+      s.matrixAutoUpdate = false; g.add(s); g.userData.s = s;
+      groups.push(g); root.add(g);
+    }
+    return groups;
+  };
+  const makeBodies = (root, mat, shadow) => {
+    const groups = bodyNodes(root);
     m.meta.meshes.forEach((me, i) => {
       const mesh = new THREE.Mesh(geoms[i], mat);
       mesh.position.set(...me.pos); mesh.quaternion.copy(q4(me.quat));
       mesh.castShadow = shadow; mesh.receiveShadow = shadow;
-      groups[me.body].add(mesh);
+      groups[me.body].userData.s.add(mesh);
     });
     return groups;
   };
   bodyGroups = makeBodies(boneGroup, mats.bone, true);
   ghostGroups = makeBodies(ghostRoot, mats.ghost, false);
   // body volume: contact capsules / ellipsoids on their bodies
-  const volBodies = [];
-  for (let b = 0; b < nb; b++) { const g = new THREE.Group(); volBodies.push(g); volGroup.add(g); }
+  const volBodies = bodyNodes(volGroup);
   for (const v of m.meta.volumes) {
     let geo;
     if (v.type === "capsule") { geo = new THREE.CapsuleGeometry(v.size[0], 2 * v.size[1], 6, 14); geo.rotateX(Math.PI / 2); }
     else { geo = new THREE.SphereGeometry(1, 22, 14); geo.scale(v.size[0], v.size[1], v.size[2]); }
     const mesh = new THREE.Mesh(geo, mats.skin);
     mesh.position.set(...v.pos); mesh.quaternion.copy(q4(v.quat)); mesh.renderOrder = 2;
-    volBodies[v.body].add(mesh);
+    volBodies[v.body].userData.s.add(mesh);
   }
   volGroup.userData.bodies = volBodies;
   // muscles: straight segments between consecutive attachment sites
@@ -523,11 +532,36 @@ function buildModel(m) {
   if (prev) useModel(prev);  // a model opened while a clip plays waits until a clip needs it
 }
 
+/* A clip solved on a model scaled to its subject (export_viewer.py, M2M_SCALE=segments) carries
+   each body's scale matrix (body_scale [nbody, 3, 3], in the body's frame): it scales that body's
+   meshes, volumes and muscle sites. Other clips and the rest pose: identity. */
+function applyBodyScale(c) {
+  const A = c?.a.body_scale?.data, nb = model.meta.bodies.length;
+  for (const groups of [bodyGroups, ghostGroups, volGroup.userData.bodies])
+    for (let b = 0; b < nb; b++) {
+      const s = groups[b].userData.s, k = 9 * b;
+      if (A) s.matrix.set(A[k], A[k + 1], A[k + 2], 0, A[k + 3], A[k + 4], A[k + 5], 0, A[k + 6], A[k + 7], A[k + 8], 0, 0, 0, 0, 1);
+      else s.matrix.identity();
+      s.matrixWorldNeedsUpdate = true;
+    }
+  model.sitePos = null;  // sites in their bodies' frames, scaled with them
+  if (A) {
+    const sb = model.a.site_body.data, sp = model.a.site_pos.data, out = new Float32Array(sp.length);
+    for (let i = 0; i < sb.length; i++) {
+      const k = 9 * sb[i], x = sp[3 * i], y = sp[3 * i + 1], z = sp[3 * i + 2];
+      out[3 * i] = A[k] * x + A[k + 1] * y + A[k + 2] * z;
+      out[3 * i + 1] = A[k + 3] * x + A[k + 4] * y + A[k + 5] * z;
+      out[3 * i + 2] = A[k + 6] * x + A[k + 7] * y + A[k + 8] * z;
+    }
+    model.sitePos = out;
+  }
+}
+
 /* site world positions from body poses (rotate by quaternion w,x,y,z) */
 const sitesW = { arr: null };
 function updateMuscles(bpos, bquat, f, scale, isFloat) {
   if (!model) return;
-  const sb = model.a.site_body.data, sp = model.a.site_pos.data, nb = model.meta.bodies.length;
+  const sb = model.a.site_body.data, sp = model.sitePos ?? model.a.site_pos.data, nb = model.meta.bodies.length;
   const ns = sb.length;
   if (!sitesW.arr || sitesW.arr.length !== ns * 3) sitesW.arr = new Float32Array(ns * 3);
   const W = sitesW.arr;
@@ -1151,6 +1185,7 @@ async function loadClipBuffer(buf, name, opts = {}) {
 function selectClip(i, keep = null) {
   clip = clips[i];
   useModel(modelOf(clip));
+  applyBodyScale(clip);
   // arrows and the comparison first: buildScene draws a frame, which must not use the previous clip's
   buildArrows(clip.meta); buildCompare(clip.meta); buildScene(clip.meta); buildPlotMenu(); showMeta(clip.meta);
   $("dropzone").hidden = true;

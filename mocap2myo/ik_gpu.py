@@ -754,6 +754,11 @@ def ik_trials_gpu(mm, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=Tr
   for x in mms:
     if (x.profile.name, x.ms.key, x.free, x.m.nq) != (mm.profile.name, mm.ms.key, mm.free, mm.m.nq):
       raise ValueError("GPU IK: the trials of one batch need the same model and marker set")
+    # one kinematics for the batch: the bodies' and joints' placement must match too (a model
+    # scaled to each subject, M2M_SCALE=segments, differs between subjects)
+    if not all(np.array_equal(getattr(x.m, a), getattr(mm.m, a)) for a in ("body_pos", "body_quat", "jnt_pos", "jnt_axis")):
+      raise ValueError("GPU IK: the trials of one batch need the same model geometry (one subject's "
+                       "scaled model per batch)")
   rates = np.broadcast_to(np.asarray(rate, float), (nt,))
   offs = [np.asarray(o, float) for o in offsets] if offsets is not None else \
     [x.m.site_pos[x.sid].copy() for x in mms]

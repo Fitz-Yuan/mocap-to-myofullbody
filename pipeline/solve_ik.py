@@ -7,17 +7,22 @@ Input: <M2M_NPZ_DIR>/<trial>.npz (prepare_markers.py), and with M2M_STATIC=1 the
   static standing trials <M2M_NPZ_DIR>/static/<subject>.npz.
 Stage A (per subject): marker-offset calibration (mocap2myo.ik.calibrate) on frames
   drawn from all of the subject's trials -- 40 frames, because one trial mixes
-  stooping, walking, turning and overhead reaching.
+  stooping, walking, turning and overhead reaching. With M2M_SCALE=segments, first
+  the subject's segment scale factors (mocap2myo.scaling.measure, from the static
+  trial, else quiet standing): <subject>_scale.json; the calibration and the IK then
+  run on the model scaled to the subject, and <subject>_model.xml is that model (MJCF,
+  with the subject's markers as sites mk_<label>).
 Stage B (per trial): per-frame IK with the contact terms (floor, stance sole
   lock, joint speed limit), mocap2myo.ik.ik_trial(contact=True).
 Output: <M2M_IK_DIR>/<subject>_offsets.npz, <trial>.npz with
-  qpos [T, nq] (scaled-subject frame: markers x scale, model not scaled),
+  qpos [T, nq] (scaled-subject frame: markers x scale, model not scaled; with
+  M2M_SCALE=segments the subject's own frame, scale 1, on the subject's model),
   marker_err [T, n] (m; NaN = marker missing or rejected), unsolved_frames [T] bool
   (frames the IK did not solve: before the first frame with all four pelvis markers,
   or no marker at all; their qpos repeats a solved pose and marker_err is all NaN),
   unsolved (their count), scale, rate, labels, joint_names, model (the model file),
   model_profile, marker_set and the settings; with M2M_NECK=1 also neck_qpos [T, 3] and
-  neck_joints.
+  neck_joints; with M2M_SCALE=segments also scale_mode ("segments", as in the offsets).
 Settings (env): see the IK section of config.py.
 
   python pipeline/solve_ik.py [--calib-only] [trial ...]
@@ -116,12 +121,42 @@ def static_frames(subj, loaded, mm, n=10):
   return out
 
 
+def scale_subject(subj, mm0):
+  """M2M_SCALE=segments: the subject's scale factors (mocap2myo.scaling) from its static
+  frames (static_frames, here in the subject's own size), and the scaled model."""
+  from mocap2myo import ik as mk
+  from mocap2myo import landmarks
+  from mocap2myo import scaling
+  loaded = [mk.load_trial(os.path.join(NPZ, f"{t}.npz"), lowpass_hz=LOWPASS_HZ or None, mm=mm0)
+            for t in config.trials(NPZ) if config.subject_of(t) == subj]
+  s = loaded[0][2]  # model height / subject height: the frames back to the subject's size
+  P = static_frames(subj, [(P, rate) for P, rate, _ in loaded], mm0) / s
+  data = scaling.measure(mm0, P, mm0.model_height / s, keep_uniform=config.SCALE_UNIFORM)
+  data["source"] = ("static trial" if os.path.exists(os.path.join(NPZ, "static", f"{subj}.npz"))
+                    else "quiet standing in the trials")
+  sc = scaling.Scaling(data)
+  mm = mk.MarkerModel(mm0.profile, mm0.ms, neck=config.NECK, scaling=sc)
+  h = landmarks.compute(mm.profile, m=mm.m).model_height
+  data["scaled_model_height_m"] = None if h is None else round(float(h), 4)
+  sc.save(config.scale_file(subj))
+  print(f"  {subj} scale factors (lateral, anterior, superior): "
+        + ", ".join(f"{g} {np.round(f, 3).tolist() if len(set(f)) > 1 else round(f[0], 3)}"
+                    for g, f in data["factors"].items())
+        + f"; uniform {data['uniform']:.3f}; scaled model height {data['scaled_model_height_m']} m "
+        f"(subject {data['height_m']:.3f} m)", flush=True)
+  return mm
+
+
 def calib(subj):
   from mocap2myo import ik as mk
   f = os.path.join(OUT, f"{subj}_offsets.npz")
   if os.path.exists(f):
+    config.check_scale(f, np.load(f))
     return subj, "cached"
   mm = config.marker_model(neck=config.NECK)
+  if config.SCALE == "segments":
+    mm = (config.marker_model(neck=config.NECK, subject=subj)
+          if os.path.exists(config.scale_file(subj)) else scale_subject(subj, mm))
   loaded = [mk.load_trial(os.path.join(NPZ, f"{t}.npz"), lowpass_hz=LOWPASS_HZ or None, mm=mm)[:2]
             for t in config.trials(NPZ) if config.subject_of(t) == subj]
   trials = [P for P, _ in loaded]
@@ -135,10 +170,16 @@ def calib(subj):
   # marker, then moved that marker's offset to where it was -- case study: offsets of
   # two subjects drifted 34-40 mm (median), tracking error +4-5 mm; robust is for
   # tracking only
+  extra = {}
+  if config.SCALE == "segments":
+    from mocap2myo import scaling
+    extra["scale_mode"] = config.SCALE
+    scaling.write_mjcf(mm.profile, mm.scaling, os.path.join(OUT, f"{subj}_model.xml"),
+                       markers=(mm.ms, off, mm.active))
   np.savez(f[:-4] + ".part.npz", offsets=off, labels=np.array(mm.ms.LABELS), static=STATIC,
            static_share=STATIC_SHARE, static_w=STATIC_W, static_markers=STATIC_MARKERS,
            neck=config.NECK, model_profile=mm.profile.name, marker_set=mm.ms.key,
-           active=mm.active)
+           active=mm.active, **extra)
   os.replace(f[:-4] + ".part.npz", f)
   return subj, "done"
 
@@ -152,15 +193,17 @@ def load(name):
   f = os.path.join(OUT, f"{name}{'_' + rng.replace(':', '-') if rng else ''}.npz")
   if os.path.exists(f):
     return None
-  mm = config.marker_model(neck=config.NECK)
+  mm = config.marker_model(neck=config.NECK, subject=config.subject_of(name))
   P, rate, s = mk.load_trial(os.path.join(NPZ, f"{name}.npz"), lowpass_hz=LOWPASS_HZ or None, mm=mm)
   if rng:
     a, b = (int(x) for x in rng.split(":"))
     P = P[a:b]
-  cal = np.load(os.path.join(OUT, f"{config.subject_of(name)}_offsets.npz"))
+  calf = os.path.join(OUT, f"{config.subject_of(name)}_offsets.npz")
+  cal = np.load(calf)
   if "model_profile" in cal.files and str(cal["model_profile"]) != mm.profile.name:
     raise SystemExit(f"{name}: the subject's calibration is for {cal['model_profile']}, "
                      f"not M2M_MODEL={mm.profile.name}")
+  config.check_scale(calf, cal)
   mm.set_offsets(cal["offsets"])
   if "active" in cal.files:  # markers the calibration switched off (no landmark on the model)
     mm.active &= cal["active"].astype(bool)
@@ -186,6 +229,8 @@ def save(t, mm, active, Q, E, device="cpu"):
   extra = dict(neck_qpos=neck.astype(np.float32), neck_joints=np.array(mk.NECK)) if mm.neck else {}
   if device == "gpu":
     extra["ik_device"] = "gpu"
+  if config.SCALE == "segments":
+    extra["scale_mode"] = config.SCALE
   solved = ~np.isnan(E).all(1)  # ik_trial leaves the error of unsolved frames all NaN
   rejected = np.isnan(E) & ~np.isnan(P[..., 0]) & solved[:, None] & active
   np.savez_compressed(tmp, qpos=Q.astype(np.float32), marker_err=E.astype(np.float32),
@@ -277,7 +322,11 @@ def main():
   if calib_only:
     return
   if IK_DEVICE == "gpu":  # every trial in one batch on the GPU
-    ik_gpu(names, ctx, workers)
+    if config.SCALE == "segments":  # each subject's own scaled model: one batch per subject
+      for subj in subjects:
+        ik_gpu([n for n in names if config.subject_of(n) == subj], ctx, workers)
+    else:
+      ik_gpu(names, ctx, workers)
     return
   with ctx.Pool(min(len(names), workers)) as pool:
     for name, msg, dt in pool.imap_unordered(ik, names):

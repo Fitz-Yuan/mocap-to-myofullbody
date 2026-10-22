@@ -165,7 +165,8 @@ class Kinetics:
   def solve(self, K, rate, scale, body_kg, extra_kg=None, loads=(), floor_z=None, lp_hz=6.0, plates=None,
             legs=True, split="lever"):
     """K: self.kinematics(Q) for IK qpos Q in model units (the model is uniformly `scale` x
-    the subject).
+    the subject; a model scaled to the subject segment by segment, mocap2myo.scaling, has
+    scale 1). Masses: the model's mass distribution at body_kg.
     extra_kg: {body name: kg} carried on the body (lumped at that body's centre of mass).
     loads: external loads on bodies, subject units / world frame, each a dict(body=id,
     point=[T,3], force=[T,3], torque=[T,3]). floor_z: floor height [T] (subject units) as
