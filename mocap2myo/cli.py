@@ -3,6 +3,7 @@
   mocap2myo init [PROFILE.toml]          write a dataset profile from a few questions
   mocap2myo check [--dataset P]          what the pipeline would read, before it runs
   mocap2myo run [--dataset P] [...]      the stages, raw files to joint loads
+  mocap2myo export motion|c3d|viewer OUT motion clips for training, gap-filled C3D, viewer clips
   mocap2myo demo [DIR]                   one public walking trial end to end (~0.5 MB download)
   mocap2myo models [PROFILE ...]         fetch and build the models not in the repository
 
@@ -170,6 +171,18 @@ def cmd_demo(args):
         "docs/viewer/index.html)")
 
 
+def cmd_export(args):
+  env = _env(args)
+  if args.what == "motion":
+    _py("pipeline/export_motion.py", env, [args.out, "--fps", str(args.fps), *args.trials])
+  elif args.what == "c3d":
+    _py("pipeline/export_c3d.py", env, [args.out, *args.trials])
+  else:  # viewer: the model once, then one clip per trial
+    _py("pipeline/export_viewer.py", env, ["model", args.out])
+    for t in args.trials:
+      _py("pipeline/export_viewer.py", env, ["clip", t, args.out])
+
+
 def cmd_models(args):
   _py("models/fetch.py", dict(os.environ), args.rest)
 
@@ -187,12 +200,12 @@ def cmd_init(args):
   out = Path(args.profile or "my_dataset.toml")
   root = Path(_ask("Folder of the recordings (trial files, possibly in one folder per subject)", ".")).resolve()
   kinds = {}
-  for k in ("c3d", "trc", "tak", "b3d"):
+  for k in ("c3d", "trc", "tak", "b3d", "csv"):
     n = len(list(root.rglob(f"*.{k}")))
     if n:
       kinds[k] = n
   if not kinds:
-    raise SystemExit(f"no .c3d / .trc / .tak / .b3d files under {root}")
+    raise SystemExit(f"no .c3d / .trc / .tak / .b3d / .csv files under {root}")
   kind = max(kinds, key=kinds.get)
   print(f"  found {kinds}; input: {kind}")
   files = sorted(root.rglob(f"*.{kind}"))
@@ -305,6 +318,12 @@ def main(argv=None):
   i = sub.add_parser("init", help="write a dataset profile")
   i.add_argument("profile", nargs="?")
   i.set_defaults(fn=cmd_init)
+  e = sub.add_parser("export", parents=[common], help="motion clips for training, gap-filled C3D, viewer clips")
+  e.add_argument("what", choices=["motion", "c3d", "viewer"])
+  e.add_argument("out", help="output folder")
+  e.add_argument("trials", nargs="*", help="only these trials (viewer: the trials to export)")
+  e.add_argument("--fps", type=float, default=100.0, help="motion: the clips' rate")
+  e.set_defaults(fn=cmd_export)
   m = sub.add_parser("models", help="fetch / build the other models (models/fetch.py)")
   m.add_argument("rest", nargs=argparse.REMAINDER)
   m.set_defaults(fn=cmd_models)

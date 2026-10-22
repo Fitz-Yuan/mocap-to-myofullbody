@@ -1,8 +1,8 @@
 """Read one trial file of any supported kind into one structure: C3D, TRC, OptiTrack .tak,
-AddBiomechanics .b3d (one trial of it: "<file>.b3d#<trial>").
+an OptiTrack Motive CSV export, AddBiomechanics .b3d (one trial of it: "<file>.b3d#<trial>").
 
 read_trial(path) -> dict
-  kind        "c3d" | "trc" | "tak"
+  kind        "c3d" | "trc" | "tak" | "csv" | "b3d"
   labels      [n] marker labels ("Subject:" prefixes stripped)
   xyz         [T, n, 3] metres, NaN = missing (C3D: residual < 0; any kind: a sample
               that is exactly (0, 0, 0) or NaN)
@@ -38,8 +38,8 @@ read_trial(path) -> dict
 
 Up axis: up="z" | "y" | "x" (or "-z", ...) names the axis that points up in the file;
 "auto" finds it from the marker labels: the axis along which head / upper-trunk markers
-(…FHD, C7, CV7, CLAV, SJN, SHO, SAE, ...) sit farthest above foot markers (…HEE, TOE,
-FCC, FM1, ANK, ...), median over the frames.
+(…FHD, C7, CV7, CLAV, SJN, SHO, SAE, Motive's HeadTop, the pelvis's ASI / PSI, ...) sit farthest above foot markers
+(…HEE, TOE, FCC, FM1, ANK, Motive's Heel, ToeIn, ...), median over the frames.
 
 C3D needs ezc3d (pip install -e ".[c3d]"), .tak olefile (".[tak]"), .b3d nimblephysics.
 
@@ -58,15 +58,17 @@ MOMENT = {"nm": 1.0, "n.m": 1.0, "n·m": 1.0, "nmm": 0.001, "n.mm": 0.001, "n·m
 TYPE_GROUPS = {"ANGLES": "ANGLE_UNITS", "FORCES": "FORCE_UNITS", "MOMENTS": "MOMENT_UNITS",
                "POWERS": "POWER_UNITS", "SCALARS": "SCALAR_UNITS",
                "REACTIONS": "REACTION_UNITS", "MODELED_MARKERS": "MODELED_MARKER_UNITS"}
-_UPPER = re.compile(r"(FHD|BHD|HEAD|C7|CV7|CLAV|SJN|STRN|SXS|SHO|SAE|CAJ|ACR)$")
-_FOOT = re.compile(r"(HEE|HEEL|TOE|FCC|FM[1-5]|MT[1-5]|MTH[1-5]?|ANK|FAL|TAM)$")
+# head, upper trunk and pelvis (a lower-body set has only the pelvis); compared upper-case
+_UPPER = re.compile(r"(FHD|BHD|HEAD|C7|CV7|CLAV|SJN|STRN|SXS|SHO|SAE|CAJ|ACR|HEADTOP|HEADFRONT|BACKTOP|SHOULDERTOP"
+                    r"|ASI|PSI|IAS|IPS|WAISTLFRONT|WAISTRFRONT)$")
+_FOOT = re.compile(r"(HEE|HEEL|TOE|FCC|FM[1-5]|MT[1-5]|MTH[1-5]?|ANK|FAL|TAM|TOEIN|TOEOUT|TOETIP|ANKLEOUT)$")
 _AXES = {"x": 0, "y": 1, "z": 2}
 
 
 def kind_of(path):
   ext = os.path.splitext(path.partition("#")[0])[1].lower().lstrip(".")
-  if ext not in ("c3d", "trc", "tak", "b3d"):
-    raise ValueError(f"{path}: unknown file kind {ext!r} (c3d, trc, tak, b3d)")
+  if ext not in ("c3d", "trc", "tak", "b3d", "csv"):
+    raise ValueError(f"{path}: unknown file kind {ext!r} (c3d, trc, tak, b3d, csv)")
   return ext
 
 
@@ -333,6 +335,62 @@ def read_tak_file(path, up=None):
               rigid_bodies=tk["rigid_bodies"])
 
 
+MOTIVE_UNITS = {"meters": 1.0, "millimeters": 0.001, "centimeters": 0.01}
+
+
+def read_motive_csv(path, up=None, units=None):
+  """An OptiTrack Motive CSV export (format versions 1.1-1.25): the labelled markers ("Marker"
+  columns; names stripped of their skeleton prefix, "Unlabeled N" kept as they are), the
+  export rate and length unit from the first line (Motive's "Coordinate Space" option moves the
+  bones and rigid bodies only; markers are in the world frame). The skeleton's "Bone Marker" columns are
+  where the solved skeleton expects its markers, not measurements, and are not read: an
+  export with nothing else stops with a message."""
+  import csv
+  with open(path, newline="", encoding="utf-8-sig") as f:
+    rows = list(csv.reader(f))
+  meta = rows[0]
+  md = {meta[i].strip(): meta[i + 1].strip() for i in range(0, len(meta) - 1, 2)}
+  if "Format Version" not in md:
+    raise ValueError(f"{path}: not a Motive CSV export (no 'Format Version' on the first line)")
+  fi = next((i for i, r in enumerate(rows) if r and r[0].strip() == "Frame"), None)
+  if fi is None or fi < 4:
+    raise ValueError(f"{path}: no header row starting with 'Frame'")
+  # the header rows above the components: type, name, ID (and parent), property
+  head = [r for r in rows[1:fi] if any(c.strip() for c in r)]
+  typ = next((r for r in head if len(r) > 1 and r[1].strip() == "Type"), head[0])
+  name = next((r for r in head if len(r) > 1 and r[1].strip() == "Name"), head[1])
+  prop, comp = rows[fi - 1], rows[fi]
+  cols = {}
+  for j in range(2, len(comp)):
+    t = typ[j].strip() if j < len(typ) else ""
+    if t == "Marker" and j < len(prop) and prop[j].strip() == "Position" and comp[j].strip() in "XYZ":
+      cols.setdefault(strip_prefix(name[j].strip()), {})[comp[j].strip()] = j
+  kinds = sorted({c.strip() for c in typ[2:] if c.strip()})
+  if not cols:
+    raise ValueError(f"{path}: no measured markers (columns of type {kinds}); export from Motive "
+                     "with Markers ticked (Bone Markers are the skeleton's, not measurements)")
+  labels = [l for l, c in cols.items() if set(c) == set("XYZ")]
+  idx = [cols[l][a] for l in labels for a in "XYZ"]
+  data = rows[fi + 1:]
+  A = np.full((len(data), len(idx)), np.nan)
+  for i, r in enumerate(data):
+    for k, j in enumerate(idx):
+      v = r[j].strip() if j < len(r) else ""
+      if v:
+        A[i, k] = float(v)
+  unit = (units or md.get("Length Units", "Meters")).lower()
+  scale = MOTIVE_UNITS.get(unit, LENGTH.get(unit))
+  if scale is None:
+    raise ValueError(f"{path}: length unit {unit!r}; set it (m, cm, mm)")
+  X = _missing(A.reshape(len(data), len(labels), 3)) * scale
+  if up == "auto":
+    up = detect_up(labels, X)
+  R = up_rotation(up) if up else np.eye(3)
+  rate = float(md.get("Export Frame Rate") or md.get("Capture Frame Rate"))
+  return dict(kind="csv", labels=labels, xyz=X @ R.T, rate=rate, up=up, R=R, units=unit,
+              other=None, analog=None, plates=None)
+
+
 def b3d_trials(path):
   """Trial names of an AddBiomechanics .b3d file (nimblephysics)."""
   import nimblephysics as nimble  # optional dependency (pip install nimblephysics): .b3d only
@@ -427,7 +485,9 @@ def read_trial(path, kind=None, up=None, units=None, exclude="", analog=".*",
     return read_tak_file(path, up)
   if kind == "b3d":
     return read_b3d(path, up, fp_min_fz)
-  raise ValueError(f"kind {kind!r}: expected c3d, trc, tak or b3d")
+  if kind == "csv":
+    return read_motive_csv(path, up, units)
+  raise ValueError(f"kind {kind!r}: expected c3d, trc, tak, b3d or csv")
 
 
 if __name__ == "__main__":

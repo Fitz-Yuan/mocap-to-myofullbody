@@ -182,7 +182,7 @@ else:  # a relative root in a profile: relative to the profile's folder
   ROOT = os.path.join(os.path.dirname(os.path.abspath(os.path.expanduser(PROFILE))),
                       os.path.expanduser(_PROFILE["M2M_ROOT"]))
 # input: the raw recordings (M2M_RAW_DIR -> read_raw.py -> M2M_CACHE_DIR)
-INPUT = _choice("M2M_INPUT", "tak", ("tak", "c3d", "trc", "b3d"))  # kind of the raw files
+INPUT = _choice("M2M_INPUT", "tak", ("tak", "c3d", "trc", "b3d", "csv"))  # kind of the raw files (csv: Motive)
 RAW_DIR = _path("M2M_RAW_DIR", os.path.join(ROOT, "raw_tak"))
 CACHE_DIR = _path("M2M_CACHE_DIR",
                   os.path.join(ROOT, "tak_cache" if INPUT == "tak" else "raw_cache"))

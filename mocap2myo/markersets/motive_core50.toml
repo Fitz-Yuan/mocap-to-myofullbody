@@ -1,0 +1,75 @@
+# OptiTrack Motive Baseline + 13 additional markers (50): OptiTrack's marker set for Motive's skeleton solver. Format: mocap2myo/markerset.py.
+# Placements from OptiTrack's documentation (docs.optitrack.com, Markersets): each marker on the
+# landmark it describes, offsets in the segment's anatomical axes (anterior, superior, lateral; mm).
+# Markers placed by eye rather than on a bony landmark (back of the shoulder and upper arm, thigh,
+# shin, forearm, the back of the waist, the head) are 'loose': the calibration places them.
+# Motive labels them through its skeleton, so the head markers keep their labels (head_reorder).
+name = "OptiTrack Motive Baseline + 13 additional markers (50)"
+description = "OptiTrack Motive Baseline + 13 additional markers (50) skeleton marker set (50 markers)"
+sides = { l = "L", r = "R" }
+
+[markers]
+HeadTop = { segment = "head", landmark = "head_top", offset_mm = [0, 12, 0], weight = 0.3, group = "loose" }
+HeadFront = { segment = "head", landmark = "forehead_l", offset_mm = [10, 10, -35], weight = 0.3, group = "loose" }
+HeadLeft = { segment = "head", landmark = "head_top", offset_mm = [-10, -80, 75], weight = 0.3, group = "loose" }
+HeadRight = { segment = "head", landmark = "head_top", offset_mm = [-10, -80, -75], weight = 0.3, group = "loose" }
+BackTop = { segment = "torso", landmark = "c7", offset_mm = [-12, -20, 0], weight = 1.0 }
+ChestTop = { segment = "torso", landmark = "jugular", offset_mm = [12, -50, 0], weight = 1.0 }
+ChestLow = { segment = "torso", landmark = "xiphoid", offset_mm = [12, 0, 0], weight = 1.0, group = "loose" }
+BackLeft = { segment = "torso", landmark = "scap_inf_angle_l", offset_mm = [-12, -40, 0], weight = 0.5, group = "loose" }
+BackRight = { segment = "torso", landmark = "scap_inf_angle_r", offset_mm = [-12, -40, 0], weight = 0.5, group = "loose" }
+WaistLFront = { segment = "pelvis", landmark = "asis_l", offset_mm = [12, 0, 0], weight = 1.0 }
+WaistRFront = { segment = "pelvis", landmark = "asis_r", offset_mm = [12, 0, 0], weight = 1.0 }
+WaistLBack = { segment = "pelvis", landmark = "psis_l", offset_mm = [-12, 20, 30], weight = 1.0, group = "loose" }
+WaistRBack = { segment = "pelvis", landmark = "psis_r", offset_mm = [-12, 20, 30], weight = 1.0, group = "loose" }
+WaistCBack = { segment = "pelvis", landmark = "sacrum", offset_mm = [-15, 50, 0], weight = 0.5, group = "loose" }
+LShoulderBack = { segment = "scapula_l", landmark = "shoulder_l", offset_mm = [-45, 0, 0], weight = 0.5, group = "loose" }
+RShoulderBack = { segment = "scapula_r", landmark = "shoulder_r", offset_mm = [-45, 0, 0], weight = 0.5, group = "loose" }
+LShoulderTop = { segment = "scapula_l", landmark = "acromion_l", offset_mm = [0, 12, -15], weight = 1.0 }
+RShoulderTop = { segment = "scapula_r", landmark = "acromion_r", offset_mm = [0, 12, -15], weight = 1.0 }
+LElbowOut = { segment = "humerus_l", landmark = "epicondyle_lat_l", offset_mm = [0, 0, 12], weight = 1.0 }
+RElbowOut = { segment = "humerus_r", landmark = "epicondyle_lat_r", offset_mm = [0, 0, 12], weight = 1.0 }
+LUArmHigh = { segment = "humerus_l", landmark = "shoulder_l", offset_mm = [-45, 0, 0], weight = 0.5, along = ["elbow_l", 0.3], group = "loose" }
+RUArmHigh = { segment = "humerus_r", landmark = "shoulder_r", offset_mm = [-45, 0, 0], weight = 0.5, along = ["elbow_r", 0.3], group = "loose" }
+LFArm = { segment = "radius_l", landmark = "elbow_l", offset_mm = [35, 0, 0], weight = 0.5, along = ["wrist_l", 0.45], group = "loose" }
+RFArm = { segment = "radius_r", landmark = "elbow_r", offset_mm = [35, 0, 0], weight = 0.5, along = ["wrist_r", 0.45], group = "loose" }
+LWristOut = { segment = "radius_l", landmark = "styloid_rad_l", offset_mm = [0, -10, 8], weight = 1.0 }
+RWristOut = { segment = "radius_r", landmark = "styloid_rad_r", offset_mm = [0, -10, 8], weight = 1.0 }
+LWristIn = { segment = "ulna_l", landmark = "styloid_uln_l", offset_mm = [-5, -10, -6], weight = 1.0 }
+RWristIn = { segment = "ulna_r", landmark = "styloid_uln_r", offset_mm = [-5, -10, -6], weight = 1.0 }
+LHandOut = { segment = "hand_l", landmark = "mc5_head_l", offset_mm = [-10, 15, 0], weight = 1.0 }
+RHandOut = { segment = "hand_r", landmark = "mc5_head_r", offset_mm = [-10, 15, 0], weight = 1.0 }
+LHandIn = { segment = "hand_l", landmark = "mc2_head_l", offset_mm = [-10, 15, 0], weight = 1.0 }
+RHandIn = { segment = "hand_r", landmark = "mc2_head_r", offset_mm = [-10, 15, 0], weight = 1.0 }
+LThighFront = { segment = "femur_l", landmark = "hip_l", offset_mm = [70, 0, 0], weight = 0.5, along = ["knee_l", 0.5], group = "loose" }
+RThighFront = { segment = "femur_r", landmark = "hip_r", offset_mm = [70, 0, 0], weight = 0.5, along = ["knee_r", 0.5], group = "loose" }
+LThighSide = { segment = "femur_l", landmark = "hip_l", offset_mm = [0, 0, 70], weight = 0.5, along = ["knee_l", 0.5], group = "loose" }
+RThighSide = { segment = "femur_r", landmark = "hip_r", offset_mm = [0, 0, 70], weight = 0.5, along = ["knee_r", 0.5], group = "loose" }
+LKneeOut = { segment = "femur_l", landmark = "femur_epi_lat_l", offset_mm = [0, 0, 12], weight = 1.0 }
+RKneeOut = { segment = "femur_r", landmark = "femur_epi_lat_r", offset_mm = [0, 0, 12], weight = 1.0 }
+LShin = { segment = "tibia_l", landmark = "knee_l", offset_mm = [45, 0, 0], weight = 0.5, along = ["ankle_l", 0.5], group = "loose" }
+RShin = { segment = "tibia_r", landmark = "knee_r", offset_mm = [45, 0, 0], weight = 0.5, along = ["ankle_r", 0.5], group = "loose" }
+LAnkleOut = { segment = "tibia_l", landmark = "malleolus_lat_l", offset_mm = [0, 0, 12], weight = 1.0, group = "foot" }
+RAnkleOut = { segment = "tibia_r", landmark = "malleolus_lat_r", offset_mm = [0, 0, 12], weight = 1.0, group = "foot" }
+LToeOut = { segment = "foot_l", landmark = "mt5_head_l", offset_mm = [0, 12, 0], weight = 1.0, group = "foot" }
+RToeOut = { segment = "foot_r", landmark = "mt5_head_r", offset_mm = [0, 12, 0], weight = 1.0, group = "foot" }
+LToeIn = { segment = "foot_l", landmark = "mt1_head_l", offset_mm = [0, 12, 0], weight = 1.0, group = "foot" }
+RToeIn = { segment = "foot_r", landmark = "mt1_head_r", offset_mm = [0, 12, 0], weight = 1.0, group = "foot" }
+LHeel = { segment = "foot_l", landmark = "heel_l", offset_mm = [-12, 0, 0], weight = 1.0, group = "foot" }
+RHeel = { segment = "foot_r", landmark = "heel_r", offset_mm = [-12, 0, 0], weight = 1.0, group = "foot" }
+LToeTip = { segment = "toes_l", landmark = "toe_l", offset_mm = [8, 8, 0], weight = 0.5, group = "foot" }
+RToeTip = { segment = "toes_r", landmark = "toe_r", offset_mm = [8, 8, 0], weight = 0.5, group = "foot" }
+
+[roles]
+# no front / back, left / right reordering of the head: Motive's labels are kept
+head_reorder = false
+head = { HeadFront = [1, 0], HeadTop = [0, 0], HeadLeft = [0, 1], HeadRight = [0, -1] }
+pelvis = ["WaistLFront", "WaistRFront", "WaistLBack", "WaistRBack"]
+heel = { l = "LHeel", r = "RHeel" }
+toe = { l = "LToeIn", r = "RToeIn" }
+ankles = ["LAnkleOut", "RAnkleOut"]
+
+[aliases.motive_names]   # other Motive versions' names for the same markers
+LThigh = "LThighFront"
+RThigh = "RThighFront"
+Chest = "ChestTop"

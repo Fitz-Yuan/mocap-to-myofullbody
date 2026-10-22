@@ -198,7 +198,7 @@ def place_head(P, H):
   if not ms.HEAD_LABELS:
     return ()
   hk = [ms.LABELS.index(l) for l in ms.HEAD_LABELS]
-  if H is None:
+  if H is None or not ms.HEAD_REORDER:
     return tuple(range(len(hk)))
   P[:, hk], order = assign_head(P, H)
   return order

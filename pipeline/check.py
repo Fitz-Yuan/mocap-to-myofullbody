@@ -137,8 +137,16 @@ def check_markers(labels):
   frac = len(have) / len(ms.LABELS)
   msg = (f"marker set {ms.name}{f' (alias set {bname})' if bname else ''}: {len(have)} of "
          f"{len(ms.LABELS)} markers; missing {miss[:10]}{'...' if len(miss) > 10 else ''}")
-  (ok if frac >= 0.8 else warn if frac >= 0.5 else bad)(msg + ("" if frac >= 0.5 else
-                                                              " (another M2M_MARKER_SET? mocap2myo/markersets)"))
+  legs = {"pelvis", "femur_l", "femur_r", "tibia_l", "tibia_r", "foot_l", "foot_r", "toes_l", "toes_r"}
+  leg_labels = [l for l in ms.LABELS if ms.segment(l) in legs]
+  legs_only = frac < 0.8 and all(l in mapped for l in leg_labels if ms.markers[l].group != "loose") \
+    and not any(l in mapped for l in ms.LABELS if ms.segment(l) not in legs and not ms.HEAD[ms.LABELS.index(l)])
+  if legs_only:
+    warn(msg + ": a lower-body recording; use a legs model (M2M_MODEL=myoleg or ms_human_700_locomotion), "
+         "else the trunk and arms only follow the model's defaults")
+  else:
+    (ok if frac >= 0.8 else warn if frac >= 0.5 else bad)(msg + ("" if frac >= 0.5 else
+                                                                " (another M2M_MARKER_SET? mocap2myo/markersets)"))
   if unknown:
     ok(f"{len(unknown)} labels not in the set (left out): {unknown[:8]}{'...' if len(unknown) > 8 else ''}")
   pel = [l for l in ms.PELVIS_LABELS if l not in mapped]

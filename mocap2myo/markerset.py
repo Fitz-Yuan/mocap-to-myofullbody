@@ -100,6 +100,9 @@ class MarkerSet:
     self.LABELS = list(self.markers)
     self.MARKERS = {l: (m.segment, m.weight) for l, m in self.markers.items()}
     self.head = {l: tuple(v) for l, v in roles.get("head", {}).items()}
+    # False: the head markers keep their labels (no reordering by position; Motive's skeleton
+    # labels them reliably, and a single side marker has no fixed side)
+    self.HEAD_REORDER = bool(roles.get("head_reorder", True))
     self.HEAD_LABELS = tuple(self.head)
     self.HEAD = np.array([l in self.head for l in self.LABELS])
     self.PELVIS_LABELS = tuple(roles["pelvis"])
