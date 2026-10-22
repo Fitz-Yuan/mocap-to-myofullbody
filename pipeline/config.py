@@ -541,11 +541,14 @@ KIN_FILTER_PLATES = _flag("M2M_KIN_FILTER_PLATES", "1")
 # 20 N m (Moissenet, 40 trials); the case study's right-foot share of the vertical force
 # against its plates: RMS error 0.080 -> 0.070, r 0.88 both
 KIN_SPLIT = _choice("M2M_KIN_SPLIT", "lever", ("lever", "vpp"))
-# segment masses: "model" (the model's own distribution scaled to the body mass, as OpenSim's
-# Scale tool keeps it), "deleva" (de Leva 1996, by sex with M2M_SEX_COLUMN, else the mean of
-# the male and female tables) or "dempster" (Dempster 1955 as Winter 2009 tabulates it, as
-# Vicon Plug-in-Gait); mocap2myo.kinetics.bsip_factors
-KIN_BSIP = _choice("M2M_KIN_BSIP", "model", ("model", "deleva", "dempster"))
+# segment masses: "deleva" (de Leva 1996, by sex with M2M_SEX_COLUMN, else the mean of the
+# male and female tables; the default), "dempster" (Dempster 1955 as Winter 2009 tabulates it,
+# as Vicon Plug-in-Gait) or "model" (the model's own distribution scaled to the body mass, as
+# OpenSim's Scale tool keeps it; MyoFullBody's head and neck are 2.8 % of the body against
+# 6.7-8.1 % in the tables). The total ground force and the leg moments in stance barely
+# change between them; L5/S1 does (case study, 95th pct extension: model 178, de Leva 187,
+# Dempster 203 N m; OpenSim ID with the same loads 185). mocap2myo.kinetics.bsip_factors
+KIN_BSIP = _choice("M2M_KIN_BSIP", "deleva", ("deleva", "dempster", "model"))
 # Mass while recorded, if the subjects wore equipment (here the COSMED K5 metabolic
 # system, about 1-3 kg): a column of the anthropometrics CSV with the total mass; the
 # difference to the body mass is lumped at CARRIED_BODY's centre of mass. "" = none.
