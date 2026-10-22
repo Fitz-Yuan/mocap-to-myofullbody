@@ -345,6 +345,51 @@ def feet_from_plates(plates, foot_F, foot_cop, foot_free, contact, sole, sole_id
   return foot_F, foot_cop, foot_free, source, contact
 
 
+def lowpass_plates(plates, rate, hz, min_fz=20.0):
+  """The force plates low-passed with the filter solve() puts on the body positions
+  (lowpass: 4th-order Butterworth, zero phase, `hz`). Motion and force filtered differently
+  put impact artefacts into the joint moments around heel strike, the hip's most
+  (Kristianslund, Krosshaug & van den Bogert 2012, J Biomech 45:666-671); filtered alike,
+  the two sides of the equations of motion carry the same frequencies.
+
+  plates: dict(force [T, P, 3], cop [T, P, 3], free [T, P], corners [P, 4, 3]) as
+  pipeline/kinetics.py reads them (frames with no centre of pressure: the plate carries less
+  than min_fz). Per plate, the force and its moment about the plate centre (both zero while
+  the plate is unloaded, rather than filtered through NaN) are filtered over each finite run
+  of frames; the centre of pressure on the plate surface and the free moment about the
+  vertical are then solved from the filtered force and moment where the filtered vertical
+  force reaches min_fz (exactly: no change without the filter, inclined plates included).
+  Returns a dict like `plates` (without corners)."""
+  F = np.asarray(plates["force"], float)
+  cop, free = np.asarray(plates["cop"], float), np.asarray(plates["free"], float)
+  corners = np.asarray(plates["corners"], float)
+  centre = corners.mean(1)  # [P, 3]
+  ez = np.array([0.0, 0.0, 1.0])
+  loaded = np.isfinite(F).all(-1) & np.isfinite(cop).all(-1) & np.isfinite(free)
+  M = np.cross(cop - centre[None], F) + free[..., None] * ez  # about the plate centre
+  F, M = np.where(loaded[..., None], F, 0.0), np.where(loaded[..., None], M, 0.0)
+  ok = np.isfinite(plates["force"]).all(-1).all(-1)  # frames the plates recorded
+  Ff, Mf = F.copy(), M.copy()
+  idx = np.flatnonzero(ok)
+  pad = 3 * 5  # filtfilt's default padding for a 4th-order filter
+  for r in np.split(idx, np.flatnonzero(np.diff(idx) != 1) + 1):
+    if len(r) > pad:
+      Ff[r], Mf[r] = lowpass(F[r], rate, hz), lowpass(M[r], rate, hz)
+  Ff[~ok], Mf[~ok] = np.nan, np.nan
+  # centre of pressure c + a u + b v on the plate's plane and free moment f about the
+  # vertical: (a u + b v) x F + f ez = M, three equations in (a, b, f)
+  out_cop, out_free = np.full_like(cop, np.nan), np.full_like(free, np.nan)
+  for p in range(len(corners)):
+    u, v = np.linalg.svd(corners[p] - centre[p])[2][:2]
+    on = np.flatnonzero(Ff[:, p, 2] >= min_fz)
+    A = np.stack([np.cross(u, Ff[on, p]), np.cross(v, Ff[on, p]),
+                  np.broadcast_to(ez, (len(on), 3))], -1)
+    x = np.linalg.solve(A, Mf[on, p][..., None])[..., 0]
+    out_cop[on, p] = centre[p] + x[:, :1] * u + x[:, 1:2] * v
+    out_free[on, p] = x[:, 2]
+  return dict(force=Ff, cop=out_cop, free=out_free)
+
+
 def plates_check(plates, contact, source, F):
   """Where every loaded foot is measured: the plates' total vertical force against the
   whole-body prediction (validation of the dynamics, independent of any split)."""

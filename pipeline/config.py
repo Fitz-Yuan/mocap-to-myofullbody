@@ -474,6 +474,12 @@ KIN_LOWPASS_HZ = float(_env("M2M_KIN_LOWPASS_HZ", 6.0))
 if not KIN_LOWPASS_HZ > 0:
   raise SystemExit(f"M2M_KIN_LOWPASS_HZ={KIN_LOWPASS_HZ}: the inverse dynamics needs a "
                    "low-pass above 0 Hz (default 6)")
+# force plates in the inverse dynamics (C3D inputs): low-passed with the body positions'
+# filter (KIN_LOWPASS_HZ, mocap2myo.kinetics.lowpass_plates), so that force and motion carry
+# the same frequencies; filtered differently they put impact artefacts into the joint
+# moments around heel strike (Kristianslund et al. 2012, J Biomech 45:666). "0": the plates
+# unfiltered (as before; for comparison)
+KIN_FILTER_PLATES = _flag("M2M_KIN_FILTER_PLATES", "1")
 # Mass while recorded, if the subjects wore equipment (here the COSMED K5 metabolic
 # system, about 1-3 kg): a column of the anthropometrics CSV with the total mass; the
 # difference to the body mass is lumped at CARRIED_BODY's centre of mass. "" = none.
