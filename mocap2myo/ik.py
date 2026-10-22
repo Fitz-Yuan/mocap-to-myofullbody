@@ -667,6 +667,26 @@ def standing(P, rate, ms=None):
   return ok & run
 
 
+def first_frame(mm, P, restarts=8, seed=0, outlier=None, mtp_prior=0.0, robust=None):
+  """ik_trial's first solved frame, P [n, 3] with all pelvis markers: the root from the
+  pelvis markers (root_from_pelvis), then `restarts` solves, the first from the reference
+  pose, the others from joint angles drawn uniformly within their limits (seed: an int or a
+  numpy Generator); the best by mean marker error. Returns x, err (MarkerModel.solve) and
+  q_ref, the root orientation x's rotation vector is relative to."""
+  rng = np.random.default_rng(seed)
+  pos, q_ref = root_from_pelvis(mm, P)
+  cands = []
+  for k in range(restarts):
+    xs = np.r_[pos, np.zeros(3), mm.qref[mm.adr]]
+    if k:
+      xs[6:] = mm.lo + rng.random(len(mm.lo)) * (mm.hi - mm.lo)
+    if mtp_prior:
+      xs[6 + mm.mtp] = mm.mtp_q0
+    cands.append(mm.solve(P, xs, q_ref, outlier=outlier, mtp_prior=mtp_prior, robust=robust))
+  x, err = min(cands, key=lambda c: np.nanmean(c[1]))
+  return x, err, q_ref
+
+
 def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
              v_joint=15.0, w_floor=10.0, w_anchor=3.0,
              ankle_smooth=0.3, outlier=None, mtp_prior=0.0, anchor_centroid=False,
@@ -764,17 +784,8 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
         Q[t] = mm.pose(x_prev, q_ref)
       continue
     if x_prev is None:
-      pos, q_ref = root_from_pelvis(mm, P[t])
-      cands = []
-      for k in range(restarts):
-        xs = np.r_[pos, np.zeros(3), mm.qref[mm.adr]]
-        if k:
-          xs[6:] = mm.lo + rng.random(len(mm.lo)) * (mm.hi - mm.lo)
-        if mtp_prior:
-          xs[6 + mm.mtp] = mm.mtp_q0
-        cands.append(mm.solve(P[t], xs, q_ref, outlier=outlier, mtp_prior=mtp_prior,
-                              robust=robust))
-      x, err = min(cands, key=lambda c: np.nanmean(c[1]))
+      x, err, q_ref = first_frame(mm, P[t], restarts, rng, outlier=outlier,
+                                  mtp_prior=mtp_prior, robust=robust)
     else:
       xs = x_prev.copy()
       if root_init == "pelvis" and not np.isnan(P[t, PELVIS, 0]).any():

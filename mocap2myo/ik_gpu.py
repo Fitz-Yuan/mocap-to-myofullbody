@@ -38,6 +38,7 @@ warp (mujoco_warp's warp).
 
 from __future__ import annotations
 
+import contextlib
 import time
 import warnings
 
@@ -48,7 +49,7 @@ import warp as wp
 from scipy.spatial.transform import Rotation as sRot
 
 from mocap2myo import ik as mk
-from mocap2myo import markerset as _markerset
+from mocap2myo.kinematics import apply_joint_equalities
 
 wp.config.quiet = True
 _F64 = wp.float64
@@ -57,28 +58,33 @@ _M33 = wp.mat33d
 _Q = wp.quatd
 
 
-# --- the marker model's settings (ik.MarkerModel; older versions lack some) -------------
+# --- the marker model's settings (ik.MarkerModel) -----------------------------------
 
 def _mm_info(mm):
   """What the solver needs from a MarkerModel: its marker set (labels, head / pelvis
   markers), active markers, reference pose, toe prior target, the joints smoothed
-  harder and the gated ones (MyoFullBody: ankle / subtalar, elv_angle by shoulder_elv)."""
-  ms = getattr(mm, "ms", None) or _markerset
-  nf = len(mm.free)
-  heavy = getattr(mm, "smooth_heavy", None)
-  if heavy is None:
-    heavy = np.array([n.startswith(("ankle_angle", "subtalar")) for n in mm.free])
-  gated = getattr(mm, "smooth_gated", None)
-  if gated is None:
-    gated = [(mm.free.index(f"elv_angle_{sd}"), mm.free.index(f"shoulder_elv_{sd}"))
-             for sd in ("r", "l")]
+  harder (the profile's smooth_heavy) and the gated ones (smooth_gated)."""
+  ms = mm.ms
   return dict(labels=list(ms.LABELS), head=np.asarray(ms.HEAD, bool),
               pelvis=list(ms.PELVIS), pelvis_mask=np.asarray(ms.PELVIS_MASK, bool),
-              active=np.asarray(getattr(mm, "active", np.ones(len(ms.LABELS), bool)), bool),
-              qref=np.asarray(getattr(mm, "qref", mm.m.qpos0), float),
-              mtp=np.asarray(mm.mtp, int),
-              mtp_q0=np.asarray(getattr(mm, "mtp_q0", np.zeros(len(mm.mtp))), float),
-              heavy=np.asarray(heavy, bool), gated=list(gated), nf=nf, ms=getattr(mm, "ms", None))
+              active=np.asarray(mm.active, bool), qref=np.asarray(mm.qref, float),
+              mtp=np.asarray(mm.mtp, int), mtp_q0=np.asarray(mm.mtp_q0, float),
+              heavy=np.asarray(mm.smooth_heavy, bool), gated=list(mm.smooth_gated),
+              nf=len(mm.free), ms=ms)
+
+
+@contextlib.contextmanager
+def _trial(mm, offsets, active):
+  """mm with one trial's marker offsets and active markers inside the block (as
+  pipeline/solve_ik.py sets them; mm's own restored after)."""
+  keep = mm.m.site_pos[mm.sid].copy(), mm.active, mm.w
+  mm.set_offsets(offsets)
+  mm.active, mm.w = active, np.where(active, mm.w, 0.0)
+  try:
+    yield mm
+  finally:
+    mm.set_offsets(keep[0])
+    mm.active, mm.w = keep[1], keep[2]
 
 
 # --- kinematics: warp kernels ---------------------------------------------------
@@ -215,17 +221,40 @@ class GpuKinematics:
         need.add(int(b))
         b = int(m.body_parentid[b])
     order = sorted(need)  # MuJoCo bodies are in topological order
-    root_body = int(m.jnt_bodyid[0])
-    assert m.jnt_type[0] == mujoco.mjtJoint.mjJNT_FREE and order[0] == root_body
+    prof = getattr(mm, "profile", None)
+    root_j = m.joint(prof.root_joint).id if prof is not None else 0
+    root_body = int(m.jnt_bodyid[root_j])
+    if m.jnt_type[root_j] != mujoco.mjtJoint.mjJNT_FREE or m.jnt_qposadr[root_j] != 0 \
+       or order[0] != root_body:
+      raise NotImplementedError("GPU IK: the markers' bodies must hang from the root body's "
+                                "free joint (qpos[0:7])")
     idx = {b: i for i, b in enumerate(order)}
-    # joint equalities: follower joint -> (leader joint, coefficients)
-    lead = {}
+    free_jid = [m.joint(n).id for n in mm.free]
+    kfree = {j: k for k, j in enumerate(free_jid)}
+    # What each joint is in MarkerModel.pose (the reference pose, the free joints, then
+    # kinematics.apply_joint_equalities in MuJoCo's order): a free joint of the IK, an
+    # equality follower of one (lead: joint -> (leader, polynomial)), or a constant (the
+    # reference pose with the equalities applied, qc). Taken through the equalities in
+    # their order, as the CPU applies them.
+    lead, dep = {}, set(kfree)
     for e in range(m.neq):
       if m.eq_type[e] != mujoco.mjtEq.mjEQ_JOINT:
         continue
-      lead[int(m.eq_obj1id[e])] = (int(m.eq_obj2id[e]), m.eq_data[e][:5].copy())
-    free_jid = [m.joint(n).id for n in mm.free]
-    kfree = {j: k for k, j in enumerate(free_jid)}
+      j1, j2 = int(m.eq_obj1id[e]), int(m.eq_obj2id[e])
+      if j1 in kfree:
+        raise NotImplementedError(f"GPU IK: {m.joint(j1).name} is an IK joint and an "
+                                  "equality follower")
+      if j2 in dep and j2 not in kfree:
+        raise NotImplementedError(f"GPU IK: {m.joint(j1).name} follows {m.joint(j2).name}, "
+                                  "itself an equality follower (chained equalities)")
+      if j2 >= 0 and j2 in kfree:
+        lead[j1] = (j2, m.eq_data[e][:5].copy())
+        dep.add(j1)
+      else:
+        lead.pop(j1, None)
+        dep.discard(j1)
+    qc = qref.copy()
+    apply_joint_equalities(m, qc)
     bp, bpos, bR, bja, bjn = [], [], [], [], []
     jt, jax, jpos, jmode, jk, jlq0, jcoef = [], [], [], [], [], [], []
     for b in order:
@@ -236,10 +265,12 @@ class GpuKinematics:
       bR.append(R.reshape(3, 3))
       bja.append(len(jt))
       js = [j for j in range(m.body_jntadr[b], m.body_jntadr[b] + m.body_jntnum[b])
-            if m.jnt_type[j] != mujoco.mjtJoint.mjJNT_FREE] if m.body_jntnum[b] > 0 else []
+            if j != root_j] if m.body_jntnum[b] > 0 else []
       bjn.append(len(js))
       for j in js:
-        assert m.jnt_type[j] in (mujoco.mjtJoint.mjJNT_HINGE, mujoco.mjtJoint.mjJNT_SLIDE)
+        if m.jnt_type[j] not in (mujoco.mjtJoint.mjJNT_HINGE, mujoco.mjtJoint.mjJNT_SLIDE):
+          raise NotImplementedError(f"GPU IK: joint {m.joint(j).name} is neither a hinge nor "
+                                    "a slide")
         jt.append(int(m.jnt_type[j]))
         jax.append(m.jnt_axis[j])
         jpos.append(m.jnt_pos[j])
@@ -249,18 +280,16 @@ class GpuKinematics:
           jmode.append(0)
           jk.append(kfree[j])
           jlq0.append(m.qpos0[a])
-        elif j in lead and lead[j][0] >= 0:
-          l, cc = lead[j]
-          assert l in kfree, f"equality leader {m.joint(l).name} is not a free IK joint"
+        elif j in lead:
+          l, c = lead[j]
           jmode.append(1)
           jk.append(kfree[l])
           jlq0.append(m.qpos0[m.jnt_qposadr[l]])
-          c = cc
-        else:  # held at the reference pose (qpos0 + c0 for an equality without a leader)
+        else:  # a constant: the reference pose, or an equality of constants
           jmode.append(2)
           jk.append(0)
           jlq0.append(0.0)
-          c[0] = lead[j][1][0] if j in lead else qref[a] - m.qpos0[a]
+          c[0] = qc[a] - m.qpos0[a]
         jcoef.append(c)
     self.nb, self.nj = len(order), len(jt)
     # root-to-leaf paths (indices into order) for the branch-parallel kinematics
@@ -421,7 +450,7 @@ class GpuIK:
   of frames: projected Levenberg-Marquardt, see iterate()."""
 
   def __init__(self, mm: mk.MarkerModel, device="cuda:0", robust=0.025, mtp_prior=0.1,
-               w_floor=10.0, w_anchor=3.0, centroid=True, xtol=1e-5, lam0=1e-6):
+               w_floor=10.0, w_anchor=3.0, centroid=True, xtol=1e-5, lam0=1e-6, lam_conv=1e-2):
     self.mm = mm
     self.kin = GpuKinematics(mm, device)
     self.device = device
@@ -441,7 +470,7 @@ class GpuIK:
     self.fp_side = torch.tensor([[k[0] == sd for k in mm.fp_kind] for sd in ("l", "r")], **t)
     self.robust, self.mtp_prior = robust, mtp_prior
     self.w_floor, self.w_anchor, self.centroid = w_floor, w_anchor, centroid
-    self.xtol, self.lam0 = xtol, lam0
+    self.xtol, self.lam0, self.lam_conv = xtol, lam0, lam_conv
 
   def set_offsets(self, offsets):
     self.kin.set_offsets(offsets)
@@ -576,7 +605,7 @@ class GpuIK:
     acc = (ok & (F_t <= bt.F)) | (work & fresh)
     step = dx.abs().amax(1)
     iters = bt.iters + stepping.to(torch.int32)
-    conv = stepping & ((ok & (F_t <= bt.F) & (step < bt.xtol))
+    conv = stepping & ((ok & (F_t <= bt.F) & (step < bt.xtol) & (bt.lam <= self.lam_conv))
                        | (ok & ((bt.F - F_t).abs() <= 1e-13 * bt.F))
                        | (bt.lam > 1e10) | (ok & (step == 0)) | (iters >= _MAX_IT))
     a1, a2 = acc[:, None], acc[:, None, None]
@@ -678,91 +707,101 @@ def _bucket(n, step=16):
   return int(-(-n // step) * step)
 
 
-def check_supported(mm, rate):
-  """The GPU IK reproduces ik_trial for MyoFullBody with the Plug-in-Gait marker set at
-  100 Hz only (the per-profile parts of the marker model -- other reference poses,
-  marker sets, smoothing scaled to other rates -- are not ported); SystemExit else."""
-  prof = getattr(getattr(mm, "profile", None), "name", "myofullbody")
-  mset = getattr(getattr(mm, "ms", None), "key", "plug_in_gait")
-  if prof != "myofullbody" or mset != "plug_in_gait" or abs(float(rate) - 100.0) > 1e-9:
-    raise SystemExit(f"M2M_IK_DEVICE=gpu: only the myofullbody profile with the plug_in_gait "
-                     f"marker set at 100 Hz (here {prof}, {mset}, {float(rate):g} Hz); use "
-                     "M2M_IK_DEVICE=cpu")
-
-
 def ik_trial_gpu(mm, P, rate=None, stats=None, **kw):
   """ik.ik_trial(contact=True, robust=...) on the GPU: same arguments, same output
   (Q [T, nq], E [T, n]); see ik_trials_gpu for the GPU's own arguments."""
   st = {} if stats is not None else None
-  (out,) = ik_trials_gpu([mm], [P], rate=rate, stats=st, **kw)
+  (out,) = ik_trials_gpu(mm, [P], rate=rate, stats=st, **kw)
   if stats is not None:
     stats.update(st)
     stats.update(st["trials"][0])
   return out
 
 
-def ik_trials_gpu(mms, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=True,
+def ik_trials_gpu(mm, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=True,
                   v_joint=15.0, w_floor=10.0, w_anchor=3.0, ankle_smooth=0.3, outlier=None,
                   mtp_prior=0.0, anchor_centroid=False, pelvis_gap="carry", robust=None,
-                  root_init="prev", device="cuda:0", chunk=64, burn_in=64, max_passes=20,
-                  tol=1e-3, xtol=1e-5, sweep_xtol=1e-3, graphs=True,
-                  verbose=False, stats=None):
-  """ik.ik_trial(contact=True, robust=...) for several trials at once (one batch on
-  the GPU; their frames solved side by side): mms, Ps, the trials' marker models
-  (the same model; each with its subject's offsets) and markers; the other arguments
-  as ik_trial's, the same for every trial. Returns [(Q, E)] per trial.
+                  root_init="prev", offsets=None, active=None, first=None, device="cuda:0",
+                  chunk=64, burn_in=64, max_passes=20, tol=1e-3, xtol=1e-5, sweep_xtol=1e-3,
+                  min_batch=64, graphs=True, verbose=False, stats=None):
+  """ik.ik_trial(contact=True, robust=...) for several trials at once, their frames
+  solved side by side in one batch on the GPU. Returns [(Q, E)] per trial.
+  mm: the marker model, or one per trial (one model and marker set); Ps: the trials'
+  markers; offsets, active (optional): per trial, the subject's marker offsets [n, 3]
+  and its active markers [n] (default: the trial's marker model's); rate: one for all
+  trials or one per trial; first (optional): per trial, ik.first_frame's (x, err, q_ref)
+  for its first solved frame, else computed here, on the CPU (see the module docstring);
+  the other IK arguments as ik_trial's, the same for every trial.
   GPU arguments: device; chunk, frames per chunk; burn_in, frames before each chunk
   in the first pass; passes stop when every chunk starts within tol (rad, m) of
   where the chunk before it ended (at most max_passes; a warning says so if they do
   not); xtol, the per-frame solver's step tolerance (rad, m), sweep_xtol the same
-  for the coarse first-pass sweep; graphs, CUDA graphs for the per-frame
-  work (False: plain launches, for debugging); stats (dict, optional) receives
-  timing, passes and iteration counts."""
+  for the coarse first-pass sweep; min_batch, the smallest batch the busy slots are
+  moved into as the others finish; graphs, CUDA graphs for the per-frame work (False:
+  plain launches, for debugging); stats (dict, optional) receives timing, passes and
+  iteration counts."""
   if not contact:
     raise NotImplementedError("GPU IK: contact=True only (the pipeline's setting)")
   if not robust:
     raise NotImplementedError("GPU IK: the robust (Cauchy) loss only (M2M_ROBUST > 0)")
   if rate is None:
     raise ValueError("rate is needed with contact=True")
-  for x in mms:
-    check_supported(x, rate)
   t_start = time.time()
   td = dict(dtype=torch.float64, device=device)
+  nt = len(Ps)
+  mms = list(mm) if isinstance(mm, (list, tuple)) else [mm] * nt
   mm = mms[0]
+  for x in mms:
+    if (x.profile.name, x.ms.key, x.free, x.m.nq) != (mm.profile.name, mm.ms.key, mm.free, mm.m.nq):
+      raise ValueError("GPU IK: the trials of one batch need the same model and marker set")
+  rates = np.broadcast_to(np.asarray(rate, float), (nt,))
+  offs = [np.asarray(o, float) for o in offsets] if offsets is not None else \
+    [x.m.site_pos[x.sid].copy() for x in mms]
+  acts = [np.asarray(a, bool) for a in active] if active is not None else \
+    [np.asarray(x.active, bool) for x in mms]
   ik = GpuIK(mm, device, robust=robust, mtp_prior=mtp_prior, w_floor=w_floor,
              w_anchor=w_anchor, centroid=anchor_centroid, xtol=xtol)
-  ik.set_offsets([x.m.site_pos[x.sid] for x in mms])  # kinematics group = trial
+  ik.set_offsets(offs)  # kinematics group = trial
   m = mm.m
   info = _mm_info(mm)
-  PELVIS, HEAD, active, qref = info["pelvis"], info["head"], info["active"], info["qref"]
-  nm, nf, nfp, nt = len(info["labels"]), ik.nf, ik.nfp, len(Ps)
+  PELVIS, HEAD, qref = info["pelvis"], info["head"], info["qref"]
+  nm, nf, nfp = len(info["labels"]), ik.nf, ik.nfp
   results = [(np.zeros((len(P), m.nq)), np.full((len(P), nm), np.nan)) for P in Ps]
 
   # per trial: the frames the CPU solves (the others are carried / held), root fits,
   # stance; then everything concatenated (frame f of trial i at fo[i] + f, sequence
   # position p at so[i] + p)
   seqs, kab, stf, mst, hasp = [], [], [], [], []
-  for x, P in zip(mms, Ps):
+  for i, P in enumerate(Ps):
     has_pel = ~np.isnan(P[:, PELVIS]).any((1, 2))
-    first = np.flatnonzero(has_pel)
+    first_pel = np.flatnonzero(has_pel)
     if pelvis_gap == "carry":
-      seq = first
+      seq = first_pel
     else:
-      seq = np.arange(first[0], len(P)) if len(first) else np.zeros(0, int)
+      seq = np.arange(first_pel[0], len(P)) if len(first_pel) else np.zeros(0, int)
     seqs.append(seq)
     hasp.append(has_pel)
-    kab.append(_kabsch_roots(x, P))
-    stance = mk.sole_stance(P, rate, ms=info["ms"]) if info["ms"] is not None else \
-      mk.sole_stance(P, rate)
+    with _trial(mms[i], offs[i], acts[i]) as x:
+      kab.append(_kabsch_roots(x, P))
+    stance = mk.sole_stance(P, rates[i], ms=mm.ms)
     s = np.zeros((len(P), nfp), bool)
-    for i, (sd, kind) in enumerate(mm.fp_kind):
+    for k, (sd, kind) in enumerate(mm.fp_kind):
       if kind != "-":
-        s[:, i] = stance[(sd, kind)]
+        s[:, k] = stance[(sd, kind)]
     stf.append(s)
-    mst.append(np.r_[0.0, v_joint * np.diff(seq) / rate] if len(seq) else np.zeros(0))
+    mst.append(np.r_[0.0, v_joint * np.diff(seq) / rates[i]] if len(seq) else np.zeros(0))
   live = [i for i in range(nt) if len(seqs[i])]
   if not live:
     return results
+  # the first solved frame of every trial: ik_trial's own multi-start on the CPU
+  first = list(first) if first is not None else [None] * nt
+  t_first = time.time()
+  for i in live:
+    if first[i] is None:
+      with _trial(mms[i], offs[i], acts[i]) as x:
+        first[i] = mk.first_frame(x, Ps[i][seqs[i][0]], restarts, seed, outlier=outlier,
+                                  mtp_prior=mtp_prior, robust=robust)
+  t_first = time.time() - t_first
   Ts = np.array([len(P) for P in Ps])
   Ns = np.array([len(s) for s in seqs])
   fo = np.r_[0, np.cumsum(Ts)[:-1]]
@@ -771,10 +810,9 @@ def ik_trials_gpu(mms, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=T
   seq_all = np.concatenate([seqs[i] + fo[i] for i in range(nt)])
   trial_of = np.repeat(np.arange(nt), Ns)  # per sequence position
   # smoothing weights (ik_trial's smooth_at): per frame at ik.SMOOTH_RATE, scaled by
-  # sqrt(rate / SMOOTH_RATE) as ik_trial does (1 at 100 Hz, the only rate check_supported
-  # lets through)
-  fs = np.sqrt(rate / mk.SMOOTH_RATE) if hasattr(mk, "SMOOTH_RATE") else 1.0
-  base = np.where(info["heavy"], ankle_smooth, 0.05) * fs
+  # sqrt(rate / SMOOTH_RATE) per trial
+  fs = np.sqrt(rates / mk.SMOOTH_RATE)
+  base = np.where(info["heavy"][None], ankle_smooth, 0.05) * fs[:, None]  # [trial, joint]
   elv = [e for e, _ in info["gated"]]
   selv = [g for _, g in info["gated"]]
   elv_mask = torch.zeros(nf, **td)
@@ -786,7 +824,8 @@ def ik_trials_gpu(mms, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=T
   # device copies
   Pall = np.concatenate(Ps)
   Pg = torch.tensor(np.nan_to_num(Pall), **td)
-  okg = torch.tensor(~np.isnan(Pall[..., 0]) & active, device=device)
+  act_all = np.concatenate([np.broadcast_to(a, (len(P), nm)) for a, P in zip(acts, Ps)])
+  okg = torch.tensor(~np.isnan(Pall[..., 0]) & act_all, device=device)
   seqg = torch.tensor(seq_all, device=device)
   st_g = torch.tensor(np.concatenate(stf), device=device)
   kpos_g = torch.tensor(np.concatenate([k[0] for k in kab]), **td)
@@ -795,43 +834,8 @@ def ik_trials_gpu(mms, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=T
   usek_g = torch.tensor(hp if root_init == "pelvis" else np.zeros(len(hp), bool), device=device)
   mstep_g = torch.tensor(np.concatenate(mst), **td)
   base_g = torch.tensor(base, **td)
+  fs_g = torch.tensor(fs, **td)
   grp_g = torch.tensor(trial_of, dtype=torch.int32, device=device)  # per sequence position
-
-  def multistart(t_idx, grp):
-    """Independent solve of frames t_idx (no previous frame, no contact), the CPU's
-    first-frame multi-start: start 0 neutral, the others uniform in the joint limits
-    (the CPU's draws: each trial's generator seeded alike); the best by mean marker
-    error (outliers out)."""
-    nb = len(t_idx)
-    bt = _Batch(ik, nb * restarts, smooth=False, contact=False)
-    tt = torch.tensor(np.tile(t_idx, restarts), device=device)
-    bt.P.copy_(Pg[tt])
-    bt.ok.copy_(okg[tt])
-    bt.group.copy_(torch.tensor(np.tile(grp, restarts), dtype=torch.int32, device=device))
-    bt.lo.copy_(ik.jlo.expand(len(tt), nf))
-    bt.hi.copy_(ik.jhi.expand(len(tt), nf))
-    xs = np.repeat(qref[mm.adr][None], nb * restarts, 0)
-    rng = np.random.default_rng(seed)
-    for k in range(1, restarts):
-      xs[k * nb:(k + 1) * nb] = mm.lo + rng.random(nf) * (mm.hi - mm.lo)
-    if mtp_prior:
-      xs[:, info["mtp"]] = info["mtp_q0"]
-    bt.q.copy_(torch.tensor(xs, **td))
-    bt.pos.copy_(kpos_g[tt])
-    bt.R.copy_(kR_g[tt])
-    ik.start(bt)
-    bt.done.zero_()
-    ik.solve_eager(bt, max_iters=100)
-    err = torch.linalg.norm(bt.pts[:, :nm] - Pg[tt], dim=-1)
-    err = torch.where(okg[tt], err, torch.full_like(err, float("nan")))
-    if outlier is not None:
-      bad = (torch.nan_to_num(err) > outlier) & ~torch.tensor(HEAD, device=device)
-      nbad = bad.sum(1, keepdim=True)
-      err = torch.where(bad & (nbad <= 3), torch.full_like(err, float("nan")), err)
-    score = torch.nanmean(err, 1).reshape(restarts, nb)
-    k = torch.argmin(torch.nan_to_num(score, nan=np.inf), 0)  # first minimum, as min()
-    idx = k * nb + torch.arange(nb, device=device)
-    return bt.pos[idx], bt.R[idx], bt.q[idx], bt.pts[idx]
 
   def touch_down(on, tgt, fp, t, floor):
     """ik_trial's touch_down: points newly in stance get an anchor where they are
@@ -840,9 +844,13 @@ def ik_trials_gpu(mms, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=T
     tg = torch.cat([fp[..., :2], torch.maximum(fp[..., 2:], floor[:, None, None])], -1)
     return on | new, torch.where(new[..., None], tg, tgt)
 
-  # first solved frame of every trial; its floor (lowest sole point)
+  # the first frames' chain state; their floor (lowest sole point)
   t0s = np.array([seq_all[so[i]] for i in live])
-  pos0, R0, q0, pts0 = multistart(t0s, np.array(live))
+  x0 = np.array([first[i][0] for i in live])
+  R0 = np.array([(sRot.from_rotvec(first[i][0][3:6])
+                  * sRot.from_quat(np.asarray(first[i][2])[[1, 2, 3, 0]])).as_matrix() for i in live])
+  pos0, R0, q0 = (torch.tensor(v, **td) for v in (x0[:, :3], R0, x0[:, 6:]))
+  pts0 = ik.kin.fk(pos0, R0, q0, torch.tensor(live, dtype=torch.int32, device=device))[0].clone()
   floors = torch.zeros(nt, **td)
   floors[torch.tensor(live, device=device)] = pts0[:, nm:, 2].amin(1)
   on0, tg0 = touch_down(torch.zeros((len(live), nfp), dtype=torch.bool, device=device),
@@ -956,8 +964,9 @@ def ik_trials_gpu(mms, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=T
       st = mstep_t[spc][:, None]
       put(bt.lo, torch.maximum(ik.jlo, xp - st), a1)
       put(bt.hi, torch.minimum(ik.jhi, xp + st), a1)
-      elv_w = (0.05 + 1.0 * torch.exp(-(xp[:, selv_of] / 0.35) ** 2)) * fs
-      put(bt.sm, torch.where(elv_mask > 0, elv_w, base_g), a1)
+      gi = grp_t[spc].long()
+      elv_w = (0.05 + 1.0 * torch.exp(-(xp[:, selv_of] / 0.35) ** 2)) * fs_g[gi, None]
+      put(bt.sm, torch.where(elv_mask > 0, elv_w, base_g[gi]), a1)
       uk = usek_g[t]
       put(bt.pos, torch.where(uk[:, None], kpos_g[t], cs["pos"]), a1)
       put(bt.R, torch.where(uk[:, None, None], kR_g[t], cs["R"]), a2)
@@ -1032,10 +1041,23 @@ def ik_trials_gpu(mms, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=T
     ctl["end"].zero_()  # capture with every slot idle
     g_prep = _Graph(lambda: prep(torch.ones(B, dtype=torch.bool, device=device)), graphs)
     g_ticks = _Graph(ticks, graphs)
-    runners[key] = (cs, ctl, g_prep, g_ticks)
+    runners[key] = (bt, cs, ctl, g_prep, g_ticks)
     return runners[key]
 
-  n_ticks = [0]
+  n_ticks, n_shrink = [0], [0]
+
+  def shrink(src, dst, B2):
+    """Move the busy slots of runner src (and idle ones to fill up) into runner dst of
+    B2 slots: the batch shrinks as slots finish, so the last few do not keep stepping
+    a batch of mostly idle slots."""
+    busy = src[2]["busy"]
+    idx = torch.cat([torch.nonzero(busy)[:, 0], torch.nonzero(~busy)[:, 0]])[:B2]
+    for k, v in vars(src[0]).items():
+      if torch.is_tensor(v):
+        getattr(dst[0], k).copy_(v[idx])
+    for a, b in ((src[1], dst[1]), (src[2], dst[2])):
+      for k in a:
+        b[k].copy_(a[k][idx])
 
   def run(name, seq_t, mstep_t, grp_t, out, start, sp0, end, rec, chunks=None, cont=False):
     """Every slot i steps from position sp0[i] to end[i] (exclusive) of seq_t from
@@ -1045,7 +1067,8 @@ def ik_trials_gpu(mms, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=T
     nb = len(sp0)
     B = _bucket(nb)
     chained = chunks is not None
-    cs, ctl, g_prep, g_ticks = runner(name, B, seq_t, mstep_t, grp_t, out, chained)
+    rn = runner(name, B, seq_t, mstep_t, grp_t, out, chained)
+    _, cs, ctl, g_prep, g_ticks = rn
     pad = lambda x: np.r_[x, np.zeros(B - nb, int)]  # noqa: E731
     sel = torch.tensor(pad(np.arange(nb)), device=device)
     for k in cs:
@@ -1060,10 +1083,17 @@ def ik_trials_gpu(mms, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=T
     ctl["cont"].fill_(chained and cont)
     g_prep()
     while True:
-      g_ticks()
+      rn[4]()
       n_ticks[0] += _TICKS
-      if not bool(ctl["busy"].any()):
+      n_busy = int(rn[2]["busy"].sum())
+      if not n_busy:
         break
+      B2 = max(min_batch, 1 << (n_busy - 1).bit_length())
+      if 2 * B2 <= B:
+        r2 = runner(name, B2, seq_t, mstep_t, grp_t, out, chained)
+        shrink(rn, r2, B2)
+        rn, B = r2, B2
+        n_shrink[0] += 1
 
   # Pass-1 start states: a coarse sequential sweep (per trial, the trials side by
   # side) over the positions burn_in frames before each chunk, each solved from the
@@ -1084,7 +1114,7 @@ def ik_trials_gpu(mms, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=T
     c0 = np.array([np.flatnonzero(ctr == i)[0] for i in tr_c])
     c1 = np.array([np.flatnonzero(ctr == i)[-1] + 1 for i in tr_c])
     run("sweep", seqg[torch.tensor(cpos, device=device)],
-        torch.tensor(v_joint * (seq_all[cpos] - seq_all[cprev]) / rate, **td),
+        torch.tensor(v_joint * (seq_all[cpos] - seq_all[cprev]) / rates[ctr], **td),
         grp_g[torch.tensor(cpos, device=device)], out_c,
         {k: torch.cat([state0[i][k] for i in tr_c]) for k in state0[live[0]]}, c0, c1, c0)
     ki = torch.tensor(np.r_[np.searchsorted(cpos, np.where(swp, init_sp, cpos[0])), 0],
@@ -1160,23 +1190,25 @@ def ik_trials_gpu(mms, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=T
     sl = slice(so[i], so[i] + Ns[i])
     quat = quat_all[sl]
     kq, has_pel = kab[i][2], hasp[i]
-    prev_q = None
-    for j, t in enumerate(seq):  # quaternion sign as the CPU's (it follows q_ref)
-      ref = kq[t] if (has_pel[t] and root_init == "pelvis") or prev_q is None else prev_q
+    q_first = mm.pose(first[i][0], np.asarray(first[i][2]))  # the CPU's first frame
+    quat[0] = q_first[3:7]
+    for j in range(1, len(seq)):  # quaternion sign as the CPU's (it follows q_ref)
+      t = seq[j]
+      ref = kq[t] if has_pel[t] and root_init == "pelvis" else quat[j - 1]
       if np.dot(quat[j], ref) < 0:
         quat[j] = -quat[j]
-      prev_q = quat[j]
     Qs = np.repeat(qref[None], Ns[i], 0)
     Qs[:, :3] = o_pos[sl]
     Qs[:, 3:7] = quat
     Qs[:, mm.adr] = o_q[sl]
     _apply_eq(m, Qs)
     err = np.linalg.norm(o_pts[sl] - P[seq], axis=-1)
-    err[:, ~active] = np.nan
+    err[:, ~acts[i]] = np.nan
     if outlier is not None:  # MarkerModel.solve with robust: 1-3 far markers -> NaN
       bad = (np.nan_to_num(err) > outlier) & ~HEAD[None]
       few = (bad.sum(1) > 0) & (bad.sum(1) <= 3)
       err[few] = np.where(bad[few], np.nan, err[few])
+    Qs[0], err[0] = q_first, first[i][1]
     Q[seq] = Qs
     E[seq] = err
     if pelvis_gap == "carry":  # unsolved frames after the first repeat the previous pose
@@ -1191,8 +1223,9 @@ def ik_trials_gpu(mms, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=T
                           lm_iters_mean=float(it.mean()) if len(it) else 0.0,
                           lm_iters_max=int(it.max()) if len(it) else 0))
   if stats is not None:
-    stats.update(time_s=time.time() - t_start, sweep_s=t_sweep, passes_s=t_pass,
-                 passes=passes, chunks=C, ticks=n_ticks[0], history=hist, trials=per_trial,
+    stats.update(time_s=time.time() - t_start, first_s=t_first, sweep_s=t_sweep,
+                 passes_s=t_pass, passes=passes, chunks=C, ticks=n_ticks[0],
+                 shrinks=n_shrink[0], history=hist, trials=per_trial,
                  gpu_mem_gb=torch.cuda.max_memory_allocated(device) / 1e9)
   return results
 

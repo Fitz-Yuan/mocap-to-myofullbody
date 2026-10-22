@@ -53,9 +53,9 @@ STATIC_MARKERS = config.STATIC_MARKERS
 FOOT_CAP = config.FOOT_CAP
 FLAT_W = config.FLAT_W
 # Stage B on the GPU (mocap2myo/ik_gpu.py, needs torch with CUDA and warp): "gpu" solves
-# the same per-frame problem with the same frame-to-frame recursion, all frames of a
-# trial in parallel; the trials then run one after the other in this process. The
-# subject calibration (stage A) stays on the CPU. Default "cpu". (Read here for now;
+# the same per-frame problem with the same frame-to-frame recursion, the frames of all
+# trials in parallel in one batch. The subject calibration (stage A) and each trial's
+# first frame stay on the CPU (worker processes). Default "cpu". (Read here for now;
 # its place is config.py's IK section.)
 IK_DEVICE = os.environ.get("M2M_IK_DEVICE", "cpu")
 if IK_DEVICE not in ("cpu", "gpu"):
@@ -143,13 +143,15 @@ def calib(subj):
   return subj, "done"
 
 
-def ik(name):
+def load(name):
+  """Stage B input of one trial: the marker model with its subject's offsets and active
+  markers, the markers (frame range M2M_IK_FRAMES), rate, scale and the output file; None
+  if that file exists."""
   from mocap2myo import ik as mk
   rng = config.IK_FRAMES
   f = os.path.join(OUT, f"{name}{'_' + rng.replace(':', '-') if rng else ''}.npz")
   if os.path.exists(f):
-    return name, "cached", 0.0
-  t0 = time.time()
+    return None
   mm = config.marker_model(neck=config.NECK)
   P, rate, s = mk.load_trial(os.path.join(NPZ, f"{name}.npz"), lowpass_hz=LOWPASS_HZ or None, mm=mm)
   if rng:
@@ -163,37 +165,99 @@ def ik(name):
   if "active" in cal.files:  # markers the calibration switched off (no landmark on the model)
     mm.active &= cal["active"].astype(bool)
     mm.w = np.where(mm.active, mm.w, 0.0)
-  # 5 cm outlier rejection: label swaps (case study, a processed export: LWRB / C7
-  # jump onto other markers, p95 > 0.9 m) and a differently placed TIB
-  solver = mk.ik_trial
-  if IK_DEVICE == "gpu":
-    from mocap2myo.ik_gpu import ik_trial_gpu as solver
-  Q, E = solver(mm, P, rate=rate, contact=True, outlier=TRACK_OUTLIER or None,
-                mtp_prior=MTP_PRIOR,
-                anchor_centroid=ANCHOR_CENTROID, pelvis_gap=PELVIS_GAP,
-                robust=ROBUST or None, root_init=ROOT_INIT, ankle_smooth=config.IK_ANKLE_SMOOTH)
+  return dict(name=name, f=f, mm=mm, P=P, rate=rate, s=s)
+
+
+def track_args():
+  """The tracking IK's settings (ik.ik_trial's keyword arguments; the GPU takes the same).
+  5 cm outlier rejection: label swaps (case study, a processed export: LWRB / C7 jump
+  onto other markers, p95 > 0.9 m) and a differently placed TIB."""
+  return dict(contact=True, outlier=TRACK_OUTLIER or None, mtp_prior=MTP_PRIOR,
+              anchor_centroid=ANCHOR_CENTROID, pelvis_gap=PELVIS_GAP, robust=ROBUST or None,
+              root_init=ROOT_INIT, ankle_smooth=config.IK_ANKLE_SMOOTH)
+
+
+def save(t, mm, active, Q, E, device="cpu"):
+  """Write one trial's IK (t from load(); mm its model, active its active markers)."""
+  from mocap2myo import ik as mk
+  P, f, rng = t["P"], t["f"], config.IK_FRAMES
   tmp = f[:-4] + ".part.npz"
   Q, neck = mm.split_qpos(Q)  # the plain model's layout; the neck angles apart
   extra = dict(neck_qpos=neck.astype(np.float32), neck_joints=np.array(mk.NECK)) if mm.neck else {}
-  if IK_DEVICE == "gpu":
+  if device == "gpu":
     extra["ik_device"] = "gpu"
   solved = ~np.isnan(E).all(1)  # ik_trial leaves the error of unsolved frames all NaN
-  rejected = np.isnan(E) & ~np.isnan(P[..., 0]) & solved[:, None] & mm.active
+  rejected = np.isnan(E) & ~np.isnan(P[..., 0]) & solved[:, None] & active
   np.savez_compressed(tmp, qpos=Q.astype(np.float32), marker_err=E.astype(np.float32),
                       rejected=rejected, outlier=TRACK_OUTLIER, mtp_prior=MTP_PRIOR,
                       anchor_centroid=ANCHOR_CENTROID, pelvis_gap=PELVIS_GAP,
                       robust=ROBUST, robust_pelvis=False, root_init=ROOT_INIT,
                       lowpass_hz=LOWPASS_HZ,
                       unsolved=int((~solved).sum()), unsolved_frames=~solved,
-                      scale=s, rate=rate, labels=np.array(mm.ms.LABELS),
+                      scale=t["s"], rate=t["rate"], labels=np.array(mm.ms.LABELS),
                       frame0=int(rng.split(":")[0]) if rng else 0,
                       model=str(mm.profile.xml), model_profile=mm.profile.name,
-                      marker_set=mm.ms.key, active=mm.active,
+                      marker_set=mm.ms.key, active=active,
                       joint_names=np.array([mm.m.joint(j).name for j in range(mm.m.njnt)
                                             if mm.m.joint(j).name not in mk.NECK]), **extra)
   os.replace(tmp, f)
-  return name, (f"median err {1e3 * np.nanmedian(E):.1f} mm, rejected "
-                f"{rejected.mean():.4f}, unsolved {int((~solved).sum())}"), time.time() - t0
+  return (f"median err {1e3 * np.nanmedian(E):.1f} mm, rejected "
+          f"{rejected.mean():.4f}, unsolved {int((~solved).sum())}")
+
+
+def ik(name):
+  """Stage B of one trial on the CPU (load, ik.ik_trial, save)."""
+  from mocap2myo import ik as mk
+  t0 = time.time()
+  t = load(name)
+  if t is None:
+    return name, "cached", 0.0
+  mm = t["mm"]
+  Q, E = mk.ik_trial(mm, t["P"], rate=t["rate"], **track_args())
+  return name, save(t, mm, mm.active, Q, E), time.time() - t0
+
+
+def load_gpu(name):
+  """load() in a worker process for the GPU path, with the trial's first solved frame (the
+  first with all pelvis markers) solved there as ik_trial does (ik.first_frame); the marker
+  model stays behind (its offsets and active markers come along)."""
+  from mocap2myo import ik as mk
+  t = load(name)
+  if t is None:
+    return name, None
+  mm, P = t.pop("mm"), t["P"]
+  ok = np.flatnonzero(~np.isnan(P[:, mm.ms.PELVIS]).any((1, 2)))
+  a = track_args()
+  t.update(offsets=mm.m.site_pos[mm.sid].copy(), active=mm.active.copy(),
+           first=mk.first_frame(mm, P[ok[0]], outlier=a["outlier"], mtp_prior=a["mtp_prior"],
+                                robust=a["robust"]) if len(ok) else None)
+  return name, t
+
+
+def ik_gpu(names, ctx, workers):
+  """Stage B on the GPU: every trial in one batch (mocap2myo.ik_gpu.ik_trials_gpu), the
+  inputs and first frames prepared in worker processes."""
+  from mocap2myo.ik_gpu import ik_trials_gpu
+  t0 = time.time()
+  with ctx.Pool(min(len(names), workers)) as pool:
+    loaded = pool.map(load_gpu, names)
+  todo = [(n, t) for n, t in loaded if t is not None]
+  for n, t in loaded:
+    if t is None:
+      print("ik", n, "cached", flush=True)
+  if not todo:
+    return
+  t1 = time.time()
+  print(f"ik: {len(todo)} trials loaded ({t1 - t0:.0f}s); solving on the GPU", flush=True)
+  mm = config.marker_model(neck=config.NECK)
+  st = {}
+  out = ik_trials_gpu(mm, [t["P"] for _, t in todo], rate=[t["rate"] for _, t in todo],
+                      offsets=[t["offsets"] for _, t in todo], active=[t["active"] for _, t in todo],
+                      first=[t["first"] for _, t in todo], stats=st, **track_args())
+  for (n, t), (Q, E) in zip(todo, out):
+    print("ik", n, save(t, mm, t["active"], Q, E, device="gpu"), flush=True)
+  print(f"ik: GPU {time.time() - t1:.0f}s for {sum(len(t['P']) for _, t in todo)} frames "
+        f"({st['passes']} passes), {time.time() - t0:.0f}s in all", flush=True)
 
 
 def main():
@@ -212,9 +276,8 @@ def main():
       print("calib", *r, flush=True)
   if calib_only:
     return
-  if IK_DEVICE == "gpu":  # one process, one trial after the other on the GPU
-    for name, msg, dt in map(ik, names):
-      print("ik", name, msg, f"{dt:.0f}s", flush=True)
+  if IK_DEVICE == "gpu":  # every trial in one batch on the GPU
+    ik_gpu(names, ctx, workers)
     return
   with ctx.Pool(min(len(names), workers)) as pool:
     for name, msg, dt in pool.imap_unordered(ik, names):
