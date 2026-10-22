@@ -18,7 +18,9 @@ ROOT_STEP_MAX (a frozen-then-jumping reference passed the p95 test: nanpercentil
 skips the frozen frames), the pelvis markers > 5 cm off in at most PELVIS_OFF_MAX
 frames and the pelvis turning at most PELVIS_W_MAX (where the model cannot reach the
 pose -- deep squats past its 120 deg knee / hip limits -- the IK fit loses the pelvis
-and snaps back), and not excluded by the manual review (EXCLUDE).
+and snaps back), no limb lost by the IK for LIMB_LOST_MAX_S or longer (2+ of the limb's
+markers > 6 cm off: the p95 over every marker missed an arm lost for seconds, its 3-4
+markers a tenth of the 39), and not excluded by the manual review (EXCLUDE).
 
 Model: M2M_MODEL (one with hands, tasks/box_lift/body.py); gts holds the bodies of
 motion_io.TRACKED (MyoFullBody's names; another model: the bodies of the same canonical
@@ -39,6 +41,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
+from mocap2myo import ik as mk  # noqa: E402
 from mocap2myo import markerset as ms  # noqa: E402
 from pipeline import config  # noqa: E402
 from tasks.box_lift.body import TaskBody, is_myofullbody, tracked_bodies  # noqa: E402
@@ -50,6 +53,7 @@ QUALITY_P95 = 0.06
 ROOT_STEP_MAX = 0.05  # m per 10 ms frame (5 m/s; walking is ~0.015)
 PELVIS_OFF_MAX = 10  # frames with the pelvis markers > 5 cm off (median of >= 3)
 PELVIS_W_MAX = 700.0  # deg/s pelvis rotation
+LIMB_LOST_MAX_S = 0.2  # s: a clip whose IK lost a limb this long is not used (mocap2myo.ik.limb_lost)
 # left out after a manual review of the reference motions: a subject (all cycles) or
 # one cycle "<trial>_c<k>"
 EXCLUDE = {"S10": "manual review: poor reference overall",
@@ -102,6 +106,9 @@ def main():
       grasp = R["grasp"][a:b]
       anyg = np.flatnonzero(grasp.any(1))
       e = E[a:b]
+      lost = mk.limb_lost(K["marker_err"][a:b], K["rejected"][a:b] if "rejected" in K.files else None,
+                          [str(x) for x in K["labels"]], config.marker_set())
+      lost_s = {k: round(mk.longest_run(v) / FPS, 2) for k, v in lost.items()}
       p95 = float(np.nanpercentile(e, 95))
       unsolved = int(np.isnan(e).all(1).sum())
       root_step = float(np.linalg.norm(np.diff(q[:, :3], axis=0), axis=1).max())
@@ -138,11 +145,13 @@ def main():
                     "marker_err_mm_p95": round(1e3 * p95, 1),
                     "unsolved_frames": unsolved, "root_step_max_m": round(root_step, 3),
                     "pelvis_off_frames": pel_off, "pelvis_rot_max_dps": round(pel_w),
+                    "limb_lost_s": lost_s,
                     "excluded": excl or "",
                     "quality_ok": bool(not excl and p95 <= QUALITY_P95 and unsolved == 0
                                        and root_step <= ROOT_STEP_MAX
                                        and pel_off <= PELVIS_OFF_MAX
-                                       and pel_w <= PELVIS_W_MAX)})
+                                       and pel_w <= PELVIS_W_MAX
+                                       and max(lost_s.values(), default=0.0) < LIMB_LOST_MAX_S)})
   os.makedirs(out_dir, exist_ok=True)
   ok = [c["clip"] for c in index if c["quality_ok"]]
   for tag, keep in (("", list(range(len(index)))), ("_ok", ok)):

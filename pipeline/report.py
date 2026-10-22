@@ -5,7 +5,8 @@ residual cannot show:
   input      body-marker gaps (share of frames missing, over markers that were
              placed: a marker never seen is listed as absent), mislabel rejections
   fit        body-marker residual median / p95 (qa.py), the median frame's RMS and largest
-             marker error against OpenSim's IK guideline (< 2 cm, < 2-4 cm), IK joint flips
+             marker error against OpenSim's IK guideline (< 2 cm, < 2-4 cm), IK joint flips,
+             the longest stretch with a limb lost (2+ of its markers > 6 cm off)
   predict    leave-one-marker-out prediction error (validate/lomo.py, if run)
   posture    quiet-standing posture: median knee and hip flexion over frames
              where the pelvis and both ankles move < 5 cm/s for 0.5 s and the
@@ -47,6 +48,7 @@ LIMITS = {
   "frame_rms_med_mm": (20.0, 30.0),
   "frame_max_med_mm": (40.0, 60.0),
   "flips": (0.003, 0.01),           # frames with a joint faster than 15 rad/s
+  "limb_lost_s": (0.1, 0.5),        # longest run of a limb lost by the IK (mocap2myo.ik.limb_lost)
   "lomo_med_mm": (20.0, 30.0),      # median over markers of the prediction error
   "stand_knee_deg": (10.0, 20.0),   # quiet standing, worse side
   "stand_hip_deg": (10.0, 20.0),    # quiet standing |hip flexion|, worse side
@@ -100,6 +102,7 @@ def main():
       **({"frame_rms_med_mm": qa[n]["frame_rms_mm"][0], "frame_max_med_mm": qa[n]["frame_max_mm"][0]}
          if "frame_rms_mm" in qa[n] else {}),
       flips=qa[n]["joint_speed_over_15rad_s_frac"],
+      **({"limb_lost_s": max(qa[n]["limb_lost_s"].values(), default=0.0)} if "limb_lost_s" in qa[n] else {}),
       stand_knee_deg=round(knee, 1), stand_hip_deg=round(hip, 1))
     if n in lomo:
       v = lomo[n]
@@ -117,7 +120,7 @@ def main():
     rows[n] = r
   json.dump(rows, open(os.path.join(IKD, "report.json"), "w"), indent=1)
   cols = ["gap_max", "resid_med_mm", "resid_p95_mm", "frame_rms_med_mm", "frame_max_med_mm", "flips",
-          "lomo_med_mm", "stand_knee_deg", "stand_hip_deg"]
+          "limb_lost_s", "lomo_med_mm", "stand_knee_deg", "stand_hip_deg"]
   lines = ["| trial | verdict | " + " | ".join(cols) + " | clips ok | reasons |",
            "|" + "---|" * (len(cols) + 4)]
   for n, r in rows.items():

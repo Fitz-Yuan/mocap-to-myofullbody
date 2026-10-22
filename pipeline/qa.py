@@ -20,6 +20,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pipeline import config  # noqa: E402  (first: it selects the model and marker set)
+from mocap2myo import ik as mk  # noqa: E402
 from mocap2myo.kinematics import (  # noqa: E402
   foot_bodies, foot_collision_geoms, sole_height)
 
@@ -48,6 +49,8 @@ def qa(name, m, d, foot, task, task_kw=None):
     d.qpos[:] = Q[f]
     mujoco.mj_kinematics(m, d)
     sole[k] = sole_height(m, d, foot) if not callable(foot) else foot(d)
+  lost = mk.limb_lost(E, K["rejected"] if "rejected" in K.files else None,
+                      [str(x) for x in K["labels"]], config.marker_set())
   Eb = E[:, body][~np.isnan(E[:, body]).all(1)]
   fr, fm = np.sqrt(np.nanmean(Eb ** 2, 1)), np.nanmax(Eb, 1)
   r = {
@@ -55,6 +58,8 @@ def qa(name, m, d, foot, task, task_kw=None):
     "marker_err_body_mm": [round(float(np.nanmedian(E[:, body])) * 1e3, 1),
                            round(float(np.nanpercentile(E[:, body], 95)) * 1e3, 1)],
     "frames_p95_err_over_40mm": round(float(np.mean(np.nanpercentile(E[:, body], 95, axis=1) > 0.04)), 4),
+    # the IK lost a limb (mocap2myo.ik.limb_lost): longest run per limb, s
+    "limb_lost_s": {k: round(mk.longest_run(v) / rate, 2) for k, v in lost.items()},
     # per frame over the body markers, as OpenSim's IK reports it (its guideline: RMS < 2 cm,
     # largest marker error < 2-4 cm): [median, p95] over frames, and the share of frames above
     "frame_rms_mm": [round(float(np.percentile(fr, q)) * 1e3, 1) for q in (50, 95)],

@@ -725,10 +725,81 @@ def first_frame(mm, P, restarts=8, seed=0, outlier=None, mtp_prior=0.0, robust=N
   return x, err, q_ref
 
 
+# tracking loss (ik_trial recover): a frame whose fit leaves LOST_N or more seen body markers
+# farther than LOST_DIST from the model is solved again from scratch (RECOVER_STARTS starts,
+# no smoothing, no speed limit); the fits compare by the sum of squared distances, each capped
+# at LOST_CAP (a mislabelled marker cannot dominate), and the new one is kept if it is better
+# by RECOVER_GAIN
+LOST_DIST, LOST_N, LOST_CAP, RECOVER_STARTS, RECOVER_GAIN = 0.06, 2, 0.15, 4, 0.8
+
+
+LIMBS = {"arm_l": ("humerus_l", "radius_l", "ulna_l", "hand_l"),
+         "arm_r": ("humerus_r", "radius_r", "ulna_r", "hand_r"),
+         "leg_l": ("femur_l", "tibia_l", "foot_l"), "leg_r": ("femur_r", "tibia_r", "foot_r")}
+
+
+def limb_lost(E, rejected, labels, ms):
+  """Frames where the IK lost a limb: LOST_N or more of the limb's markers (LIMBS, by the
+  marker set's segments) farther than LOST_DIST or rejected as mislabelled (a lost limb's
+  markers can look like 1-3 mislabels). E: marker error [T, n] (NaN: missing or rejected),
+  rejected [T, n] bool or None, labels [n]. Returns {limb: [T] bool}."""
+  out = {}
+  for limb, segs in LIMBS.items():
+    idx = [i for i, l in enumerate(labels) if l in ms.markers and ms.segment(l) in segs]
+    if len(idx) < LOST_N:
+      continue
+    far = np.nan_to_num(E[:, idx], nan=0.0) > LOST_DIST
+    if rejected is not None:
+      far |= np.asarray(rejected[:, idx], bool)
+    out[limb] = far.sum(1) >= LOST_N
+  return out
+
+
+def longest_run(mask):
+  """Length of the longest run of True in a 1-D bool array."""
+  if not mask.any():
+    return 0
+  d = np.diff(np.r_[0, mask.astype(int), 0])
+  return int((np.flatnonzero(d == -1) - np.flatnonzero(d == 1)).max())
+
+
+def fit_score(mm, x, q_ref, P):
+  """Sum over the seen body markers (head left out) of the squared model-marker distance,
+  each capped at LOST_CAP; the distances [n]; how many exceed LOST_DIST."""
+  d = np.linalg.norm(mm.markers(mm.pose(x, q_ref)) - P, axis=1)
+  use = np.isfinite(d) & mm.active & ~mm.ms.HEAD
+  return float(np.sum(np.minimum(d[use], LOST_CAP) ** 2)), d, int(np.sum(d[use] > LOST_DIST))
+
+
+def recover_frame(mm, P, xs, q_ref, x, err, seed, t, contact=None, outlier=None, mtp_prior=0.0,
+                  robust=None):
+  """ik_trial's tracking-loss step for frame t: (x, err, recovered) -- x unchanged unless
+  LOST_N or more markers are lost and a fresh solve fits better (see LOST_DIST)."""
+  s0, _, lost = fit_score(mm, x, q_ref, P)
+  if lost < LOST_N:
+    return x, err, False
+  rng = np.random.default_rng([seed, t])
+  best = (s0, x, err)
+  for k in range(RECOVER_STARTS):
+    xs2 = xs.copy()
+    if k:  # the first from the warm start, the others from random joint angles
+      xs2[6:] = mm.lo + rng.random(len(mm.lo)) * (mm.hi - mm.lo)
+      if mtp_prior:
+        xs2[6 + mm.mtp] = mm.mtp_q0
+    xr, er = mm.solve(P, xs2, q_ref, contact=contact, outlier=outlier, mtp_prior=mtp_prior,
+                      robust=robust)
+    s = fit_score(mm, xr, q_ref, P)[0]
+    if s < best[0]:
+      best = (s, xr, er)
+  if best[0] < RECOVER_GAIN * s0:
+    return best[1], best[2], True
+  return x, err, False
+
+
 def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
              v_joint=15.0, w_floor=10.0, w_anchor=3.0,
              ankle_smooth=0.08, outlier=None, mtp_prior=0.0, anchor_centroid=False,
-             pelvis_gap="carry", robust=None, root_init="prev"):
+             pelvis_gap="carry", robust=None, root_init="prev", recover=False):
   """Per-frame IK over a whole trial. Returns qpos [T, nq] and marker err [T, n]
   (NaN where a marker is missing or was rejected, see MarkerModel.solve).
 
@@ -831,10 +902,13 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
       else:  # re-centre the rotvec on the previous root orientation
         q_ref = mm.pose(x_prev, q_ref)[3:7]
       xs[3:6] = 0
+      ca = contact_args(t) if contact else None
       x, err = mm.solve(P[t], xs, q_ref, x_prev=xs,
                         smooth=smooth_at(xs) if contact else smooth,
-                        contact=contact_args(t) if contact else None, outlier=outlier,
-                        mtp_prior=mtp_prior, robust=robust)
+                        contact=ca, outlier=outlier, mtp_prior=mtp_prior, robust=robust)
+      if recover:
+        x, err, _ = recover_frame(mm, P[t], xs, q_ref, x, err, seed, t, contact=ca,
+                                  outlier=outlier, mtp_prior=mtp_prior, robust=robust)
     Q[t] = mm.pose(x, q_ref)
     E[t] = err
     x_prev = x
