@@ -267,6 +267,25 @@ td.f { background: var(--bad-soft); }
 ol.read { margin: 0; padding-left: 1.6em; display: flex; flex-direction: column; gap: 10px; }
 ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
 .note { font-size: 14.5px; line-height: 1.55; color: var(--muted); }
+/* figures: inline SVG drawn with the page's colours */
+figure.fig { margin: 0; background: var(--surface); border-radius: 14px; padding: clamp(14px, 2.4vw, 24px); display: flex; flex-direction: column; gap: 12px; }
+figure.fig svg { display: block; width: 100%; height: auto; }
+figure.fig figcaption { font-size: 13.5px; line-height: 1.5; color: var(--muted); }
+.fig .ax { stroke: var(--line); stroke-width: 1.2; fill: none; }
+.fig .ln { stroke: var(--muted); stroke-width: 1.6; fill: none; }
+.fig .faint { stroke: var(--faint); stroke-width: 1.4; fill: none; stroke-dasharray: 3 4; }
+.fig .acc { stroke: var(--accent); stroke-width: 2; fill: none; }
+.fig .dash { stroke-dasharray: 6 5; }
+.fig .bone { stroke: var(--fg); stroke-width: 7; stroke-linecap: round; fill: none; opacity: 0.85; }
+.fig .jt { fill: var(--surface); stroke: var(--fg); stroke-width: 2; }
+.fig .mk { fill: var(--ok); }
+.fig .mkh { fill: none; stroke: var(--accent); stroke-width: 2; stroke-dasharray: 3 3; }
+.fig .dot { fill: var(--muted); }
+.fig text { fill: var(--muted); font: 12.5px/1 var(--font-text); }
+.fig text.t { fill: var(--fg); font-weight: 600; font-size: 13.5px; }
+.fig text.a { fill: var(--accent); }
+.fig text.k { fill: var(--ok); }
+
 </style>
 </head>
 <body>
@@ -303,6 +322,7 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
       <li class="sub"><a href="#stage-ik">3 · Calibration and IK</a></li>
       <li class="sub"><a href="#stage-ref">4 · Reference construction</a></li>
       <li class="sub"><a href="#stage-qa">5 · QA and segmentation</a></li>
+      <li><a href="#gaps">Gap filling</a></li>
       <li><a href="#models">Models and marker sets</a></li>
       <li><a href="#routes">Input sensitivity of the IK</a></li>
       <li><a href="#validation">Joint-angle validation</a></li>
@@ -510,6 +530,78 @@ ol.read li::marker { color: var(--accent); font-weight: 600; font-variant-numeri
       </div>
     </article>
   </div>
+</section>
+
+<section>
+  <h2 id="gaps">Gap filling: mislabel rejection, rigid pelvis refill, short-gap interpolation and model-based IK</h2>
+  <p class="lede">Markers drop out whenever the cameras cannot see them: an arm in front of the body, the box against the belly. In a manual workflow an operator fills every gap in Motive or Nexus before anything else. Here nothing is invented ahead of the IK: wrong samples are removed, the pelvis is rebuilt as a rigid body, short gaps are interpolated, and longer gaps are left to the IK, where the skeleton itself determines where a hidden marker must be.</p>
+  <figure class="fig">
+    <svg viewBox="0 0 760 300" role="img" aria-label="Left: a marker's coordinate over time with a gap; a straight line across the gap misses the bump the marker really made. Right: a leg with hip, knee and ankle; the knee marker is hidden but the rigid femur, fixed at the hip and seen through the thigh marker, places it.">
+  <text class="t" x="20" y="24">Interpolation: a line across the gap</text>
+  <path class="ax" d="M30 250 H360 M30 250 V50"/>
+  <text x="300" y="270">time</text>
+  <text x="34" y="64">marker position</text>
+  <rect x="172" y="56" width="58" height="194" fill="var(--warn-soft)" stroke="none"/>
+  <text x="178" y="246">gap</text>
+  <circle class="dot" cx="40" cy="150.0" r="2.6"/><circle class="dot" cx="54" cy="148.1" r="2.6"/><circle class="dot" cx="68" cy="145.7" r="2.6"/><circle class="dot" cx="82" cy="143.0" r="2.6"/><circle class="dot" cx="96" cy="140.2" r="2.6"/><circle class="dot" cx="110" cy="137.2" r="2.6"/><circle class="dot" cx="124" cy="134.0" r="2.6"/><circle class="dot" cx="138" cy="130.8" r="2.6"/><circle class="dot" cx="152" cy="127.4" r="2.6"/><circle class="dot" cx="166" cy="124.0" r="2.6"/><circle class="dot" cx="236" cy="124.0" r="2.6"/><circle class="dot" cx="250" cy="124.9" r="2.6"/><circle class="dot" cx="264" cy="125.8" r="2.6"/><circle class="dot" cx="278" cy="126.7" r="2.6"/><circle class="dot" cx="292" cy="127.6" r="2.6"/><circle class="dot" cx="306" cy="128.4" r="2.6"/><circle class="dot" cx="320" cy="129.3" r="2.6"/><circle class="dot" cx="334" cy="130.2" r="2.6"/><circle class="dot" cx="348" cy="131.1" r="2.6"/><circle class="dot" cx="362" cy="132.0" r="2.6"/>
+  <path class="faint" d="M166 124 C 186 70, 214 64, 236 124"/>
+  <text x="168" y="62" class="k" style="fill:var(--faint)">where it went</text>
+  <path class="acc dash" d="M166 124 L 236 124"/>
+  <text class="a" x="150" y="146">straight line</text>
+  <path class="ax" d="M400 30 V280"/>
+  <text class="t" x="430" y="24">Model: the bones place a hidden marker</text>
+  <path class="bone" d="M560 70 L 585 165"/>
+  <path class="bone" d="M585 165 L 572 262"/>
+  <path class="ln" d="M520 62 L 600 62 L 610 80 L 512 80 Z"/>
+  <circle class="jt" cx="560" cy="70" r="7"/>
+  <circle class="jt" cx="585" cy="165" r="7"/>
+  <circle class="jt" cx="572" cy="262" r="7"/>
+  <circle class="mk" cx="516" cy="60" r="6"/><circle class="mk" cx="604" cy="60" r="6"/>
+  <circle class="mk" cx="590" cy="116" r="6"/>
+  <circle class="mkh" cx="604" cy="166" r="8"/>
+  <circle class="mk" cx="592" cy="214" r="6"/>
+  <circle class="mk" cx="586" cy="262" r="6"/>
+  <text x="620" y="64" class="k">pelvis markers: hip centre</text>
+  <text x="604" y="120" class="k">thigh marker, seen</text>
+  <text x="620" y="170" class="a">knee marker, hidden</text>
+  <text x="620" y="186" class="a">placed by the femur</text>
+  <text x="606" y="218" class="k">shank markers, seen</text>
+  <text x="440" y="122">femur: rigid,</text>
+  <text x="440" y="138">fixed length</text>
+  <path class="ln" d="M520 128 L 566 118"/>
+  <text x="440" y="270">joints: hip, knee, ankle</text>
+</svg>
+    <figcaption>Left: over a long gap a straight line (or a spline) assumes the marker kept moving smoothly, which it rarely does during a lift or a step. Right: the knee marker is hidden, but it rides on the femur, a rigid bone of fixed length whose upper end (the hip centre, from the pelvis markers) and middle (the thigh marker) are seen, and whose lower end is held by the shank markers through the knee joint. The femur's pose, and with it the hidden marker, is determined.</figcaption>
+  </figure>
+  <ol class="read">
+    <li><b>Mislabelled samples are removed first</b> (<code>pipeline/prepare_markers.py</code>, <code>reject_mislabels</code>). Each marker's partners are the three markers whose distance to it varies least over the trial (the same or the next segment). A sample whose distance to two or more of its partners is more than 4 cm off the usual is a wrong label (e.g. C7 jumping onto another marker) and becomes a gap, rather than pulling the model the wrong way.</li>
+    <li><b>The pelvis is rebuilt as a rigid body</b> (<code>fix_pelvis</code>). A template of the four pelvis markers comes from the frames where their six distances stay within 5 mm of their medians; each frame is fitted to it (Kabsch). A missing pelvis marker is reconstructed from the other three, and one more than 12 mm off, whose removal makes the other three consistent, is replaced. The pelvis is the model's root, so its markers get the strictest treatment.</li>
+    <li><b>Short gaps are interpolated</b> (<code>mocap2myo/ik.py</code>, <code>load_trial</code>): up to 0.25 s, only where the marker is seen on both sides, linearly per coordinate. Over a quarter of a second the marker's path is close to a line. The 6 Hz low-pass filter runs over each gap-free stretch on its own, so it never smooths across a gap.</li>
+    <li><b>Longer gaps are left to the IK.</b> Each frame's least squares uses the markers that are there; a missing marker simply drops out of the sum. Bones are rigid, joints have limits, and each frame starts from the previous one and is pulled gently toward it, so the remaining markers on a segment and on its neighbours fix its pose; the hidden marker is wherever the bone puts it. A marker that is present but far from anywhere the model can put it pulls less (a Cauchy loss with a 2.5 cm scale), so one bad sample cannot drag the pose.</li>
+  </ol>
+  <div class="callout check"><b>Nothing filled is hidden.</b> The marker files keep, per frame, which pelvis markers were rebuilt (<code>pelvis_fixed</code>) and which samples were rejected as mislabels (<code>mislabel_rejected</code>); the IK output keeps each marker's residual, the markers it set aside and the frames it could not solve; the QA report grades every trial on its worst marker gap.</div>
+  <p><b>Why not interpolate everything.</b> A line or a spline across a gap is a guess about the path; over a fraction of a second it is a good one, over a second of lifting it is not. The model makes no guess about the path: it uses the fact that the marker rides on a rigid bone whose other markers and joints are seen. This is the principle of OpenSim's inverse kinematics and of model-based gap filling in Vicon Nexus (global optimisation, Lu and O'Connor 1999); what this pipeline adds is that it runs without an operator and records what it did.</p>
+  <div class="tbl">
+    <table>
+      <thead><tr><th></th><th>Manual gap filling (Motive, Nexus)</th><th>This pipeline</th></tr></thead>
+      <tbody>
+        <tr><td>Who decides</td><td>An operator, gap by gap: spline, pattern fill from a nearby marker, rigid-body fill</td><td>Fixed rules, the same for every trial</td></tr>
+        <tr><td>Long gaps</td><td>Filled with a curve or a copied pattern</td><td>Not filled; the IK places the marker from the skeleton</td></tr>
+        <tr><td>Afterwards</td><td>Filled samples look like measured ones; the IK trusts them fully</td><td>Rebuilt and rejected samples are flagged; inferred positions are the model's, never mixed into the data</td></tr>
+        <tr><td>Reproducible</td><td>Depends on the operator</td><td>Yes</td></tr>
+        <tr><td>Effort, 22 trials</td><td>An estimated 15–40 person-hours with labelling and scaling</td><td>Machine time only</td></tr>
+        <tr><td>Physically consistent</td><td>Not necessarily: a filled point can break a bone's length</td><td>Yes: bone lengths and joint limits hold by construction</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><b>How well it works.</b></p>
+  <ul class="plain">
+    <li><b>A gap with a known answer</b>: <a href="#lomo">leave one marker out</a> hides a marker that was seen, lets the model place it, and measures how far off it is. Median 14.5 mm per trial (12.3–24.0); ankle 8–10 mm, knee 11–13 mm, shank 7–9 mm, shoulder 23–25 mm, elbow about 19 mm. Skin markers themselves move 1–3 cm on the soft tissue. Where a segment has a single marker (finger, toe) it cannot be placed once hidden: 37–44 and 19–21 mm.</li>
+    <li><b>Against manual gap filling</b>: the same takes, processed by hand in Motive by a collaborating group (in S03 alone, 5,765 filled samples the raw take lacks), give the same fit as the raw takes with their gaps: marker residual 9.2 vs 9.5 mm, 73 vs 76 usable carry cycles, joint angles within 1° in five of the eight subjects compared. In the other three, a whole-trial shift in hip flexion came from the subject calibration, fixed since by the static trial (<a href="#routes">input sensitivity</a>).</li>
+    <li><b>Where manual filling went wrong</b>: Motive interpolated long ASIS gaps while the box was against the belly, which left the pelvis cluster 30–40 mm off rigid; the rigid refill does not.</li>
+    <li><b>An independent check</b>: the knee angle against Xsens inertial capture, worn at the same time, r = 0.995 / 0.996 (<a href="#xsens">knee angle vs Xsens</a>).</li>
+  </ul>
+  <div class="callout pit"><b>Limits.</b> A segment that loses most of its markers for a long stretch is held only by its neighbours, the smoothing and its joint limits; the QA report flags such trials (S02 Solid: C7 missing in 98 % of frames, FAIL). Markers must be labelled: the labels the recording software assigned live are enough, but an unlabelled point cloud is not identified. If fewer than three pelvis markers are seen, the frame's pelvis comes from the remaining markers (<code>M2M_PELVIS_GAP</code>).</div>
 </section>
 
 <section>
@@ -987,7 +1079,7 @@ task = &quot;none&quot;</pre>
   <h2 id="terms">Glossary: markers, labels, IK, calibration, residual</h2>
   <dl class="gloss">
     <div><dt>Marker and label</dt><dd>A reflective ball on the body. Its label tells IK which point on the model it belongs to; without that, IK cannot tell where to pull.</dd></div>
-    <div><dt>Gap</dt><dd>Frames where a marker was hidden. Short gaps are interpolated, pelvis gaps are refilled as a rigid body, and IK handles the rest.</dd></div>
+    <div><dt>Gap</dt><dd>Frames where a marker was hidden. Short gaps are interpolated, pelvis gaps are refilled as a rigid body, and IK handles the rest (see <a href="#gaps">gap filling</a>).</dd></div>
     <div><dt>Plug-in-Gait</dt><dd>A common 39-marker full-body placement (LASI, RKNE, C7, ...). Used by the elevator study.</dd></div>
     <div><dt>Kabsch fit</dt><dd>Finds the rotation and translation that best map a set of points known in an object's frame onto their measured positions. Used for the box and the pelvis.</dd></div>
     <div><dt>Forward kinematics</dt><dd>From joint angles to the position of every segment and virtual marker. Computed by MuJoCo.</dd></div>
