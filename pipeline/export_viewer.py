@@ -48,7 +48,8 @@ z), missing markers -32768.
   python pipeline/export_viewer.py clip TRIAL OUT_DIR [--clip K] [--fps 50]
       [--ik-dir DIR] [--ref-dir DIR] [--npz-dir DIR] [--run-label TEXT]
       [--ghost-ref-dir DIR [--ghost-label TEXT]]
-      [--kin-dir DIR] [--osim-id-dir DIR] [--osim-ik-dir DIR] [--conf-dir DIR] [--public NAME]
+      [--kin-dir DIR] [--osim-id-dir DIR] [--osim-ik-dir DIR] [--conf-dir DIR] [--muscle-dir DIR]
+      [--public NAME]
   --clip K           clip K (1..n) of the task's reference (box_lift: carry cycle K);
                      0 (default) = the whole trial
   --ik-dir, --ref-dir, --npz-dir   inputs (default M2M_IK_DIR, M2M_REF_DIR, M2M_NPZ_DIR)
@@ -61,6 +62,10 @@ z), missing markers -32768.
   --conf-dir DIR     per-joint confidence (pipeline/confidence.py): a +-1 SD band around
                      each joint-angle curve (default M2M_CONF_DIR, with --ik-dir its
                      confidence/ folder)
+  --muscle-dir DIR   muscle forces (pipeline/muscles.py; off by default): each muscle's
+                     activation per frame (array muscle_act, meta muscle_act) and the
+                     "Muscles" plots (reserve torques, most active muscles, L5/S1
+                     compression), pipeline/viewer_layers.muscle_layers
   --public NAME      a de-identified clip for a public page, named NAME: the trial name,
                      the clip's position in the trial, the subject's scale and the QA
                      grades are left out, and the run is labelled --run-label or "demo"
@@ -322,9 +327,10 @@ def export_clip(a):
   if conf is not None and str(conf["model_profile"]) != mm.profile.name:
     print(f"{trial}: confidence of {conf['model_profile']}, not {mm.profile.name}: left out")
     conf = None
+  mus = opt(a.muscle_dir, f"{trial}.npz")
   la, lm = viewer_layers.layers(m, Q, idx, s, dz, q16, ps, kin=kin, osim=osim,
                                 osim_markers=None if omk is None else omk["markers"],
-                                profile=mm.profile, conf=conf)
+                                profile=mm.profile, conf=conf, muscles=mus)
   arrays.update(la)
   qa = {}
   rep = os.path.join(a.ik_dir, "report.json")
@@ -377,6 +383,8 @@ def main():
   pc.add_argument("--osim-ik-dir", default=config.OSIM_DIR, help="OpenSim IK (validate/opensim_ik.py)")
   pc.add_argument("--conf-dir", default="", help="per-joint confidence (pipeline/confidence.py; default "
                   "M2M_CONF_DIR, or <--ik-dir>/confidence)")
+  pc.add_argument("--muscle-dir", default="",
+                  help="muscle forces (muscles.py, e.g. M2M_MUSCLE_DIR): activation colouring and plots")
   pc.add_argument("--public", default="", help="name for a de-identified demo clip")
   a = ap.parse_args()
   if a.cmd == "model":

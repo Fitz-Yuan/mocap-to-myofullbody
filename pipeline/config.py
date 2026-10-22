@@ -51,6 +51,7 @@ M2M_STATIC_NAME. Defaults, as the case study:
                                                  lomo.json (M2M_IK_DIR)
     ref/         tasks/<task>/build_reference.py (M2M_REF_DIR)
     kin/         pipeline/kinetics.py            joint loads per trial (M2M_KIN_DIR)
+    kin/muscles/ pipeline/muscles.py (optional)  muscle forces per trial (M2M_MUSCLE_DIR)
     opensim_ik/, opensim_id/, compare_osim/   validate/opensim_ik.py,
                                                  pipeline/opensim_id.py,
                                                  validate/opensim_compare.py
@@ -537,6 +538,32 @@ def carried_mass():
   mc = ANTHRO_COLUMNS[2]
   return {s: float(r[CARRIED_COLUMN]) - float(r[mc]) for s, r in _anthro_rows()
           if r.get(CARRIED_COLUMN)}
+
+
+# --- muscle forces (muscles.py, optional): static optimisation on the joint loads ------
+
+MUSCLE_DIR = _path("M2M_MUSCLE_DIR", os.path.join(KIN_DIR, "muscles"))
+# the joints whose net moments the muscles must match: "auto" = the top-down ones (L5/S1,
+# shoulders, elbows) and, when the trial's kinetics used force plates, hips, knees and
+# ankles; "top_down"; "all"; or joint names of the kinetics, comma separated
+MUSCLE_JOINTS = _env("M2M_MUSCLE_JOINTS", "auto")
+# reserve torques: weight 1 / R^2 in the cost, R in N m (small: a reserve shows where the
+# muscles cannot supply the moment)
+MUSCLE_RESERVE = float(_env("M2M_MUSCLE_RESERVE", 1.0))
+if not MUSCLE_RESERVE > 0:
+  raise SystemExit(f"M2M_MUSCLE_RESERVE={MUSCLE_RESERVE}: expected > 0 N m")
+# cost: sum of squared activations ("none"), or each weighted by the muscle's fibre volume
+# ("volume": independent of how many slips a muscle is split into)
+MUSCLE_WEIGHT = _choice("M2M_MUSCLE_WEIGHT", "none", ("none", "volume"))
+MUSCLE_FV = _flag("M2M_MUSCLE_FV", "1")  # force-velocity curve (0: isometric)
+MUSCLE_PASSIVE = _flag("M2M_MUSCLE_PASSIVE", "1")  # passive muscle forces
+# factor on every muscle's maximum isometric force (active and passive); 1 = the model's
+MUSCLE_STRENGTH = float(_env("M2M_MUSCLE_STRENGTH", 1.0))
+if not MUSCLE_STRENGTH > 0:
+  raise SystemExit(f"M2M_MUSCLE_STRENGTH={MUSCLE_STRENGTH}: expected > 0")
+# validate/emg_compare.py: EMG channel -> model muscles, "channel=muscle+muscle,..." (C3D
+# analog labels; a task with its own EMG reader brings its own map)
+EMG_MAP = _env("M2M_EMG_MAP", "")
 
 
 # --- validation inputs ---------------------------------------------------------

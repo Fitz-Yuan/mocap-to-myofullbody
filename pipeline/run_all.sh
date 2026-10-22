@@ -15,12 +15,16 @@
 # IK, then Inverse Dynamics with the same loads) for the side-by-side comparison; needs
 # the opensim package (conda install -c opensim-org opensim), in OSIM_PY if that is
 # another Python (default: the same as PY).
+# --muscles: also the muscle forces by static optimisation on the joint loads
+# (pipeline/muscles.py, settings M2M_MUSCLE_*), after the joint loads.
 set -eu
 OPENSIM=0
+MUSCLES=0
 for arg in "$@"; do
   case "$arg" in
     --opensim) OPENSIM=1 ;;
-    -h|--help) sed -n '2,17p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --muscles) MUSCLES=1 ;;
+    -h|--help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown option $arg"; exit 2 ;;
   esac
 done
@@ -49,6 +53,9 @@ if [ -f "$REPO/tasks/$TASK/build_dataset.py" ]; then
 fi
 say "report";        $PY -u "$HERE/report.py"
 say "kinetics";      $PY -u "$HERE/kinetics.py"
+if [ "$MUSCLES" = 1 ]; then
+  say "muscles";     $PY -u "$HERE/muscles.py"
+fi
 if [ "$OPENSIM" = 1 ]; then
   say "OpenSim IK";  $OSIM_PY -u "$HERE/validate/opensim_ik.py"
   say "OpenSim ID";  $OSIM_PY -u "$HERE/opensim_id.py"

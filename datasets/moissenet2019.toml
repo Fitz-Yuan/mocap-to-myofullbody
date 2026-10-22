@@ -41,6 +41,15 @@ marker_set = "isb_dumas"
 [task]
 task = "none"
 
+[emg]
+# pipeline/validate/emg_compare.py: each EMG channel -> model muscles (MyoFullBody / MyoLeg
+# names) @ the net moment in the direction the muscle acts (baseline; "-" = the opposite sign)
+emg_map = ["R_tibialis_anterior=tibant_r@-ankle_r_plantar", "R_soleus=soleus_r@ankle_r_plantar",
+           "R_gastrocnemius_medialis=gasmed_r@ankle_r_plantar", "R_vastus_medialis=vasmed_r@knee_r_ext",
+           "R_rectus_femoris=recfem_r@knee_r_ext", "R_semitendinosus=semiten_r@-knee_r_ext",
+           "R_gluteus_maximus=glmax1_r+glmax2_r+glmax3_r@hip_r_ext",
+           "R_gluteus_medius=glmed1_r+glmed2_r+glmed3_r@hip_r_abd"]
+
 [ik]
 ik_ankle_smooth = 0.08            # walking moves the ankle fast; the lifting study's 0.3 lagged it (ankle vs Vicon Plug-in-Gait r 0.38-0.51 -> 0.80-0.84)
 static = true
