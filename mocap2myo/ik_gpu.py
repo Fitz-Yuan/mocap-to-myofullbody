@@ -1139,8 +1139,10 @@ def ik_trials_gpu(mm, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=Tr
     sp0 = first_sp[ci] if passes == 1 else starts[ci]
     # pass 1: every chunk from its sweep state through its burn-in; later passes: the
     # chunks that start elsewhere than the chunk before them ended, with take-over
+    tk0, ver0 = n_ticks[0], ver.clone()
     run("chunks", seqg, mstep_g, grp_g, out, {k: v[cig] for k, v in Sd.items()}, sp0,
         ends[ci], starts[ci], chunks=ci, cont=passes > 1)
+    taken = int((ver - ver0)[:C].sum())  # chunks taken over by the run before them
     S = {k: v[:C] for k, v in Sd.items()}
     # does every chunk start where the one before it ended? (a trial's first chunk
     # starts from its first frame)
@@ -1155,14 +1157,15 @@ def ik_trials_gpu(mm, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=Tr
     bad = differs(nxt, S, root_d[:C]) & ~hd
     dq = (nxt["q"] - S["q"]).abs().amax(1)
     nbad = int(bad.sum())
-    hist.append((passes, len(ci), nbad, float(np.degrees(float(dq.max())))))
+    hist.append((passes, len(ci), nbad, float(np.degrees(float(dq.max()))), taken,
+                 n_ticks[0] - tk0))
     if verbose:
       jw = (nxt["q"] - S["q"]).abs().amax(0)
       top = ", ".join(f"{mm.free[int(j)]} {np.degrees(float(jw[j])):.2f}"
                       for j in torch.argsort(jw, descending=True)[:3])
-      print(f"  pass {passes}: ran {len(ci)} chunks, {nbad} start elsewhere than the "
-            f"chunk before ended (max {np.degrees(float(dq.max())):.4f} deg: {top})",
-            flush=True)
+      print(f"  pass {passes}: ran {len(ci)} chunks ({taken} taken over, "
+            f"{n_ticks[0] - tk0} iterations), {nbad} start elsewhere than the chunk before "
+            f"ended (max {np.degrees(float(dq.max())):.4f} deg: {top})", flush=True)
     if nbad == 0:
       break
     if passes >= max_passes:
