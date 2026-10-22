@@ -230,6 +230,7 @@
 <li class="toctree-l1"><a class="reference internal" href="../installation/">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../demo/">The demo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../your-data/">Your own data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../optitrack/">From OptiTrack (Motive)</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../results/">Reading the results</a></li>
 <li class="toctree-l1 current active"><a class="current reference internal" href="#">When something goes wrong</a></li>
 </ul>
@@ -354,22 +355,25 @@
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">pelvis</span> <span class="pre">markers</span> <span class="pre">missing</span></code></p></td>
 <td><p>the IK needs at least three of the four pelvis markers</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">no</span> <span class="pre">height</span> <span class="pre">/</span> <span class="pre">mass</span> <span class="pre">for</span> <span class="pre">S03</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">the</span> <span class="pre">markers</span> <span class="pre">span</span> <span class="pre">0.0018</span> <span class="pre">m</span></code></p></td>
+<td><p>the file’s length unit is not what it says (an old export in metres, say): set <code class="docutils literal notranslate"><span class="pre">units</span> <span class="pre">=</span> <span class="pre">&quot;m&quot;</span></code> or <code class="docutils literal notranslate"><span class="pre">&quot;mm&quot;</span></code> in the profile</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">no</span> <span class="pre">height</span> <span class="pre">/</span> <span class="pre">mass</span> <span class="pre">for</span> <span class="pre">S03</span></code></p></td>
 <td><p>add the subject to the CSV, named as in the trial names (<code class="docutils literal notranslate"><span class="pre">anthro_subject</span></code> formats a numeric cell, e.g. <code class="docutils literal notranslate"><span class="pre">S{:02d}</span></code>)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">M2M_INPUT=c3d</span> <span class="pre">needs</span> <span class="pre">the</span> <span class="pre">ezc3d</span> <span class="pre">package</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">x</span> <span class="pre">M2M_INPUT=c3d</span> <span class="pre">needs</span> <span class="pre">the</span> <span class="pre">ezc3d</span> <span class="pre">package</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">pip</span> <span class="pre">install</span> <span class="pre">-e</span> <span class="pre">&quot;.[c3d]&quot;</span></code> (<code class="docutils literal notranslate"><span class="pre">.b3d</span></code>: <code class="docutils literal notranslate"><span class="pre">nimblephysics</span></code>, <code class="docutils literal notranslate"><span class="pre">.tak</span></code>: <code class="docutils literal notranslate"><span class="pre">olefile</span></code>)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_MODEL=...:</span> <span class="pre">...</span> <span class="pre">(models/fetch.py</span> <span class="pre">...)</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_MODEL=...:</span> <span class="pre">...</span> <span class="pre">(models/fetch.py</span> <span class="pre">...)</span></code></p></td>
 <td><p>the model is not fetched yet: <code class="docutils literal notranslate"><span class="pre">mocap2myo</span> <span class="pre">models</span> <span class="pre">&lt;name&gt;</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_TASK=box_lift</span> <span class="pre">needs</span> <span class="pre">a</span> <span class="pre">model</span> <span class="pre">with</span> <span class="pre">hands</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_TASK=box_lift</span> <span class="pre">needs</span> <span class="pre">a</span> <span class="pre">model</span> <span class="pre">with</span> <span class="pre">hands</span></code></p></td>
 <td><p>the lifting task needs arms; set <code class="docutils literal notranslate"><span class="pre">task</span> <span class="pre">=</span> <span class="pre">&quot;none&quot;</span></code> in the profile</p></td>
 </tr>
-<tr class="row-even"><td><p>a trial is WARN or FAIL in the report</p></td>
+<tr class="row-odd"><td><p>a trial is WARN or FAIL in the report</p></td>
 <td><p>the report names the check; <a class="reference internal" href="../../pipeline/qa/"><span class="doc">Quality checks and the report</span></a> says what each one means and when to drop the trial</p></td>
 </tr>
-<tr class="row-odd"><td><p>the IK is slow</p></td>
+<tr class="row-even"><td><p>the IK is slow</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">--workers</span></code> (one trial per process, 1–2 GB each) or <code class="docutils literal notranslate"><span class="pre">--gpu</span></code></p></td>
 </tr>
 </tbody>

@@ -200,15 +200,18 @@ def cmd_init(args):
   out = Path(args.profile or "my_dataset.toml")
   root = Path(_ask("Folder of the recordings (trial files, possibly in one folder per subject)", ".")).resolve()
   kinds = {}
-  for k in ("c3d", "trc", "tak", "b3d", "csv"):
-    n = len(list(root.rglob(f"*.{k}")))
+  def found(k):  # QTM: only the 3D files are trials (plates, analog: files beside them)
+    return [f for f in root.rglob(f"*.{k}") if k != "tsv" or readers.qtm_tsv_content(str(f)) == "3D"]
+
+  for k in ("c3d", "trc", "tak", "b3d", "csv", "tsv"):
+    n = len(found(k))
     if n:
       kinds[k] = n
   if not kinds:
-    raise SystemExit(f"no .c3d / .trc / .tak / .b3d / .csv files under {root}")
+    raise SystemExit(f"no .c3d / .trc / .tak / .b3d / .csv / .tsv files under {root}")
   kind = max(kinds, key=kinds.get)
   print(f"  found {kinds}; input: {kind}")
-  files = sorted(root.rglob(f"*.{kind}"))
+  files = sorted(found(kind))
   rel = [f.relative_to(root).as_posix() for f in files]
   by_folder = all("/" in r for r in rel)
   word = _ask("A word in the static (standing) trial file names, or 'none'", "static").lower()

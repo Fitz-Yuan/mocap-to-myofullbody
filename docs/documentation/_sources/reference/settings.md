@@ -10,7 +10,7 @@ Every `M2M_*` setting and `IK_WORKERS` is read in `pipeline/config.py`; `MYOFULL
 |---|---|---|
 | `M2M_DATASET` | (none) | dataset profile (TOML), e.g. `datasets/ramp_vielemeyer2026.toml` |
 | `M2M_ROOT` | `~/data/mocap2myo` | data folder (a relative path in a profile is relative to it) |
-| `M2M_INPUT`, `M2M_RAW_DIR`, `M2M_CACHE_DIR` | `tak`, `raw_tak/`, `tak_cache/` | raw file kind (`tak`, `c3d`, `trc`, `b3d`), their folder, `read_raw.py`'s output (`raw_cache/` for C3D / TRC) |
+| `M2M_INPUT`, `M2M_RAW_DIR`, `M2M_CACHE_DIR` | `tak`, `raw_tak/`, `tak_cache/` | raw file kind (`tak`, `c3d`, `trc`, `b3d`, `csv`: Motive, `tsv`: Qualisys), their folder, `read_raw.py`'s output (`raw_cache/` for C3D / TRC) |
 | `M2M_RAW_TRIALS`, `M2M_TRIAL_REGEX`, `M2M_TRIAL_NAME` | `S*_NE.tak`, (none), `{stem}` | trial files (glob under `M2M_RAW_DIR`, `**` allowed); a regex on the path relative to it whose named groups, with `{stem}` (the file name), fill the trial name |
 | `M2M_RAW_STATIC`, `M2M_STATIC_REGEX` | `static/*_Anatomy.tak`, `static/(?P<subject>.+)_Anatomy\.tak` | static trial files, and the regex whose group `subject` names the subject |
 | `M2M_UP`, `M2M_UNITS`, `M2M_RATE` | `y` (`.tak`) / `auto`, file's, `native` | the files' up axis (`auto`: from head vs foot markers; `x`/`y`/`z`, optionally `-`), length unit, frame rate (a number: keep every k-th frame) |

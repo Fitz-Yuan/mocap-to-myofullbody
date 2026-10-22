@@ -2,7 +2,7 @@
 
 **Motion capture in, musculoskeletal motion and joint loads out.**
 
-Mocap to MSK turns optical motion capture (OptiTrack `.tak` or Motive's CSV export, C3D, TRC, AddBiomechanics `.b3d`) into joint angles and joint loads of a MuJoCo musculoskeletal model: MyoFullBody by default, or MS-Human-700, MASS, Rajagopal 2016, Lai–Uhlrich 2022, Gait2354 and MyoLeg. It reads the raw recordings itself (no Motive or Nexus needed), calibrates each subject, solves the inverse kinematics frame by frame, computes the joint loads by inverse dynamics, and grades every trial so you can see how far to trust it.
+Mocap to MSK turns optical motion capture (OptiTrack `.tak` or Motive's CSV export, Qualisys TSV, C3D, TRC, AddBiomechanics `.b3d`) into joint angles and joint loads of a MuJoCo musculoskeletal model: MyoFullBody by default, or MS-Human-700, MASS, Rajagopal 2016, Lai–Uhlrich 2022, Gait2354 and MyoLeg. It reads the raw recordings itself (no Motive or Nexus needed), calibrates each subject, solves the inverse kinematics frame by frame, computes the joint loads by inverse dynamics, and grades every trial so you can see how far to trust it.
 
 **[Website](https://fitz-yuan.github.io/mocap-to-myofullbody/)** · **[Documentation](https://fitz-yuan.github.io/mocap-to-myofullbody/documentation/)** · **[Viewer](https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/)**
 
@@ -126,6 +126,7 @@ mocap2myo export motion clips/ --dataset my_study.toml --fps 100
 | `x no trial files match ...` | the file pattern in the profile (`raw_trials`) does not find your files: compare it with `mocap2myo check`'s folder and fix the pattern |
 | `marker set ...: 12 of 39 markers` | your labels differ from the marker set's: choose another set, or add your names as an alias set (`[aliases]` in the marker set's TOML) |
 | `x pelvis markers missing` | the IK needs at least 3 of the 4 pelvis markers |
+| `x the markers span 0.0018 m` | the file's length unit is not what it says: set `units = "m"` (or `"mm"`) in the profile |
 | `no measured markers (columns of type ['Bone'])` | a Motive CSV with only the skeleton: export again with **Markers** ticked |
 | `a lower-body recording` | set `model = "myoleg"` in the profile (fetch it once: `mocap2myo models myoleg`) |
 | `no height / mass for S03` | add the subject to the CSV, with the name the trials use |
@@ -140,7 +141,7 @@ mocap2myo export motion clips/ --dataset my_study.toml --fps 100
 
 | Step | Script | What it does |
 |---|---|---|
-| Read | `pipeline/read_raw.py` | `.tak`, Motive CSV, C3D, TRC or `.b3d` → markers in metres, Z up; force plates; analog channels |
+| Read | `pipeline/read_raw.py` | `.tak`, Motive CSV, Qualisys TSV, C3D, TRC or `.b3d` → markers in metres, Z up; force plates; analog channels |
 | Markers | `pipeline/prepare_markers.py` | labels onto the marker set, mislabelled samples dropped, pelvis gaps refilled |
 | Calibration + IK | `pipeline/solve_ik.py` | where each marker sits on the body (static trial), then the pose per frame; short gaps (≤ 200 ms) by spline, longer ones left to the model |
 | QA | `pipeline/qa.py`, `pipeline/report.py` | the grades |

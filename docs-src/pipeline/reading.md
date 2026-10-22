@@ -43,6 +43,16 @@ A CSV export from Motive (`M2M_INPUT=csv`; format versions 1.1 to 1.25) is read 
 Exports from Motive 2 and 3 (format versions 1.21 to 1.25) by other labs read as described: a Baseline (37) take at 360 Hz, a Baseline + 13 (50) take, a Conventional Lower Body (16) take at 120 Hz; bones-only and rigid-body-only exports stop with the message.
 ```
 
+## Qualisys TSV
+
+A TSV export of 3D data from Qualisys Track Manager (`M2M_INPUT=tsv`) is read from its header lines: the marker names (`MARKER_NAMES`) and the rate (`FREQUENCY`); with or without the Frame and Time columns; a sample of 0, 0, 0, an empty cell or `NA` is a gap. QTM writes millimetres (`M2M_UNITS` overrides; `check` says when the markers' size does not fit the unit). QTM writes a trial's force plates, analog channels and rigid bodies into separate files next to it (`<trial>_f_1.tsv`, ...): these are recognised by their content and are not taken as trials. The force plates are not read from them; for force plates, export C3D from QTM.
+
+```{admonition} Checked
+:class: tip
+
+Three public recordings exported by QTM both as TSV and as C3D (54, 62 and 23 markers, 100–250 Hz): the same markers, the same gaps, positions within 0.001 mm (the TSV's rounding).
+```
+
 ## AddBiomechanics `.b3d`
 
 An AddBiomechanics `.b3d` file holds one subject's trials (`M2M_INPUT=b3d`, `pip install nimblephysics`); each trial is read as `<file>.b3d#<trial>`, and the profile's `trial_regex` sees that path. The markers come as AddBiomechanics received them (names stripped of stray characters), in OpenSim's Y-up world (`up = "y"`); the force plates as force, centre of pressure and free moment. The file has no plate corners, so each plate gets a rectangle on the plane of its centre of pressure (for the filter, {doc}`kinetics`), and a plate channel whose centre of pressure lies at several heights (one channel for several stair steps) is split into one plate per height. The subject's height, mass and sex come from the file (`anthro = "c3d"` in the profile). Example: `datasets/addbiomechanics_falisse2017.toml`, and the comparison with AddBiomechanics' own results: {doc}`../validation/addbiomechanics`.

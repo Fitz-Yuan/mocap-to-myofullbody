@@ -13,6 +13,9 @@ set; a doubtful point "!". Exit status 1 if there is a problem.
 import importlib.util
 import os
 import sys
+import warnings
+
+import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pipeline import config  # noqa: E402
@@ -98,6 +101,13 @@ def main():
         labels, rate, units, up, plates = r["labels"], r["rate"], r["units"], r["up"], r["plates"]
         T = len(r["xyz"])
         ok(f"{name}: {T} frames at {rate:g} Hz ({T / rate:.1f} s), units {units}, up {up}")
+        X = r["xyz"][:, [not l.startswith(("*", "Unlabeled")) for l in labels]]  # the labelled markers
+        with np.errstate(all="ignore"), warnings.catch_warnings():
+          warnings.simplefilter("ignore", RuntimeWarning)
+          size = float(np.nanmedian(np.nanmax(np.nanmax(X, 1) - np.nanmin(X, 1), 1)))
+        if not 0.25 < size < 4.0:  # a person spans about 0.3-2.5 m
+          bad(f"the markers span {size:.3g} m: the length unit is probably not {units!r}; "
+              "set units = 'mm' or 'm' in the profile (M2M_UNITS)")
       if plates is not None:
         ok(f"{plates['force'].shape[1]} force plates")
       check_markers(labels)

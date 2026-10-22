@@ -334,6 +334,7 @@
             <nav aria-label="Page">
                 <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#motive-csv">Motive CSV</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#qualisys-tsv">Qualisys TSV</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#addbiomechanics-b3d">AddBiomechanics <code class="docutils literal notranslate"><span class="pre">.b3d</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#checking-a-dataset-before-running">Checking a dataset before running</a></li>
 </ul>
@@ -376,6 +377,14 @@
 <div class="tip admonition">
 <p class="admonition-title">Checked</p>
 <p>Exports from Motive 2 and 3 (format versions 1.21 to 1.25) by other labs read as described: a Baseline (37) take at 360 Hz, a Baseline + 13 (50) take, a Conventional Lower Body (16) take at 120 Hz; bones-only and rigid-body-only exports stop with the message.</p>
+</div>
+</section>
+<section id="qualisys-tsv">
+<h2>Qualisys TSV<a class="headerlink" href="#qualisys-tsv" title="Link to this heading">#</a></h2>
+<p>A TSV export of 3D data from Qualisys Track Manager (<code class="docutils literal notranslate"><span class="pre">M2M_INPUT=tsv</span></code>) is read from its header lines: the marker names (<code class="docutils literal notranslate"><span class="pre">MARKER_NAMES</span></code>) and the rate (<code class="docutils literal notranslate"><span class="pre">FREQUENCY</span></code>); with or without the Frame and Time columns; a sample of 0, 0, 0, an empty cell or <code class="docutils literal notranslate"><span class="pre">NA</span></code> is a gap. QTM writes millimetres (<code class="docutils literal notranslate"><span class="pre">M2M_UNITS</span></code> overrides; <code class="docutils literal notranslate"><span class="pre">check</span></code> says when the markers’ size does not fit the unit). QTM writes a trial’s force plates, analog channels and rigid bodies into separate files next to it (<code class="docutils literal notranslate"><span class="pre">&lt;trial&gt;_f_1.tsv</span></code>, …): these are recognised by their content and are not taken as trials. The force plates are not read from them; for force plates, export C3D from QTM.</p>
+<div class="tip admonition">
+<p class="admonition-title">Checked</p>
+<p>Three public recordings exported by QTM both as TSV and as C3D (54, 62 and 23 markers, 100–250 Hz): the same markers, the same gaps, positions within 0.001 mm (the TSV’s rounding).</p>
 </div>
 </section>
 <section id="addbiomechanics-b3d">
@@ -436,6 +445,7 @@
   <nav id="pst-page-toc-nav" class="page-toc" aria-labelledby="pst-page-navigation-heading-2">
     <ul class="pst-show_toc_level nav section-nav flex-column">
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#motive-csv">Motive CSV</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#qualisys-tsv">Qualisys TSV</a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#addbiomechanics-b3d">AddBiomechanics <code class="docutils literal notranslate"><span class="pre">.b3d</span></code></a></li>
 <li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#checking-a-dataset-before-running">Checking a dataset before running</a></li>
 </ul>

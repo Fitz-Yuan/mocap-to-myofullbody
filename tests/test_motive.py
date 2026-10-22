@@ -52,3 +52,33 @@ def test_two_people_kept_apart(tmp_path):
   assert readers.read_trial(p)["labels"] == ["Alice:LHeel", "Bob:LHeel"]  # never mixed
   r = readers.read_trial(p, exclude="Bob:.*")
   assert r["labels"] == ["LHeel"] and np.allclose(r["xyz"][0, 0], [0.001, 0.002, 0.003])
+
+
+QTM = ("NO_OF_FRAMES\t2\nNO_OF_CAMERAS\t8\nNO_OF_MARKERS\t2\nFREQUENCY\t200\nNO_OF_ANALOG\t0\n"
+       "ANALOG_FREQUENCY\t0\nDESCRIPTION\t--\nTIME_STAMP\t2024-01-01, 10:00:00\t1.0\nDATA_INCLUDED\t3D\n"
+       "MARKER_NAMES\tL HEEL\tHEAD TOP\t\n")
+
+
+@pytest.mark.parametrize("rows", [
+  "Frame\tTime\tL HEEL X\tL HEEL Y\tL HEEL Z\tHEAD TOP X\tHEAD TOP Y\tHEAD TOP Z\t\n"
+  "1\t0.000\t100\t50\t20\t120\t210\t1700\t\n2\t0.005\t0.000\t0.000\t0.000\t121\t211\t1701\t\n",
+  "1\t0.000\t100\t50\t20\t120\t210\t1700\n2\t0.005\tNA\tNA\tNA\t121\t211\t1701\n",  # Frame, Time, no header
+  "100\t50\t20\t120\t210\t1700\n\t\t\t121\t211\t1701\n",  # QTM 2.x: XYZ only
+])
+def test_qtm_tsv(tmp_path, rows):
+  p = tmp_path / "walk.tsv"
+  p.write_text(QTM + rows)
+  assert readers.qtm_tsv_content(str(p)) == "3D"
+  r = readers.read_trial(str(p))
+  assert r["kind"] == "tsv" and r["rate"] == 200.0 and r["labels"] == ["L HEEL", "HEAD TOP"]
+  X = r["xyz"]
+  assert np.allclose(X[0, 1], [0.12, 0.21, 1.70]) and np.isnan(X[1, 0]).all() and not np.isnan(X[1, 1]).any()
+
+
+def test_qtm_force_file_is_not_a_trial(tmp_path):
+  p = tmp_path / "walk_f_1.tsv"
+  p.write_text("NO_OF_SAMPLES\t2\nFREQUENCY\t1000\nDATA_INCLUDED\tForce\nFORCE_PLATE_NAME\tA\n"
+               "Sample\tTime\tForce_X\tForce_Y\tForce_Z\n1\t0\t0\t0\t-700\n")
+  assert readers.qtm_tsv_content(str(p)) == "Force"
+  with pytest.raises(ValueError, match="not QTM 3D data"):
+    readers.read_trial(str(p))

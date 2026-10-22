@@ -182,7 +182,7 @@ else:  # a relative root in a profile: relative to the profile's folder
   ROOT = os.path.join(os.path.dirname(os.path.abspath(os.path.expanduser(PROFILE))),
                       os.path.expanduser(_PROFILE["M2M_ROOT"]))
 # input: the raw recordings (M2M_RAW_DIR -> read_raw.py -> M2M_CACHE_DIR)
-INPUT = _choice("M2M_INPUT", "tak", ("tak", "c3d", "trc", "b3d", "csv"))  # kind of the raw files (csv: Motive)
+INPUT = _choice("M2M_INPUT", "tak", ("tak", "c3d", "trc", "b3d", "csv", "tsv"))  # kind of the raw files (csv: Motive, tsv: QTM)
 RAW_DIR = _path("M2M_RAW_DIR", os.path.join(ROOT, "raw_tak"))
 CACHE_DIR = _path("M2M_CACHE_DIR",
                   os.path.join(ROOT, "tak_cache" if INPUT == "tak" else "raw_cache"))
@@ -290,6 +290,10 @@ def _raw_files(pattern, regex):
       continue
     rel = os.path.relpath(p, RAW_DIR).replace(os.sep, "/")
     entries = [(p, rel, os.path.splitext(os.path.basename(p))[0])]
+    if p.lower().endswith(".tsv"):  # QTM: the plates, analog channels, ... of a trial are files beside it
+      from mocap2myo.readers import qtm_tsv_content
+      if qtm_tsv_content(p) != "3D":
+        continue
     if p.lower().endswith(".b3d"):  # one entry per trial in the file: "<path>#<trial>"
       from mocap2myo.readers import b3d_trials
       entries = [(f"{p}#{t}", f"{rel}#{t}", t) for t in b3d_trials(p)]

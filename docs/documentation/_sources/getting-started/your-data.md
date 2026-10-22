@@ -3,7 +3,7 @@
 
 A dataset needs labelled markers, a known marker set and one static standing trial per subject. Its settings (file kind and naming, units, subjects, marker set, task) go into a small profile, so nothing in the code changes.
 
-1. **Labelled marker trajectories**: OptiTrack `.tak` takes or Motive's CSV export ({doc}`optitrack`), C3D or TRC files. The labels the recording software assigned are enough; unlabelled point clouds are not. Force plates (C3D) and any frame rate are taken as they are.
+1. **Labelled marker trajectories**: OptiTrack `.tak` takes or Motive's CSV export ({doc}`optitrack`), Qualisys QTM's TSV export, C3D or TRC files. The labels the recording software assigned are enough; unlabelled point clouds are not. Force plates (C3D) and any frame rate are taken as they are.
 2. **A known marker set**: Plug-in-Gait, the 52-marker ISB / Dumas set and Motive's Baseline (37), Baseline (41) and Baseline + 13 Additional Markers (50) ship with the code; another set is one TOML file in `mocap2myo/markersets/` (see {ref}`models and marker sets <models>`).
 3. **Enough markers per segment** to fix its orientation (ideally three).
 4. **A static standing trial per subject**, to anchor the joint angles ({ref}`static-trial calibration <static>`).

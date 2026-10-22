@@ -1,8 +1,9 @@
 """Read one trial file of any supported kind into one structure: C3D, TRC, OptiTrack .tak,
-an OptiTrack Motive CSV export, AddBiomechanics .b3d (one trial of it: "<file>.b3d#<trial>").
+an OptiTrack Motive CSV export, a Qualisys QTM TSV export, AddBiomechanics .b3d (one trial of
+it: "<file>.b3d#<trial>").
 
 read_trial(path) -> dict
-  kind        "c3d" | "trc" | "tak" | "csv" | "b3d"
+  kind        "c3d" | "trc" | "tak" | "csv" | "tsv" | "b3d"
   labels      [n] marker labels ("Subject:" prefixes stripped)
   xyz         [T, n, 3] metres, NaN = missing (C3D: residual < 0; any kind: a sample
               that is exactly (0, 0, 0) or NaN)
@@ -67,8 +68,8 @@ _AXES = {"x": 0, "y": 1, "z": 2}
 
 def kind_of(path):
   ext = os.path.splitext(path.partition("#")[0])[1].lower().lstrip(".")
-  if ext not in ("c3d", "trc", "tak", "b3d", "csv"):
-    raise ValueError(f"{path}: unknown file kind {ext!r} (c3d, trc, tak, b3d, csv)")
+  if ext not in ("c3d", "trc", "tak", "b3d", "csv", "tsv"):
+    raise ValueError(f"{path}: unknown file kind {ext!r} (c3d, trc, tak, b3d, csv, tsv)")
   return ext
 
 
@@ -400,6 +401,70 @@ def read_motive_csv(path, up=None, units=None, exclude=""):
               other=None, analog=None, plates=None)
 
 
+def qtm_tsv_content(path):
+  """What a Qualisys QTM TSV export holds (its DATA_INCLUDED line: "3D", "Force", "Analog",
+  "6D", ...; "" if none). QTM writes the force plates, analog channels and rigid bodies of a
+  trial into separate files next to it (<trial>_f_1.tsv, ...); only "3D" files are trials."""
+  with open(path, encoding="utf-8-sig", errors="replace") as f:
+    for _, line in zip(range(40), f):
+      k, _, v = line.rstrip("\r\n").partition("\t")
+      if k == "DATA_INCLUDED":
+        return v.strip()
+  return ""
+
+
+def read_qtm_tsv(path, up=None, units=None, exclude=""):
+  """A Qualisys QTM TSV export of 3D data: the labelled trajectories (MARKER_NAMES), the rate
+  (FREQUENCY). With or without the Frame / Time columns; a sample of 0, 0, 0 or an empty
+  cell is a gap. QTM writes millimetres (`units` overrides). The force plates are in other
+  files (<trial>_f_<n>.tsv) and are not read: export C3D from QTM for them."""
+  with open(path, encoding="utf-8-sig", errors="replace") as f:
+    lines = f.read().splitlines()
+  md, i = {}, 0
+  while i < len(lines) and re.fullmatch(r"[A-Z][A-Z0-9_]*", lines[i].partition("\t")[0]):
+    k, _, v = lines[i].partition("\t")
+    md[k] = v.split("\t")
+    i += 1
+  inc = (md.get("DATA_INCLUDED") or [""])[0].strip()
+  if inc != "3D" or "MARKER_NAMES" not in md:
+    raise ValueError(f"{path}: not QTM 3D data (DATA_INCLUDED {inc!r}); force plates: export C3D from QTM")
+  names = [strip_prefix(n) for n in md["MARKER_NAMES"] if n.strip()]
+  excl = re.compile(exclude) if exclude else None
+  if i < len(lines) and lines[i].startswith("Frame\t"):  # a header row: columns by name
+    head = lines[i].split("\t")
+    i += 1
+    col = {h.strip(): j for j, h in enumerate(head)}
+    idx = [[col.get(f"{n} {a}") for a in "XYZ"] for n in md["MARKER_NAMES"] if n.strip()]
+    if any(j is None for c in idx for j in c):
+      raise ValueError(f"{path}: the header row does not name every marker's X, Y, Z")
+  else:  # no header row: three columns per marker, after Frame and Time if they are there
+    nc = len(lines[i].rstrip("\t").split("\t")) if i < len(lines) else 0
+    off = nc - 3 * len(names)
+    if off not in (0, 2):
+      raise ValueError(f"{path}: {nc} columns for {len(names)} markers")
+    idx = [[off + 3 * k + a for a in range(3)] for k in range(len(names))]
+  keep = [k for k, n in enumerate(names) if not (excl and excl.fullmatch(n))]
+  flat = [idx[k][a] for k in keep for a in range(3)]
+  data = [r for r in lines[i:] if r.strip()]
+  A = np.full((len(data), len(flat)), np.nan)
+  for t, r in enumerate(data):
+    c = r.split("\t")
+    for k, j in enumerate(flat):
+      v = c[j].strip() if j < len(c) else ""
+      if v and v.upper() not in ("NA", "NAN", "-"):
+        A[t, k] = float(v)
+  unit = (units or "mm").lower()
+  if unit not in LENGTH:
+    raise ValueError(f"{path}: length unit {unit!r}; set it (m, cm, mm)")
+  labels = [names[k] for k in keep]
+  X = _missing(A.reshape(len(data), len(labels), 3)) * LENGTH[unit]
+  if up == "auto":
+    up = detect_up(labels, X)
+  R = up_rotation(up) if up else np.eye(3)
+  return dict(kind="tsv", labels=labels, xyz=X @ R.T, rate=float(md["FREQUENCY"][0]), up=up, R=R,
+              units=unit, other=None, analog=None, plates=None)
+
+
 def b3d_trials(path):
   """Trial names of an AddBiomechanics .b3d file (nimblephysics)."""
   import nimblephysics as nimble  # optional dependency (pip install nimblephysics): .b3d only
@@ -496,7 +561,9 @@ def read_trial(path, kind=None, up=None, units=None, exclude="", analog=".*",
     return read_b3d(path, up, fp_min_fz)
   if kind == "csv":
     return read_motive_csv(path, up, units, exclude)
-  raise ValueError(f"kind {kind!r}: expected c3d, trc, tak, b3d or csv")
+  if kind == "tsv":
+    return read_qtm_tsv(path, up, units, exclude)
+  raise ValueError(f"kind {kind!r}: expected c3d, trc, tak, b3d, csv or tsv")
 
 
 if __name__ == "__main__":
