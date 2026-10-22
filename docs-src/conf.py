@@ -9,27 +9,27 @@ myst_heading_anchors = 3
 source_suffix = {".md": "markdown"}
 exclude_patterns = ["_build", "README.md", "_generated"]
 html_theme = "sphinx_book_theme"
-html_title = "Mocap to MSK"
+html_title = "Mocap to MSK documentation"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
 html_js_files = ["redirects.js"]
 html_favicon = "_static/favicon.svg"
 html_last_updated_fmt = "%b %d, %Y"
+templates_path = ["_templates"]
+html_sidebars = {"**": ["navbar-logo.html", "sidebar-links.html", "search-field.html", "sbt-sidebar-nav.html"]}
 html_theme_options = {
+  "logo": {"text": "Mocap to MSK", "image_light": "_static/logo.svg", "image_dark": "_static/logo-dark.svg"},
   "repository_url": "https://github.com/Fitz-Yuan/mocap-to-myofullbody",
   "repository_branch": "main",
   "path_to_docs": "docs-src",
-  "logo": {"text": "Mocap to MSK", "image_light": "_static/logo.svg", "image_dark": "_static/logo-dark.svg"},
-  "use_repository_button": True,
-  "use_issues_button": True,
-  "use_edit_page_button": True,
-  "use_download_button": True,
+  "use_repository_button": False,
+  "use_issues_button": False,
+  "use_edit_page_button": False,
+  "use_download_button": False,
+  "use_fullscreen_button": False,
   "home_page_in_toc": True,
   "show_toc_level": 2,
   "navigation_with_keys": False,
-  "extra_footer": '<a href="../">Website</a> · <a href="../viewer/">Viewer</a>',
-  "icon_links": [
-    {"name": "Website", "url": "https://fitz-yuan.github.io/mocap-to-myofullbody/", "icon": "fa-solid fa-house"},
-    {"name": "Viewer", "url": "https://fitz-yuan.github.io/mocap-to-myofullbody/viewer/", "icon": "fa-solid fa-person-walking"},
-  ],
+  "article_header_end": [],
+  "icon_links": [],
 }

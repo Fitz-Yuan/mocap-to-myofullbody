@@ -64,3 +64,13 @@ header.bd-header { display: none; }
 .bd-content .pst-scrollable-table-container { overflow-x: auto; max-width: 100%; }
 /* use the width the empty right-hand contents column leaves on pages without sections */
 @media (min-width: 1200px) { .bd-main .bd-content .bd-article-container { max-width: 64rem; } }
+
+/* text links under the logo instead of icon buttons */
+.m2m-sidebar-links { display: flex; gap: 0.45rem; align-items: center; font-size: 0.86rem; margin: -0.2rem 0 0.9rem; }
+.m2m-sidebar-links a { color: var(--pst-color-text-muted); text-decoration: none; }
+.m2m-sidebar-links a:hover { color: var(--pst-color-primary); text-decoration: underline; }
+.m2m-sidebar-links span { color: var(--pst-color-text-muted); opacity: 0.6; }
+/* logo beside the name, one row */
+.navbar-brand.logo { flex-direction: row !important; justify-content: flex-start; align-items: center; gap: 0.55rem; }
+.navbar-brand img.logo__image { height: 44px !important; max-height: 44px; width: auto; margin: 0; }
+.navbar-brand p.title.logo__title { margin: 0; text-align: left; }
