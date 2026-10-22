@@ -1,8 +1,11 @@
-"""Gap-filled markers as C3D files: what was measured, and where a marker was missing, the
-same marker on the subject's calibrated model in the IK pose (a model-based fill, as Vicon
-Nexus' Kinematic Fill), shifted to meet the measurement at both ends of the gap (the
-measured-minus-model offsets before and after it, blended linearly: a pattern fill with the
-model as the donor), for other software (OpenSim, Visual3D, ...).
+"""Gap-filled markers as C3D files, for other software (OpenSim, Visual3D, ...): what was
+measured, and in each gap of a marker, as Camargo et al. 2020 (CMBBE) cascade them:
+  1. a rigid body fill from the 3 nearest markers seen throughout the gap (Vicon Nexus;
+     Smolka & Lukasik 2016): the most accurate where it applies (markers hidden over
+     0.3-1 s and predicted: 1-7 mm, the model's marker 12-19 mm; case study and ramp data);
+  2. else the same marker on the subject's calibrated model in the IK pose (a model-based
+     fill, as Nexus' Kinematic Fill), shifted to meet the measurement at both ends of the
+     gap (the measured-minus-model offsets before and after it, blended linearly).
 
   python pipeline/export_c3d.py OUT_DIR [trial ...]      (needs ezc3d)
 
@@ -24,6 +27,35 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pipeline import config  # noqa: E402
+
+
+def kabsch(A, B):
+  """R, t with R @ a + t ~ b for point sets A, B [k, 3] (least squares, proper rotation)."""
+  ca, cb = A.mean(0), B.mean(0)
+  U, _, Vt = np.linalg.svd((B - cb).T @ (A - ca))
+  R = U @ np.diag([1.0, 1.0, np.sign(np.linalg.det(U @ Vt))]) @ Vt
+  return R, cb - R @ ca
+
+
+def rigid_fill(X, k, g, order):
+  """Marker k over the gap g (frame indices) from 3 donor markers rigidly attached to it
+  (Vicon Nexus' rigid body fill; Smolka & Lukasik 2016): the first 3 markers of `order`
+  seen over the gap and at both its ends, the target's position carried by each end's
+  rigid fit and blended linearly. None when no 3 donors are seen throughout."""
+  a, b = g[0] - 1, g[-1] + 1
+  if a < 0 or b >= len(X) or not np.isfinite(X[[a, b], k]).all():
+    return None
+  span = np.r_[a, g, b]
+  don = [j for j in order if np.isfinite(X[span, j]).all()][:3]
+  if len(don) < 3:
+    return None
+  out = np.zeros((len(g), 3))
+  for i, t in enumerate(g):
+    Ra, ta = kabsch(X[a, don], X[t, don])
+    Rb, tb = kabsch(X[b, don], X[t, don])
+    w = (t - a) / (b - a)
+    out[i] = (1 - w) * (Ra @ X[a, k] + ta) + w * (Rb @ X[b, k] + tb)
+  return out
 
 
 def filled_markers(name, ik_dir=None, npz_dir=None):
@@ -51,10 +83,20 @@ def filled_markers(name, ik_dir=None, npz_dir=None):
   for t in np.flatnonzero(solved):
     V[t] = mm.markers(Q[t]) / s  # model space -> the subject's metres
   fill = np.zeros(X.shape[:2], bool)
+  rigid = np.zeros(X.shape[:2], bool)
   T = len(X)
+  body = np.flatnonzero(~head)
+  X0 = X.copy()  # donors: measured samples only
   for k in np.flatnonzero(mm.active & ~head):
+    dist = [np.nanmedian(np.linalg.norm(X0[:, j] - X0[:, k], axis=1)) if j != k else np.inf for j in body]
+    order = [int(body[i]) for i in np.argsort(dist) if np.isfinite(dist[i])]
     idx = np.flatnonzero(np.isnan(X[:, k, 0]) & solved)
     for g in np.split(idx, np.flatnonzero(np.diff(idx) != 1) + 1) if len(idx) else []:
+      rb = rigid_fill(X0, k, g, order)
+      if rb is not None:  # 3 neighbours seen throughout: the most accurate fill (gap CV)
+        X[g, k] = rb
+        fill[g, k] = rigid[g, k] = True
+        continue
       # the model's marker, shifted so that it meets the measurement at both ends: the
       # measured-minus-model offset just before and after the gap, blended linearly across
       # it (one end: that end's offset), as a pattern fill with the model as the donor
@@ -67,7 +109,7 @@ def filled_markers(name, ik_dir=None, npz_dir=None):
              else off_a if off_a is not None else off_b if off_b is not None else 0.0)
       X[g, k] = V[g, k] + off
       fill[g, k] = True
-  return labels, X, fill, float(D["marker_rate"])
+  return labels, X, fill, float(D["marker_rate"]), rigid
 
 
 def write_c3d(path, labels, X, fill, rate, source=""):
@@ -96,12 +138,13 @@ def main():
   os.makedirs(out, exist_ok=True)
   names = sys.argv[2:] or config.trials(config.IK_DIR)
   for n in names:
-    labels, X, fill, rate = filled_markers(n)
+    labels, X, fill, rate, rigid = filled_markers(n)
     write_c3d(os.path.join(out, f"{n}.c3d"), labels, X, fill, rate,
               source=f"mocap2myo IK fill ({config.MODEL}, {os.path.basename(config.IK_DIR)})")
     gaps = np.isnan(X[..., 0]).mean()
-    print(f"{n}: {len(labels)} markers, {fill.sum()} samples filled from the model "
-          f"({100 * fill.mean():.2f} %), {100 * gaps:.2f} % left empty -> {out}/{n}.c3d")
+    print(f"{n}: {len(labels)} markers, {fill.sum()} samples filled ({100 * fill.mean():.2f} %; "
+          f"{rigid.sum()} from 3 neighbouring markers, the rest from the model), {100 * gaps:.2f} % "
+          f"left empty -> {out}/{n}.c3d")
 
 
 if __name__ == "__main__":
