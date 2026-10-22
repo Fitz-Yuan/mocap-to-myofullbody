@@ -42,6 +42,69 @@ CONTACT_Z, CONTACT_V = 0.04, 1.3  # m, m/s
 VPP_ABOVE_COM = 0.35  # m
 
 
+# Segment masses in % of body mass (de Leva 1996, J Biomech 29:1223: Zatsiorsky-Seluyanov's
+# parameters referred to joint centres), "m" / "f". head: head and neck; trunk: with the
+# pelvis; forearm_hand: forearm and hand together (the models put the wrist bodies on
+# either side of that boundary).
+DE_LEVA_MASS = {
+  "m": dict(head=6.94, trunk=43.46, upperarm=2.71, forearm_hand=2.23, thigh=14.16, shank=4.33, foot=1.37),
+  "f": dict(head=6.68, trunk=42.57, upperarm=2.55, forearm_hand=1.94, thigh=14.78, shank=4.81, foot=1.29)}
+# Dempster (1955) as Winter tabulates it (Biomechanics and Motor Control of Human Movement,
+# 4th ed. 2009, Table 4.1; one table for both sexes): what Vicon Plug-in-Gait uses
+DEMPSTER_MASS = dict(head=8.10, trunk=49.70, upperarm=2.80, forearm_hand=2.20, thigh=10.00,
+                     shank=4.65, foot=1.45)
+_BSIP_GROUP = {"head": "head", "neck": "head", "humerus": "upperarm", "ulna": "forearm_hand",
+               "radius": "forearm_hand", "hand": "forearm_hand", "femur": "thigh", "tibia": "shank",
+               "foot": "foot", "toes": "foot"}
+
+
+def bsip_factors(m, profile, sex=None, table="deleva"):
+  """Per-body mass factors [nbody] that give the model the segment masses of table "deleva"
+  (by sex "m" / "f"; otherwise the mean of the two) or "dempster", and {group: (model %,
+  target %)}. Each body belongs
+  to the canonical segment of its nearest ancestor that is one (the profile's [segments]);
+  within a group the model's own distribution, centres of mass and inertia shapes stay (the
+  inertia scales with the mass). A group the model lacks (MyoLeg's arms; the head of a
+  model whose head is part of the torso body) goes to the trunk."""
+  segs = {}
+  for s in sorted(profile.segments, key=lambda s: s not in ("pelvis", "torso")):  # those first:
+    b = profile.segment_body(s)  # a head on the torso body (Rajagopal's HAT) is trunk
+    if b and m.body(b).id not in segs:
+      segs[m.body(b).id] = s
+  key = [("trunk", "")] * m.nbody
+  for b in range(1, m.nbody):
+    a = b
+    while a not in segs and a != 0:
+      a = int(m.body_parentid[a])
+    s = segs.get(a, "")
+    side = s[-1] if s[-2:] in ("_l", "_r") else ""
+    g = _BSIP_GROUP.get(s[:-2] if side else s)
+    key[b] = (g, side) if g else ("trunk", "")
+  if table == "dempster":
+    table = DEMPSTER_MASS
+  elif sex in DE_LEVA_MASS:
+    table = DE_LEVA_MASS[sex]
+  else:
+    table = {k: (DE_LEVA_MASS["m"][k] + DE_LEVA_MASS["f"][k]) / 2 for k in DE_LEVA_MASS["m"]}
+  M = m.body_mass.astype(float).copy()
+  M[0] = 0.0
+  tot = M.sum()
+  groups = {}
+  for b in range(1, m.nbody):
+    groups.setdefault(key[b], []).append(b)
+  target = {k: table[k[0]] / 100 * tot for k in groups if k[0] != "trunk" and M[groups[k]].sum() > 1e-3 * tot}
+  target[("trunk", "")] = tot - sum(target.values())
+  f = np.ones(m.nbody)
+  info = {}
+  for k, bs in groups.items():
+    mk = M[bs].sum()
+    tk = target.get(k, mk)  # a group with (almost) no mass keeps it
+    if mk > 0:
+      f[bs] = tk / mk
+    info["_".join(x for x in k if x)] = (round(100 * mk / tot, 2), round(100 * tk / tot, 2))
+  return f, info
+
+
 def lowpass(x, rate, hz):
   """Zero-phase 4th-order Butterworth low-pass along axis 0."""
   if not 0 < hz < rate / 2:
@@ -163,7 +226,7 @@ class Kinetics:
     return dict(C=C, R=R, P=P, Fr=Fr, Ax=Ax, palm=palm, sole=sole)
 
   def solve(self, K, rate, scale, body_kg, extra_kg=None, loads=(), floor_z=None, lp_hz=6.0, plates=None,
-            legs=True, split="lever"):
+            legs=True, split="lever", mass_factor=None):
     """K: self.kinematics(Q) for IK qpos Q in model units (the model is uniformly `scale` x
     the subject; a model scaled to the subject segment by segment, mocap2myo.scaling, has
     scale 1). Masses: the model's mass distribution at body_kg.
@@ -172,17 +235,19 @@ class Kinetics:
     point=[T,3], force=[T,3], torque=[T,3]). floor_z: floor height [T] (subject units) as
     the model's soles see it; default: the lowest sole point of either foot within +-1.5 s
     (floors differ by 1-2 cm between areas, and the soles sit a shoe sole above the real
-    floor)."""
+    floor). mass_factor (optional) [nbody]: on the model's body masses and inertias, keeping
+    their total (bsip_factors: de Leva's segment masses)."""
     m = self.m
     k = 1.0 / scale
     mu = body_kg / float(m.body_subtreemass[0])
-    mass = m.body_mass * mu
+    fb = np.ones(m.nbody) if mass_factor is None else np.asarray(mass_factor, float)
+    mass = m.body_mass * mu * fb
     for b, kg in (extra_kg or {}).items():
       mass[m.body(b).id] += kg
     # Bodies under 10 g are kinematic helpers (attachments, MyoArm's shoulder phantoms, the
     # arm model's massless thorax); their inertias are placeholders (the phantoms' 1 kg m^2
     # each, more than the whole trunk). Keep the mass, drop that inertia.
-    Ib = np.where((m.body_mass < 0.01)[:, None], 0.0, m.body_inertia) * mu * k**2
+    Ib = np.where((m.body_mass < 0.01)[:, None], 0.0, m.body_inertia) * (mu * fb)[:, None] * k**2
     T = len(K["C"])
     if floor_z is None:
       floor_z = floor_from_soles(K["sole"] * k, [self.sole[s] for s in "lr"], rate)

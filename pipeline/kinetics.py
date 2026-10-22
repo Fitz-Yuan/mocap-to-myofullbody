@@ -143,13 +143,18 @@ def run(trial):
   cal = os.path.join(config.IK_DIR, f"{trial}.npz")
   if "model_profile" in K.files and str(K["model_profile"]) != KIN.mm.profile.name:
     raise SystemExit(f"{cal}: IK of {K['model_profile']}, not M2M_MODEL={KIN.mm.profile.name}")
+  mf = None
+  if config.KIN_BSIP != "model":
+    mf, info = kinetics.bsip_factors(KIN.m, KIN.mm.profile, config.sexes().get(subj), config.KIN_BSIP)
+    more["bsip"] = json.dumps(info)
   out = KIN.solve(kin, rate, scale, body, {carried_body(KIN.m, KIN): extra} if extra > 0 else None,
                   loads, lp_hz=config.KIN_LOWPASS_HZ, plates=force_plates(trial, len(Q), rate),
-                  split=config.KIN_SPLIT)
+                  split=config.KIN_SPLIT, mass_factor=mf)
   out.update(more)
   out["unsolved"] = bad
   out["uncertain"] = out.get("uncertain", np.zeros(len(Q), bool)) | bad
   out["scale"] = scale
+  out["body_kg"] = body
   np.savez_compressed(os.path.join(config.KIN_DIR, f"{trial}.npz"), **out)
   ok = ~out["uncertain"]
   W = (body + extra) * 9.81

@@ -262,6 +262,7 @@ if ANTHRO == "c3d" and INPUT != "c3d":
 ANTHRO_CSV = _path("M2M_ANTHRO_CSV", os.path.join(CACHE_DIR, "anthropometrics.csv")
                    if ANTHRO == "c3d" else os.path.join(ROOT, "meta", "anthropometrics.csv"))
 # CSV columns: subject, height (cm), mass (kg)
+SEX_COLUMN = _env("M2M_SEX_COLUMN", "")  # optional: the subject's sex (kinetics.py, M2M_KIN_BSIP)
 ANTHRO_COLUMNS = tuple(c.strip() for c in
                        _env("M2M_ANTHRO_COLUMNS", "Subject,Height,Weight").split(","))
 # the CSV's subject cell -> the subject as in the file names (1 -> "S01"); a cell that
@@ -532,11 +533,25 @@ KIN_FILTER_PLATES = _flag("M2M_KIN_FILTER_PLATES", "1")
 # 20 N m (Moissenet, 40 trials); the case study's right-foot share of the vertical force
 # against its plates: RMS error 0.080 -> 0.070, r 0.88 both
 KIN_SPLIT = _choice("M2M_KIN_SPLIT", "lever", ("lever", "vpp"))
+# segment masses: "model" (the model's own distribution scaled to the body mass, as OpenSim's
+# Scale tool keeps it), "deleva" (de Leva 1996, by sex with M2M_SEX_COLUMN, else the mean of
+# the male and female tables) or "dempster" (Dempster 1955 as Winter 2009 tabulates it, as
+# Vicon Plug-in-Gait); mocap2myo.kinetics.bsip_factors
+KIN_BSIP = _choice("M2M_KIN_BSIP", "model", ("model", "deleva", "dempster"))
 # Mass while recorded, if the subjects wore equipment (here the COSMED K5 metabolic
 # system, about 1-3 kg): a column of the anthropometrics CSV with the total mass; the
 # difference to the body mass is lumped at CARRIED_BODY's centre of mass. "" = none.
 CARRIED_COLUMN = _env("M2M_CARRIED_COLUMN", "Wgt+K5")
 CARRIED_BODY = _env("M2M_CARRIED_BODY", "torso")
+
+
+def sexes():
+  """{subject: "m" / "f" / None} from SEX_COLUMN of the anthropometrics CSV (m, male, M /
+  f, female, w, F); empty without the column."""
+  if not SEX_COLUMN:
+    return {}
+  code = lambda v: "m" if v[:1].lower() == "m" else "f" if v[:1].lower() in ("f", "w") else None
+  return {s: code(r.get(SEX_COLUMN, "")) for s, r in _anthro_rows()}
 
 
 def carried_mass():
@@ -569,6 +584,10 @@ MUSCLE_PASSIVE = _flag("M2M_MUSCLE_PASSIVE", "1")  # passive muscle forces
 MUSCLE_STRENGTH = float(_env("M2M_MUSCLE_STRENGTH", 1.0))
 if not MUSCLE_STRENGTH > 0:
   raise SystemExit(f"M2M_MUSCLE_STRENGTH={MUSCLE_STRENGTH}: expected > 0")
+# the subject's muscles: "none" (the model's forces) or "mass": every maximum isometric force
+# x subject mass / model mass (muscle volume grows with mass x height, Handsfield et al. 2014,
+# J Biomech 47:631, and fibre length with height, so the cross-section with mass)
+MUSCLE_SCALE = _choice("M2M_MUSCLE_SCALE", "none", ("none", "mass"))
 # validate/emg_compare.py: EMG channel -> model muscles, "channel=muscle+muscle,..." (C3D
 # analog labels; a task with its own EMG reader brings its own map)
 EMG_MAP = _env("M2M_EMG_MAP", "")

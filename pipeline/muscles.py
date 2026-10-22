@@ -103,8 +103,13 @@ def run(trial):
     raise SystemExit(f"{trial}: {len(Q)} IK frames but {len(kn['grf'])} kinetics frames")
   joints = matched_joints(kn)
   comps = [(j, c[0]) for j in joints for c in KIN.joints[j][3]]
+  strength = config.MUSCLE_STRENGTH
+  if config.MUSCLE_SCALE == "mass":
+    if "body_kg" not in kn.files:
+      raise SystemExit(f"{trial}: M2M_MUSCLE_SCALE=mass needs the kinetics' body_kg (run kinetics.py again)")
+    strength *= float(kn["body_kg"]) / float(KIN.m.body_subtreemass[0])
   so = muscles.Muscles(KIN, comps, reserve=config.MUSCLE_RESERVE, weight=config.MUSCLE_WEIGHT,
-                       strength=config.MUSCLE_STRENGTH)
+                       strength=strength)
   kq = KIN.kinematics(Q)
   fj = ("L5S1",) if "L5S1" in joints else ()
   length, arms, fdir = so.geometry(Q, kq, scale, force_joints=fj)
@@ -126,7 +131,7 @@ def run(trial):
              reserve=res["reserve"].astype(np.float32),
              passive_moment=res["passive_moment"].astype(np.float32), uncertain=unc,
              iters=res["iters"], scale=scale, reserve_Nm=so.reserve, weight=so.weight,
-             fv=config.MUSCLE_FV, passive=config.MUSCLE_PASSIVE, strength=config.MUSCLE_STRENGTH,
+             fv=config.MUSCLE_FV, passive=config.MUSCLE_PASSIVE, strength=strength,
              F0=spread(so.prm.F0[None, :])[0], cost_weight=spread(so.w[None, :])[0])
   if fj:
     # the force across the L5/S1 joint: the net force on the trunk above minus the pull of

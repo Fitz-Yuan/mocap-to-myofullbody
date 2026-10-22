@@ -43,6 +43,7 @@ static_name = "{subject}_static"
 anthro = "csv"
 anthro_csv = "anthropometrics.csv"
 anthro_columns = ["Subject", "Height", "Weight"]
+sex_column = "Sex"                 # m / f (kinetics.py M2M_KIN_BSIP=deleva)
 carried_column = ""
 marker_set = "plug_in_gait"
 
