@@ -1,0 +1,48 @@
+# Dataset profile: AndyData-lab-onePerson (AnDyDataset), Maurice et al. 2019, Int J Robotics
+# Research, doi:10.1177/0278364919882089; data CC BY 4.0, Zenodo 3254403
+# (https://zenodo.org/record/3254403): qualisys_c3d.zip, xsens_c3d.zip,
+# participant_specifications.csv.
+#   M2M_DATASET=datasets/andydata.toml python pipeline/read_raw.py
+# Layout under root: qualisys/qualisys_c3d/Participant_<id>/Participant_<id>_Setup_<A|B>_Seq_<n>_
+# Trial_<k>.qualisys.c3d (the archive extracted), xsens/xsens_c3d/... (MVN's 64 virtual points, the
+# independent check: pipeline/validate/xsens.py), participant_specifications.csv (ID, body_height cm,
+# body_mass kg). No static trial: the calibration takes quiet standing from the trials.
+name = "andydata"
+description = """13 participants doing industry-like manual tasks (handling loads, screwing, walking);
+Qualisys optical capture with Plug-in-Gait markers (43, with extra toe markers), 120 Hz, recorded with an
+Xsens MVN Link suit at 240 Hz; no force plates."""
+
+[paths]
+root = "~/data/andydata"
+raw_dir = "qualisys/qualisys_c3d"
+
+[input]
+input = "c3d"
+up = "auto"
+units = ""
+rate = "native"                  # 120 Hz
+
+[naming]
+raw_trials = "Participant_*/*_Trial_1.qualisys.c3d"   # the first repetition of every sequence
+trial_regex = 'Participant_(?P<pid>\d+)/Participant_(?P=pid)_Setup_(?P<setup>[AB])_Seq_(?P<seq>\d+)_Trial_(?P<k>\d+)\.qualisys\.c3d'
+trial_name = "P{pid}_{setup}{seq}_{k}"   # Participant_909/..._Setup_A_Seq_1_Trial_1 -> P909_A1_1
+trial_glob = "P*"
+subject_sep = "_"
+raw_static = "none/*.c3d"        # there are none
+static_regex = 'none/(?P<subject>[^/]+)\.c3d'
+static_name = "{subject}_static"
+
+[subjects]
+anthro = "csv"
+anthro_csv = "participant_specifications.csv"
+anthro_columns = "ID,body_height,body_mass"
+anthro_subject = "P{}"
+carried_column = ""
+marker_set = "plug_in_gait"
+
+[task]
+task = "none"
+
+[ik]
+static = true
+static_markers = "legs"

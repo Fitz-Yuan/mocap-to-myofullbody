@@ -63,6 +63,10 @@ prefer = ["LHLE", "RHLE"]
 # names (case study: one subject). Same physical markers, other names; its head names were
 # rotated on that subject (assigned by position instead). LHGT (left counterpart of RBAK)
 # and TV2 are not in this marker set.
+[aliases.AnDy]   # AnDyDataset (Maurice et al. 2019, Qualisys): forearm wands named FRA
+LFRA = "LFRM"
+RFRA = "RFRM"
+
 [aliases.ISB]
 CV7 = "C7"
 SJN = "CLAV"
