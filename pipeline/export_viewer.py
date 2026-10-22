@@ -283,7 +283,8 @@ def export_clip(a):
   bp, bq = body_poses(m, d, Q)
   model_mk = np.stack([mm.markers(q) for q in Q])
   # measured markers in the reference frame: scaled like the IK, moved with the human
-  P, _, _ = mk.load_trial(os.path.join(a.npz_dir, f"{trial}.npz"), mm=mm)
+  P, _, _ = mk.load_trial(os.path.join(a.npz_dir, f"{trial}.npz"), mm=mm,
+                          max_gap_s=config.MAX_GAP_S, gap_fill=config.GAP_FILL)
   dz = float(ref["human_dz"]) if "human_dz" in ref else 0.0
   meas = P[idx] + np.array([0.0, 0.0, dz])
   head = mm.ms.HEAD | ~mm.active

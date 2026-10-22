@@ -27,6 +27,7 @@ import fnmatch
 import numpy as np
 import mujoco
 import scipy.optimize
+from scipy.interpolate import CubicSpline
 from scipy.signal import butter, filtfilt
 from scipy.spatial.transform import Rotation as sRot
 
@@ -60,14 +61,19 @@ _NECK_AXES = ((0, 0, 1), (1, 0, 0), (0, 1, 0))  # extension (+), bending to the 
 _NECK_RANGE = ((-1.2, 1.0), (-0.8, 0.8), (-1.4, 1.4))
 
 
-def load_trial(path, max_gap_s=0.25, lowpass_hz=None, mm=None):
+def load_trial(path, max_gap_s=0.2, lowpass_hz=None, mm=None, gap_fill="spline"):
   """Markers [T, n, 3] (the marker set's order) scaled to the model; short gaps interpolated.
   mm: the MarkerModel (its marker set and model height; default the selected marker set
   and MyoFullBody's MODEL_HEIGHT). A model scaled to the subject (mm.scaling,
   mocap2myo.scaling) takes the markers as recorded: scale 1.
   lowpass_hz (optional, default off; the stages pass M2M_LOWPASS_HZ, 6 Hz): zero-phase
   2nd-order Butterworth (filtfilt) per marker coordinate over each gap-free run, the
-  usual marker filtering before IK (Winter: ~6 Hz for whole-body motion)."""
+  usual marker filtering before IK (Winter: ~6 Hz for whole-body motion).
+  Gaps of at most max_gap_s seen on both sides are filled per coordinate: gap_fill "linear"
+  (between the two neighbouring samples) or "spline" (a cubic spline through the samples
+  within max_gap_s on either side, at least two on each; linear otherwise)."""
+  if gap_fill not in ("linear", "spline"):
+    raise ValueError(f"gap_fill={gap_fill!r}: expected linear or spline")
   LABELS = mm.ms.LABELS if mm is not None else _ms.LABELS
   height = mm.model_height if mm is not None else MODEL_HEIGHT
   d = np.load(path)
@@ -86,9 +92,16 @@ def load_trial(path, max_gap_s=0.25, lowpass_hz=None, mm=None):
     filled = np.stack([np.interp(t, t[good], P[good, k, c]) for c in range(3)], 1)
     # only fill gaps shorter than max_gap_s
     runs = np.split(np.where(bad)[0], np.where(np.diff(np.where(bad)[0]) != 1)[0] + 1)
+    w = int(round(max_gap_s * rate))
     for r in runs:
       if len(r) and len(r) <= max_gap_s * rate and r[0] > 0 and r[-1] < len(P) - 1:
         P[r, k] = filled[r]
+        if gap_fill == "spline":
+          lo = t[max(0, r[0] - w):r[0]][good[max(0, r[0] - w):r[0]]]
+          hi = t[r[-1] + 1:r[-1] + 1 + w][good[r[-1] + 1:r[-1] + 1 + w]]
+          if len(lo) >= 2 and len(hi) >= 2:
+            kn = np.r_[lo, hi]
+            P[r, k] = CubicSpline(kn, P[kn, k], axis=0)(r)
   if lowpass_hz:
     if not 0 < lowpass_hz < rate / 2:
       raise ValueError(f"{path}: low-pass {lowpass_hz} Hz must lie between 0 and half the "

@@ -94,7 +94,8 @@ def trial(name):
   mm = config.marker_model(neck=neck)
   lp = float(K["lowpass_hz"]) if "lowpass_hz" in K.files else config.LOWPASS_HZ
   robust = float(K["robust"]) if "robust" in K.files else config.ROBUST
-  P, rate, _ = mk.load_trial(os.path.join(config.NPZ_DIR, f"{name}.npz"), lowpass_hz=lp or None, mm=mm)
+  P, rate, _ = mk.load_trial(os.path.join(config.NPZ_DIR, f"{name}.npz"), lowpass_hz=lp or None, mm=mm,
+                             max_gap_s=config.MAX_GAP_S, gap_fill=config.GAP_FILL)
   cal = np.load(os.path.join(config.IK_DIR, f"{config.subject_of(name)}_offsets.npz"))
   mm.set_offsets(cal["offsets"])
   if "active" in K.files:

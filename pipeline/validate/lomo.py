@@ -39,7 +39,8 @@ def trial(name):
   K = np.load(os.path.join(IKD, f"{name}.npz"))
   E.check_scale(os.path.join(IKD, f"{name}.npz"), K)
   mm = E.marker_model(subject=E.subject_of(name))
-  P, rate, _ = mk.load_trial(os.path.join(NPZ, f"{name}.npz"), lowpass_hz=E.LOWPASS_HZ or None, mm=mm)
+  P, rate, _ = mk.load_trial(os.path.join(NPZ, f"{name}.npz"), lowpass_hz=E.LOWPASS_HZ or None, mm=mm,
+                             max_gap_s=E.MAX_GAP_S, gap_fill=E.GAP_FILL)
   Q = K["qpos"].astype(np.float64)
   mm.set_offsets(np.load(os.path.join(IKD, f"{E.subject_of(name)}_offsets.npz"))["offsets"])
   body = [k for k, l in enumerate(mm.ms.LABELS) if not mm.ms.HEAD[k] and mm.active[k]]

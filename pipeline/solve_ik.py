@@ -107,7 +107,8 @@ def static_frames(subj, loaded, mm, n=10):
   from mocap2myo import ik as mk
   f = os.path.join(NPZ, "static", f"{subj}.npz")
   if os.path.exists(f):
-    P, _, _ = mk.load_trial(f, lowpass_hz=LOWPASS_HZ or None, mm=mm)
+    P, _, _ = mk.load_trial(f, lowpass_hz=LOWPASS_HZ or None, mm=mm,
+                            max_gap_s=config.MAX_GAP_S, gap_fill=config.GAP_FILL)
     sp = np.r_[np.inf, np.nanmax(np.linalg.norm(np.diff(P, axis=0), axis=-1), 1)]
     idx = np.sort(np.argsort(sp)[:max(5 * n, 50)])
     src = "static trial"
@@ -127,7 +128,8 @@ def scale_subject(subj, mm0):
   from mocap2myo import ik as mk
   from mocap2myo import landmarks
   from mocap2myo import scaling
-  loaded = [mk.load_trial(os.path.join(NPZ, f"{t}.npz"), lowpass_hz=LOWPASS_HZ or None, mm=mm0)
+  loaded = [mk.load_trial(os.path.join(NPZ, f"{t}.npz"), lowpass_hz=LOWPASS_HZ or None, mm=mm0,
+                          max_gap_s=config.MAX_GAP_S, gap_fill=config.GAP_FILL)
             for t in config.trials(NPZ) if config.subject_of(t) == subj]
   s = loaded[0][2]  # model height / subject height: the frames back to the subject's size
   P = static_frames(subj, [(P, rate) for P, rate, _ in loaded], mm0) / s
@@ -157,7 +159,8 @@ def calib(subj):
   if config.SCALE == "segments":
     mm = (config.marker_model(neck=config.NECK, subject=subj)
           if os.path.exists(config.scale_file(subj)) else scale_subject(subj, mm))
-  loaded = [mk.load_trial(os.path.join(NPZ, f"{t}.npz"), lowpass_hz=LOWPASS_HZ or None, mm=mm)[:2]
+  loaded = [mk.load_trial(os.path.join(NPZ, f"{t}.npz"), lowpass_hz=LOWPASS_HZ or None, mm=mm,
+                          max_gap_s=config.MAX_GAP_S, gap_fill=config.GAP_FILL)[:2]
             for t in config.trials(NPZ) if config.subject_of(t) == subj]
   trials = [P for P, _ in loaded]
   off = mk.calibrate(mm, trials, n_frames=40, iters=8, max_shift=max_shift(mm.ms),
@@ -194,7 +197,8 @@ def load(name):
   if os.path.exists(f):
     return None
   mm = config.marker_model(neck=config.NECK, subject=config.subject_of(name))
-  P, rate, s = mk.load_trial(os.path.join(NPZ, f"{name}.npz"), lowpass_hz=LOWPASS_HZ or None, mm=mm)
+  P, rate, s = mk.load_trial(os.path.join(NPZ, f"{name}.npz"), lowpass_hz=LOWPASS_HZ or None, mm=mm,
+                             max_gap_s=config.MAX_GAP_S, gap_fill=config.GAP_FILL)
   if rng:
     a, b = (int(x) for x in rng.split(":"))
     P = P[a:b]

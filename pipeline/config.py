@@ -446,6 +446,11 @@ ROBUST = float(_env("M2M_ROBUST", 0.025))
 LOWPASS_HZ = float(_env("M2M_LOWPASS_HZ", 6.0))  # ik.load_trial: marker low-pass (0 = raw)
 if LOWPASS_HZ < 0:
   raise SystemExit(f"M2M_LOWPASS_HZ={LOWPASS_HZ}: expected >= 0 (0 = no filter)")
+# ik.load_trial: gaps of a marker up to M2M_MAX_GAP_S seen on both sides are filled by a cubic
+# spline (Howarth & Callaghan 2010: spline for short gaps; longer ones are left to the IK);
+# "linear" was the default before 2026-10
+GAP_FILL = _choice("M2M_GAP_FILL", "spline", ("spline", "linear"))
+MAX_GAP_S = float(_env("M2M_MAX_GAP_S", 0.2))
 # anchor the subject calibration on the static standing trial (ik.calibrate static=...;
 # <M2M_NPZ_DIR>/static/<subject>.npz from prepare_markers.py). A subject without one
 # uses quiet-standing frames of its trials. Off by default here; run_all.sh turns it
