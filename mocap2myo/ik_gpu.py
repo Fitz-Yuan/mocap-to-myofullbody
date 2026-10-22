@@ -812,7 +812,7 @@ def ik_trials_gpu(mm, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=Tr
   # smoothing weights (ik_trial's smooth_at): per frame at ik.SMOOTH_RATE, scaled by
   # sqrt(rate / SMOOTH_RATE) per trial
   fs = np.sqrt(rates / mk.SMOOTH_RATE)
-  base = np.where(info["heavy"][None], ankle_smooth, 0.05) * fs[:, None]  # [trial, joint]
+  base = np.where(info["heavy"][None], ankle_smooth, smooth) * fs[:, None]  # [trial, joint]
   elv = [e for e, _ in info["gated"]]
   selv = [g for _, g in info["gated"]]
   elv_mask = torch.zeros(nf, **td)
@@ -965,7 +965,7 @@ def ik_trials_gpu(mm, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=Tr
       put(bt.lo, torch.maximum(ik.jlo, xp - st), a1)
       put(bt.hi, torch.minimum(ik.jhi, xp + st), a1)
       gi = grp_t[spc].long()
-      elv_w = (0.05 + 1.0 * torch.exp(-(xp[:, selv_of] / 0.35) ** 2)) * fs_g[gi, None]
+      elv_w = (smooth + 1.0 * torch.exp(-(xp[:, selv_of] / 0.35) ** 2)) * fs_g[gi, None]
       put(bt.sm, torch.where(elv_mask > 0, elv_w, base_g[gi]), a1)
       uk = usek_g[t]
       put(bt.pos, torch.where(uk[:, None], kpos_g[t], cs["pos"]), a1)

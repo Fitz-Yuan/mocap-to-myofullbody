@@ -752,13 +752,13 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
     # two equivalent fits -- so it is held only while shoulder_elv is small
     # (a constant 1.0 lagged the raised arm: elbow marker error 8.7 -> 14 mm;
     # 0.2 on every joint lagged fast clips)
-    base = np.where(mm.smooth_heavy, ankle_smooth, 0.05) * fs
+    base = np.where(mm.smooth_heavy, ankle_smooth, smooth) * fs
     gated = mm.smooth_gated  # (joint, gate joint) index pairs into mm.free
 
     def smooth_at(x):
       w = base.copy()
       for e, se in gated:
-        w[e] = (0.05 + 1.0 * np.exp(-(x[6 + se] / 0.35) ** 2)) * fs
+        w[e] = (smooth + 1.0 * np.exp(-(x[6 + se] / 0.35) ** 2)) * fs
       return w
   floor, anchors, last_t = None, {}, None
 
