@@ -470,6 +470,8 @@ FLAT_W = float(_env("M2M_FLAT_W", 30.0))
 # frame-to-frame smoothing of the profile's smooth_heavy joints (ankle, subtalar), per frame at
 # 100 Hz (ik.ik_trial ankle_smooth). 0.3 held the ankle still in the case study's deep squats;
 # walking moves the ankle faster, and gait datasets set less in their profile
+# frame-to-frame smoothing of every other joint (ik.ik_trial smooth), per frame at 100 Hz
+IK_SMOOTH = float(_env("M2M_IK_SMOOTH", 0.05))
 IK_ANKLE_SMOOTH = float(_env("M2M_IK_ANKLE_SMOOTH", 0.3))
 # opt-in: a 3-hinge neck in the IK model (ik.NECK), so the head follows its markers; the
 # IK output keeps the plain model's qpos layout plus neck_qpos [T, 3]

@@ -221,7 +221,7 @@ def track_args():
   onto other markers, p95 > 0.9 m) and a differently placed TIB."""
   return dict(contact=True, outlier=TRACK_OUTLIER or None, mtp_prior=MTP_PRIOR,
               anchor_centroid=ANCHOR_CENTROID, pelvis_gap=PELVIS_GAP, robust=ROBUST or None,
-              root_init=ROOT_INIT, ankle_smooth=config.IK_ANKLE_SMOOTH)
+              root_init=ROOT_INIT, smooth=config.IK_SMOOTH, ankle_smooth=config.IK_ANKLE_SMOOTH)
 
 
 def save(t, mm, active, Q, E, device="cpu"):
