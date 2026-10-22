@@ -493,6 +493,9 @@ STATIC_MARKERS = _choice("M2M_STATIC_MARKERS", "legs", ("legs", "legs_only", "al
 # subjects hit a 6 cm cap with the flat-foot calibration -> 10 cm
 FOOT_CAP = float(_env("M2M_FOOT_CAP", 0.10))
 FLAT_W = float(_env("M2M_FLAT_W", 30.0))
+# a subject with no static trial and no standing: calibrate the feet on mid-stance frames, one
+# foot flat (solve_ik.standing_frames)
+CALIB_MID_STANCE = _flag("M2M_CALIB_MID_STANCE", "1")
 # frame-to-frame smoothing of the profile's smooth_heavy joints (ankle, subtalar), per frame at
 # 100 Hz (ik.ik_trial ankle_smooth). 0.08: chosen on walking (ramp dataset, leave-one-subject-out
 # against Vicon Plug-in-Gait) and confirmed on the lifting case study (foot-marker residual

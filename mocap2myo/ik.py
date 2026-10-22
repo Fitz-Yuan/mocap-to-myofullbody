@@ -403,7 +403,8 @@ class MarkerModel:
     flat (optional, per m): pulls each foot's heel and toe-tip sole points to
     the same height -- used on quiet-standing frames during calibration, so
     that the shoe (TOE marker on the toe box, thick heel) ends up in the
-    marker offsets instead of a pitched foot.
+    marker offsets instead of a pitched foot. A dict {"l": w, "r": w} weighs the
+    feet apart (mid-stance frames: only the foot on the floor is flat).
 
     contact (optional) = dict(floor=h, anchors={point index: xyz}, max_step=rad,
     w_floor, w_anchor): sole points may not go below the floor z = h, anchored
@@ -445,8 +446,9 @@ class MarkerModel:
         r.append(pw * (x[6 + pi] - pt))
       if flat:
         fp = self.foot_points()  # pose already set by markers()
-        r.append(flat * np.array([fp[self.heel_pts[sd], 2].mean() - fp[self.toe_pts[sd], 2].mean()
-                                  for sd in "lr"]))
+        fw = flat if isinstance(flat, dict) else {"l": flat, "r": flat}
+        r.append(np.array([fw.get(sd, 0.0) * (fp[self.heel_pts[sd], 2].mean() - fp[self.toe_pts[sd], 2].mean())
+                           for sd in "lr"]))
       if contact is not None:
         fp = self.foot_points()  # pose already set by markers()
         r.append(contact["w_floor"] * np.minimum(fp[:, 2] - contact["floor"], 0.0))
@@ -568,7 +570,8 @@ def calibrate(mm, trials, n_frames=24, iters=5, prior=2.0, max_shift=0.06, seed=
   max_shift: float or per-marker array [n] (m) bounding the move from the
   anatomical guess. outlier: see MarkerModel.solve; rejected samples are left
   out of the offset update. stand (optional): extra quiet-standing frames
-  [k, n, 3], solved with the flat-foot term (weight `flat`).
+  [k, n, 3], solved with the flat-foot term (weight `flat`); or (frames, sides), sides
+  per frame "lr" or the one foot that is flat ("l" / "r": mid-stance frames).
 
   static (optional, default off): frames [k, n, 3] of the subject's static
   standing trial. They are solved with flat feet and the STATIC_NEUTRAL joints
@@ -597,8 +600,13 @@ def calibrate(mm, trials, n_frames=24, iters=5, prior=2.0, max_shift=0.06, seed=
     idx = rng.choice(len(P), size=max(1, n_frames // len(trials)), replace=False)
     frames += [P[i] for i in idx if not np.isnan(P[i, PELVIS]).any()]
   n_rand = len(frames)
+  sides = []
   if stand is not None:
-    frames += [P for P in stand if not np.isnan(P[PELVIS]).any()]
+    st_frames, st_sides = stand if isinstance(stand, tuple) else (stand, ["lr"] * len(stand))
+    for P, sd in zip(st_frames, st_sides):
+      if not np.isnan(P[PELVIS]).any():
+        frames.append(P)
+        sides.append(sd)
   n_dyn = len(frames)
   wt = np.ones(n_dyn)
   posture = None
@@ -617,8 +625,8 @@ def calibrate(mm, trials, n_frames=24, iters=5, prior=2.0, max_shift=0.06, seed=
     mm.set_offsets(off)
     poses, used = [], []
     for fi, P in enumerate(frames):
-      fl = flat if fi >= n_rand else 0.0
       is_static = fi >= n_dyn
+      fl = 0.0 if fi < n_rand else flat if is_static else {s: flat for s in sides[fi - n_rand]}
       pos, q = root_from_pelvis(mm, P)
       x0 = np.r_[pos, np.zeros(3), mm.qref[mm.adr]]
       best = None

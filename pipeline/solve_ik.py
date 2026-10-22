@@ -57,6 +57,7 @@ STATIC_W = config.STATIC_W
 STATIC_MARKERS = config.STATIC_MARKERS
 FOOT_CAP = config.FOOT_CAP
 FLAT_W = config.FLAT_W
+MID_STANCE = config.CALIB_MID_STANCE
 # Stage B on the GPU (mocap2myo/ik_gpu.py, needs torch with CUDA and warp): "gpu" solves
 # the same per-frame problem with the same frame-to-frame recursion, the frames of all
 # trials in parallel in one batch. The subject calibration (stage A) and each trial's
@@ -82,14 +83,20 @@ def max_shift(ms):
   return np.where(ms.LOOSE, 0.15, np.where(ms.FOOT, FOOT_CAP, 0.06))
 
 
-def standing_frames(loaded, ms, per_trial=12, seed=0, min_s=0.3):
+def standing_frames(loaded, ms, per_trial=12, seed=0, min_s=0.3, mid_stance=False):
   """Flat-foot frames: all four sole markers (both heels and toes) slow and on
   the floor (ik.sole_stance) for >= min_s -- standing, turning on the spot,
   lifting. The whole body need not be still (quiet standing is only ~3 s per
-  cycle and was missed entirely for S03 / S05 / S08 with a pelvis-speed test)."""
+  cycle and was missed entirely for S03 / S05 / S08 with a pelvis-speed test).
+  mid_stance: if there are none, the frames where one foot's heel and toe are slow
+  and on the floor for >= min_s (the stance foot is flat in mid-stance of walking),
+  flat for that foot only -- for a subject with no static trial and no standing,
+  whose foot markers' height on the foot is fixed by nothing else (an ankle offset
+  of ~16 deg on a Motive Baseline recording with two markers per foot). Returns
+  (frames, sides) or None."""
   from mocap2myo import ik as mk
   rng = np.random.default_rng(seed)
-  out = []
+  out, sides = [], []
   for P, rate in loaded:
     ok = np.all(list(mk.sole_stance(P, rate, ms=ms).values()), 0)
     k = int(min_s * rate)
@@ -97,8 +104,22 @@ def standing_frames(loaded, ms, per_trial=12, seed=0, min_s=0.3):
     idx = np.flatnonzero(ok)
     if len(idx):
       out += [P[i] for i in rng.choice(idx, min(per_trial, len(idx)), replace=False)]
-  print(f"  flat-foot calibration frames: {len(out)}", flush=True)
-  return np.array(out) if out else None
+      sides += ["lr"] * min(per_trial, len(idx))
+  if not out and mid_stance:
+    for P, rate in loaded:
+      st = mk.sole_stance(P, rate, ms=ms)
+      k = int(min_s * rate)
+      for sd in "lr":
+        ok = np.convolve(st[(sd, "heel")] & st[(sd, "toe")], np.ones(k), "same") >= k
+        idx = np.flatnonzero(ok)
+        if len(idx):
+          n = min(per_trial // 2, len(idx))
+          out += [P[i] for i in rng.choice(idx, n, replace=False)]
+          sides += [sd] * n
+    print(f"  flat-foot calibration frames: {len(out)} (one foot flat in mid-stance: no standing)", flush=True)
+  else:
+    print(f"  flat-foot calibration frames: {len(out)}", flush=True)
+  return (np.array(out), sides) if out else None
 
 
 def static_frames(subj, loaded, mm, n=10):
@@ -167,8 +188,9 @@ def calib(subj):
             for t in config.trials(NPZ) if config.subject_of(t) == subj]
   trials = [P for P, _ in loaded]
   static = static_frames(subj, loaded, mm) if STATIC else None
+  stand = standing_frames(loaded, mm.ms, mid_stance=MID_STANCE and (static is None or not len(static)))
   off = mk.calibrate(mm, trials, n_frames=40, iters=8, max_shift=max_shift(mm.ms),
-                     outlier=OUTLIER, stand=standing_frames(loaded, mm.ms), flat=FLAT_W,
+                     outlier=OUTLIER, stand=stand, flat=FLAT_W,
                      static=static,
                      static_share=STATIC_SHARE, static_w=STATIC_W,
                      static_segments={"legs": mk.STATIC_SEGMENTS_LEGS,
