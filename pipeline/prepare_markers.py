@@ -203,19 +203,51 @@ def place_head(P, H):
   return order
 
 
-def fix_pelvis(P):
-  """Rigid refill of pelvis markers that break the cluster or are missing
-  while the other 3 are present (see docstring)."""
-  idx = ms.PELVIS
-  X = P[:, idx]
+def pelvis_template(X):
+  """Rigid template [4, 3] of the pelvis markers X [T, 4, 3]: the mean of the frames where
+  all four are seen and their six distances stay within 5 mm of the medians (fitted onto
+  the first of them); None when no frame qualifies."""
   ok = ~np.isnan(X).any((1, 2))
+  if not ok.any():
+    return None
   D = np.linalg.norm(X[:, :, None] - X[:, None], axis=-1)
   med = np.nanmedian(D[ok], 0)
   good = ok & (np.abs(D - med).max((1, 2)) < 0.005)
+  if not good.any():
+    return None
   ref = X[np.where(good)[0][0]]
   acc = [X[f] @ kabsch(X[f], ref)[0].T + kabsch(X[f], ref)[1] for f in np.where(good)[0][::10]]
-  tmpl = np.mean(acc, 0)
+  return np.mean(acc, 0)
+
+
+def static_pelvis_template(subj):
+  """The pelvis template from the subject's static trial, or None without one. Used when a
+  trial never shows the four pelvis markers together (case study: an exoskeleton's hip belt
+  over them in S11's SX trials)."""
+  name = f"static/{config.static_name(subj)}"
+  if not os.path.exists(os.path.join(config.CACHE_DIR, name + ".npz")):
+    return None
+  names, A, _ = read_take(name)
+  P, _, _ = body_markers(names, A)
+  return pelvis_template(P[:, ms.PELVIS])
+
+
+def fix_pelvis(P, fallback=None):
+  """Rigid refill of pelvis markers that break the cluster or are missing
+  while the other 3 are present (see docstring). The template comes from the trial; a
+  trial with no frame of all four consistent markers takes `fallback` (a callable giving
+  the static trial's template), and without one nothing is refilled."""
+  idx = ms.PELVIS
+  X = P[:, idx]
+  ok = ~np.isnan(X).any((1, 2))
   fixed = np.zeros((len(P), 4), bool)
+  tmpl = pelvis_template(X)
+  if tmpl is None:
+    tmpl = fallback() if fallback is not None else None
+    if tmpl is None:
+      print("  pelvis: no frame with the four markers together and no static trial: not refilled")
+      return P, fixed
+    print("  pelvis: no frame with the four markers together: template from the static trial")
   three = np.isnan(X[..., 0]).sum(1) == 1
   for f in np.where(three)[0]:
     k = int(np.where(np.isnan(X[f, :, 0]))[0][0])
@@ -251,7 +283,7 @@ def convert(name, anthro, task=None, task_state=None):
   elif tuple(order) != tuple(range(len(ms.HEAD_LABELS))):
     rel_note += f"HEAD LABELS REORDERED BY GEOMETRY {order}; "
   P, mislabel = reject_mislabels(P)
-  P, pel_fixed = fix_pelvis(P)
+  P, pel_fixed = fix_pelvis(P, fallback=lambda: static_pelvis_template(config.subject_of(name)))
   fields, task_note = {}, ""
   if task is not None:  # objects / scene from the columns that are not body markers
     cols = [i for i, n in enumerate(names) if object_column(n)]
