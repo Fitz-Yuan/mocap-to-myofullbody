@@ -772,9 +772,14 @@ def fit_score(mm, x, q_ref, P):
 
 
 def recover_frame(mm, P, xs, q_ref, x, err, seed, t, contact=None, outlier=None, mtp_prior=0.0,
-                  robust=None):
+                  robust=None, basin="plain"):
   """ik_trial's tracking-loss step for frame t: (x, err, recovered) -- x unchanged unless
-  LOST_N or more markers are lost and a fresh solve fits better (see LOST_DIST)."""
+  LOST_N or more markers are lost and a fresh solve fits better (see LOST_DIST).
+
+  basin="plain": with the robust loss, each start is first solved with every marker at its
+  full pull (squared loss), then from there with the robust loss. The robust loss alone lets
+  a limb whose markers are all far go (its pull fades with distance), so a fresh start can
+  settle on the same lost fit; "same": every start with the tracking solve's own loss."""
   s0, _, lost = fit_score(mm, x, q_ref, P)
   if lost < LOST_N:
     return x, err, False
@@ -786,6 +791,8 @@ def recover_frame(mm, P, xs, q_ref, x, err, seed, t, contact=None, outlier=None,
       xs2[6:] = mm.lo + rng.random(len(mm.lo)) * (mm.hi - mm.lo)
       if mtp_prior:
         xs2[6 + mm.mtp] = mm.mtp_q0
+    if robust and basin == "plain":
+      xs2 = mm.solve(P, xs2, q_ref, contact=contact, mtp_prior=mtp_prior)[0]
     xr, er = mm.solve(P, xs2, q_ref, contact=contact, outlier=outlier, mtp_prior=mtp_prior,
                       robust=robust)
     s = fit_score(mm, xr, q_ref, P)[0]
@@ -908,7 +915,8 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
                         contact=ca, outlier=outlier, mtp_prior=mtp_prior, robust=robust)
       if recover:
         x, err, _ = recover_frame(mm, P[t], xs, q_ref, x, err, seed, t, contact=ca,
-                                  outlier=outlier, mtp_prior=mtp_prior, robust=robust)
+                                  outlier=outlier, mtp_prior=mtp_prior, robust=robust,
+                                  basin="same" if recover == "same" else "plain")
     Q[t] = mm.pose(x, q_ref)
     E[t] = err
     x_prev = x
