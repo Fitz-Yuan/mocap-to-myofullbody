@@ -446,8 +446,8 @@
 <td><p>frame-to-frame smoothing per frame at 100 Hz: most joints, and the ankle and subtalar joints</p></td>
 </tr>
 <tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_IK_RECOVER</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">0</span></code></p></td>
-<td><p><code class="docutils literal notranslate"><span class="pre">1</span></code>: a frame leaving 2+ markers more than 6 cm off is solved again from scratch (CPU; <a class="reference internal" href="../../pipeline/gap-filling/#recovery"><span class="std std-ref">Tracking-loss recovery</span></a>)</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1</span></code></p></td>
+<td><p>a frame leaving 2+ markers more than 6 cm off is solved again from scratch (CPU; the GPU IK runs without it; <a class="reference internal" href="../../pipeline/gap-filling/#recovery"><span class="std std-ref">Tracking-loss recovery</span></a>)</p></td>
 </tr>
 <tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_SCALE</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_SCALE_UNIFORM</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">uniform</span></code>, (none)</p></td>

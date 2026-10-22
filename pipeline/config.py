@@ -500,8 +500,10 @@ FLAT_W = float(_env("M2M_FLAT_W", 30.0))
 # frame-to-frame smoothing of every other joint (ik.ik_trial smooth), per frame at 100 Hz
 IK_SMOOTH = float(_env("M2M_IK_SMOOTH", 0.05))
 # tracking-loss recovery (ik.ik_trial recover, ik.LOST_DIST): a frame that leaves 2+ body
-# markers > 6 cm off is solved again from scratch and the better fit kept
-IK_RECOVER = _flag("M2M_IK_RECOVER", "0")
+# markers > 6 cm off is solved again from scratch and the better fit kept. CPU only for now:
+# the GPU IK runs without it when it is on by default, and stops when it was asked for
+IK_RECOVER = _flag("M2M_IK_RECOVER", "1")
+IK_RECOVER_GIVEN = "M2M_IK_RECOVER" in os.environ or "M2M_IK_RECOVER" in _PROFILE
 IK_ANKLE_SMOOTH = float(_env("M2M_IK_ANKLE_SMOOTH", 0.08))
 # opt-in: a 3-hinge neck in the IK model (ik.NECK), so the head follows its markers; the
 # IK output keeps the plain model's qpos layout plus neck_qpos [T, 3]

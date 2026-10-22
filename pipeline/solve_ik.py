@@ -231,7 +231,7 @@ def track_args():
               recover=config.IK_RECOVER)
 
 
-def save(t, mm, active, Q, E, device="cpu"):
+def save(t, mm, active, Q, E, device="cpu", recover=None):
   """Write one trial's IK (t from load(); mm its model, active its active markers)."""
   from mocap2myo import ik as mk
   P, f, rng = t["P"], t["f"], config.IK_FRAMES
@@ -248,7 +248,7 @@ def save(t, mm, active, Q, E, device="cpu"):
                       rejected=rejected, outlier=TRACK_OUTLIER, mtp_prior=MTP_PRIOR,
                       anchor_centroid=ANCHOR_CENTROID, pelvis_gap=PELVIS_GAP,
                       robust=ROBUST, robust_pelvis=False, root_init=ROOT_INIT,
-                      lowpass_hz=LOWPASS_HZ,
+                      lowpass_hz=LOWPASS_HZ, recover=config.IK_RECOVER if recover is None else recover,
                       unsolved=int((~solved).sum()), unsolved_frames=~solved,
                       scale=t["s"], rate=t["rate"], labels=np.array(mm.ms.LABELS),
                       frame0=int(rng.split(":")[0]) if rng else 0,
@@ -309,11 +309,19 @@ def ik_gpu(names, ctx, workers):
   print(f"ik: {len(todo)} trials loaded ({t1 - t0:.0f}s); solving on the GPU", flush=True)
   mm = config.marker_model(neck=config.NECK)
   st = {}
+  args = track_args()
+  if args["recover"]:
+    if config.IK_RECOVER_GIVEN:
+      raise SystemExit("M2M_IK_RECOVER=1: the tracking-loss recovery runs on the CPU only for now "
+                       "(M2M_IK_DEVICE=cpu; or M2M_IK_RECOVER=0 on the GPU)")
+    print("ik: the GPU IK has no tracking-loss recovery yet (the CPU IK has); limbs it loses are "
+          "flagged by the QA (limb_lost_s)", flush=True)
+    args["recover"] = False
   out = ik_trials_gpu(mm, [t["P"] for _, t in todo], rate=[t["rate"] for _, t in todo],
                       offsets=[t["offsets"] for _, t in todo], active=[t["active"] for _, t in todo],
-                      first=[t["first"] for _, t in todo], stats=st, **track_args())
+                      first=[t["first"] for _, t in todo], stats=st, **args)
   for (n, t), (Q, E) in zip(todo, out):
-    print("ik", n, save(t, mm, t["active"], Q, E, device="gpu"), flush=True)
+    print("ik", n, save(t, mm, t["active"], Q, E, device="gpu", recover=False), flush=True)
   print(f"ik: GPU {time.time() - t1:.0f}s for {sum(len(t['P']) for _, t in todo)} frames "
         f"({st['passes']} passes), {time.time() - t0:.0f}s in all", flush=True)
 

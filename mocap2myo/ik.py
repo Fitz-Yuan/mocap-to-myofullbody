@@ -729,8 +729,11 @@ def first_frame(mm, P, restarts=8, seed=0, outlier=None, mtp_prior=0.0, robust=N
 # farther than LOST_DIST from the model is solved again from scratch (RECOVER_STARTS starts,
 # no smoothing, no speed limit); the fits compare by the sum of squared distances, each capped
 # at LOST_CAP (a mislabelled marker cannot dominate), and the new one is kept if it is better
-# by RECOVER_GAIN
-LOST_DIST, LOST_N, LOST_CAP, RECOVER_STARTS, RECOVER_GAIN = 0.06, 2, 0.15, 4, 0.8
+# by RECOVER_GAIN. A frame whose far markers are the ones the last unsuccessful attempt had
+# is tried again only every RECOVER_RETRY frames (a marker that stays off, e.g. a mislabel the
+# robust fit already sets aside, would otherwise cost the restarts in every frame: 3x the time
+# on a well-tracked lifting trial, for no change)
+LOST_DIST, LOST_N, LOST_CAP, RECOVER_STARTS, RECOVER_GAIN, RECOVER_RETRY = 0.06, 2, 0.15, 4, 0.8, 10
 
 
 LIMBS = {"arm_l": ("humerus_l", "radius_l", "ulna_l", "hand_l"),
@@ -769,6 +772,13 @@ def fit_score(mm, x, q_ref, P):
   d = np.linalg.norm(mm.markers(mm.pose(x, q_ref)) - P, axis=1)
   use = np.isfinite(d) & mm.active & ~mm.ms.HEAD
   return float(np.sum(np.minimum(d[use], LOST_CAP) ** 2)), d, int(np.sum(d[use] > LOST_DIST))
+
+
+def far_markers(mm, x, q_ref, P):
+  """The seen body markers farther than LOST_DIST from the model (indices, a frozenset)."""
+  d = fit_score(mm, x, q_ref, P)[1]
+  use = np.isfinite(d) & mm.active & ~mm.ms.HEAD
+  return frozenset(np.flatnonzero(use & (np.nan_to_num(d) > LOST_DIST)).tolist())
 
 
 def recover_frame(mm, P, xs, q_ref, x, err, seed, t, contact=None, outlier=None, mtp_prior=0.0,
@@ -888,6 +898,7 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
       if kind != "-" and stance[(side, kind)][t] and i not in anchors:
         anchors[i] = np.r_[fp[i, :2], max(fp[i, 2], floor)]
 
+  miss = (frozenset(), -RECOVER_RETRY)  # recovery: the far markers and frame of its last unsuccessful attempt
   for t in range(T):
     if progress is not None and t and t % max(1, T // 10) == 0:
       progress(t, T)
@@ -910,8 +921,12 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
                         smooth=smooth_at(xs) if contact else smooth,
                         contact=ca, outlier=outlier, mtp_prior=mtp_prior, robust=robust)
       if recover:
-        x, err, _ = recover_frame(mm, P[t], xs, q_ref, x, err, seed, t, contact=ca,
-                                  outlier=outlier, mtp_prior=mtp_prior, robust=robust)
+        far = far_markers(mm, x, q_ref, P[t])
+        if len(far) >= LOST_N and not (far == miss[0] and t - miss[1] < RECOVER_RETRY):
+          x, err, ok = recover_frame(mm, P[t], xs, q_ref, x, err, seed, t, contact=ca,
+                                     outlier=outlier, mtp_prior=mtp_prior, robust=robust)
+          if not ok:
+            miss = (far, t)
     Q[t] = mm.pose(x, q_ref)
     E[t] = err
     x_prev = x
