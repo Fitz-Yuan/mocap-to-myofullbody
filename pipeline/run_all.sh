@@ -33,8 +33,9 @@ if [ -z "${M2M_DATASET:-}" ]; then
   export M2M_STATIC=${M2M_STATIC:-1}          # calibrate on the static standing trials (config.py: 0)
   export M2M_STATIC_MARKERS=${M2M_STATIC_MARKERS:-legs}
 fi
-# the task as config.py resolves it (variable, profile, default)
-TASK=$(cd "$REPO" && $PY -c "from pipeline import config; print(config.TASK)")
+# the task as config.py resolves it (variable, profile, default); stops here if the task
+# cannot run on the model (box_lift on a model without hands)
+TASK=$(cd "$REPO" && $PY -c "from pipeline import config; config.task(); print(config.TASK)")
 say() { echo "[$(date '+%m-%d %H:%M:%S')] $*"; }
 say "read raw files"; $PY -u "$HERE/read_raw.py"         # .tak: olefile, C3D: ezc3d
 say "markers";       $PY -u "$HERE/prepare_markers.py"

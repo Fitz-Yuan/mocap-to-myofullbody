@@ -23,9 +23,13 @@ Grasp [T, 2] (l, r): the box is not resting (on floor / shelf) and that palm
   while grasped (the weld anchors).
 Support [T]: 0 floor, 1 hands, 2 shelf. Cycles: box lifted off the floor ->
   set back on it; clip bounds = middle of the floor rests between cycles.
+Model: M2M_MODEL, one with hands (tasks/box_lift/body.py: MyoFullBody's hand spheres and
+  foot capsules; another model's palm points and sole points from its profile). The palms
+  set the box's length and centre, so the references of two models differ by as much as
+  their palms do; build each model's into its own M2M_REF_DIR.
 
   python tasks/box_lift/build_reference.py [trial ...]
-Input: <M2M_IK_DIR>/<trial>.npz, <M2M_NPZ_DIR>/<trial>.npz.
+Input: <M2M_IK_DIR>/<trial>.npz (the IK of M2M_MODEL), <M2M_NPZ_DIR>/<trial>.npz.
 Output: <M2M_REF_DIR>/<trial>.npz + summary.json. The box length and centre are
 medians over the trials given (default: all), so build all trials together.
 """
@@ -40,10 +44,8 @@ from scipy.spatial.transform import Rotation as sRot
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from mocap2myo import objects as O  # noqa: E402
-from mocap2myo.kinematics import (  # noqa: E402
-  foot_collision_geoms, sole_height)
-from mocap2myo.model import MYOFULLBODY_XML  # noqa: E402
 from pipeline import config  # noqa: E402
+from tasks.box_lift.body import TaskBody  # noqa: E402
 
 IK_DIR = config.IK_DIR
 NPZ_DIR = config.NPZ_DIR
@@ -64,17 +66,18 @@ def clean_flags(g, fps, gap=0.2, blip=0.1):
   return g
 
 
-def kinematic_pass(m, d, Q, foot, hand, sph):
+def kinematic_pass(tb, Q):
+  """Lowest sole point [T], palm points [T, 2, 3] and the feet's mean position [T, 2] of the
+  model (tb: body.TaskBody) for the IK qpos Q."""
+  m, d = tb.m, tb.d
   T = len(Q)
   sole, palm, feet_xy = np.zeros(T), np.zeros((T, 2, 3)), np.zeros((T, 2))
-  calcn = [m.body("calcn_l").id, m.body("calcn_r").id]
   for f in range(T):
     d.qpos[:] = Q[f]
     mujoco.mj_kinematics(m, d)
-    sole[f] = sole_height(m, d, foot)
-    feet_xy[f] = d.xpos[calcn][:, :2].mean(0)
-    for h in range(2):
-      palm[f, h] = d.xpos[hand[h]] + d.xmat[hand[h]].reshape(3, 3) @ sph["lr"[h]]
+    sole[f] = tb.sole()
+    feet_xy[f] = d.xpos[tb.foot_body][:, :2].mean(0)
+    palm[f] = tb.palms()
   return sole, palm, feet_xy
 
 
@@ -90,11 +93,7 @@ def sdf(loc, half):
 
 def main():
   config.usage(__doc__)
-  m = mujoco.MjModel.from_xml_path(str(MYOFULLBODY_XML))
-  d = mujoco.MjData(m)
-  foot = foot_collision_geoms(m)
-  hand = [m.body("thirdmc_l").id, m.body("thirdmc_r").id]
-  sph = O.hand_sphere_local()
+  tb = TaskBody(mm=config.marker_model())  # the model's hands and feet (refuses one without hands)
   names = sys.argv[1:] or config.trials(IK_DIR)
   os.makedirs(REF_DIR, exist_ok=True)
   # pass 1: kinematics, shifts, palm positions in the box frame
@@ -103,8 +102,10 @@ def main():
     D = np.load(os.path.join(NPZ_DIR, f"{n}.npz"))
     K = np.load(os.path.join(IK_DIR, f"{n}.npz"))
     s, rate = float(K["scale"]), float(K["rate"])
+    if "model_profile" in K.files and str(K["model_profile"]) != tb.mm.profile.name:
+      raise SystemExit(f"{n}: IK of {K['model_profile']}, not M2M_MODEL={tb.mm.profile.name}")
     Q = K["qpos"].astype(np.float64)
-    sole, palm, feet_xy = kinematic_pass(m, d, Q, foot, hand, sph)
+    sole, palm, feet_xy = kinematic_pass(tb, Q)
     floor = float(D["floor_z"]) * s
     # human: soles on z = 0 while standing on the elevator platform (where the
     # box is lifted / set down; the plates near the shelf sit ~1.5 cm higher,

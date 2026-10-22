@@ -11,7 +11,7 @@ need one:
      weight; the same N/V for every subject if the calibration holds),
   3. total vertical force: plates (AMTI L + R, both feet on them) vs our prediction,
      outside the frames where the box is changing hands with a surface (+-0.5 s),
-  4. left / right share of that force vs our lever-rule estimate,
+  4. left / right share of that force vs our estimate (M2M_KIN_SPLIT),
   5. the box mass: quiet standing with the box minus without it.
 The DAQ samples are averaged per motion-capture frame, and the windows below are in
 frames of the case study's 100 Hz capture (checked: RATE).

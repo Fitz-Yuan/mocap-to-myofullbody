@@ -409,12 +409,16 @@ TASK = _env("M2M_TASK", "box_lift")
 
 
 def task():
-  """The task package (tasks/<TASK>/), or None."""
+  """The task package (tasks/<TASK>/), or None. A task that needs something of the model
+  (box_lift: hands) checks M2M_MODEL here (its check_model) and stops the run if it lacks it."""
   if TASK in ("", "none"):
     return None
   if not os.path.exists(os.path.join(REPO, "tasks", TASK, "__init__.py")):
     raise SystemExit(f"M2M_TASK={TASK!r}: no package tasks/{TASK}/ (or 'none' for the body only)")
-  return importlib.import_module(f"tasks.{TASK}")
+  mod = importlib.import_module(f"tasks.{TASK}")
+  if hasattr(mod, "check_model"):
+    mod.check_model(model_profile())
+  return mod
 
 
 # --- IK (solve_ik.py; lomo.py repeats the tracking settings) ----------------------
@@ -464,6 +468,11 @@ IK_ANKLE_SMOOTH = float(_env("M2M_IK_ANKLE_SMOOTH", 0.3))
 NECK = _flag("M2M_NECK", "0")
 IK_FRAMES = _env("M2M_IK_FRAMES", "")  # "a:b": tracking IK on that frame range only (pilot / timing)
 LOMO_EVERY_S = float(_env("M2M_LOMO_EVERY_S", 1.0))  # validate/lomo.py: one frame per this many s
+# pipeline/confidence.py (optional): per-joint, per-frame standard deviation of the IK from
+# how firmly the markers pin each joint (with lomo.json when there is one); written to
+# M2M_CONF_DIR, computed every M2M_CONF_STEP_S seconds and interpolated
+CONF_DIR = _path("M2M_CONF_DIR", os.path.join(IK_DIR, "confidence"))
+CONF_STEP_S = float(_env("M2M_CONF_STEP_S", 0.04))
 
 # --- inverse dynamics (kinetics.py) and the OpenSim comparison ---------------------
 
@@ -474,6 +483,22 @@ KIN_LOWPASS_HZ = float(_env("M2M_KIN_LOWPASS_HZ", 6.0))
 if not KIN_LOWPASS_HZ > 0:
   raise SystemExit(f"M2M_KIN_LOWPASS_HZ={KIN_LOWPASS_HZ}: the inverse dynamics needs a "
                    "low-pass above 0 Hz (default 6)")
+# force plates in the inverse dynamics (C3D inputs): low-passed with the body positions'
+# filter (KIN_LOWPASS_HZ, mocap2myo.kinetics.lowpass_plates), so that force and motion carry
+# the same frequencies; filtered differently they put impact artefacts into the joint
+# moments around heel strike (Kristianslund et al. 2012, J Biomech 45:666). "0": the plates
+# unfiltered (as before; for comparison)
+KIN_FILTER_PLATES = _flag("M2M_KIN_FILTER_PLATES", "1")
+# the ground reaction shared between the feet off the plates (mocap2myo.kinetics
+# Kinetics.ground_split): "lever" = the lever rule along the line between the feet, every
+# component in the vertical's proportion; "vpp" = graded sole contact (a heel landing fast
+# counts) and the feet's forces converging 0.35 m above the centre of mass, so the trailing
+# foot pushes forward while the leading one brakes. Against the plates of two public gait
+# datasets (double support, the plates left out): hip / knee / ankle moment RMS error
+# 59 / 66 / 88 -> 23 / 36 / 53 N m (level walking, 36 trials) and 49 / 41 / 39 -> 13 / 17 /
+# 20 N m (Moissenet, 40 trials); the case study's right-foot share of the vertical force
+# against its plates: RMS error 0.080 -> 0.070, r 0.88 both
+KIN_SPLIT = _choice("M2M_KIN_SPLIT", "lever", ("lever", "vpp"))
 # Mass while recorded, if the subjects wore equipment (here the COSMED K5 metabolic
 # system, about 1-3 kg): a column of the anthropometrics CSV with the total mass; the
 # difference to the body mass is lumped at CARRIED_BODY's centre of mass. "" = none.

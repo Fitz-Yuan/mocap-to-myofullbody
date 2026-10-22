@@ -8,8 +8,9 @@ body (box_lift: the box on the hands while it is carried, tasks/box_lift/loads.p
 M2M_TASK=none: no external load but the ground), and mocap2myo/kinetics.py: L5/S1,
 shoulders and elbows top-down (no ground reaction needed), the total ground reaction
 with its centre of pressure, and hips / knees / ankles with that reaction shared
-between the feet (estimated in double support). Positions are low-passed at
-M2M_KIN_LOWPASS_HZ (default 6 Hz) before they are differentiated.
+between the feet (estimated in double support: M2M_KIN_SPLIT, the lever rule or "vpp"). Positions are low-passed at
+M2M_KIN_LOWPASS_HZ (default 6 Hz) before they are differentiated, and force plates (C3D
+inputs, where a foot is on one) with the same filter (M2M_KIN_FILTER_PLATES=0: unfiltered).
 
 Frames the IK did not solve (unsolved_frames in the IK output; for an older IK file,
 the frames whose marker errors are all NaN) are interpolated between the solved
@@ -67,8 +68,9 @@ def static_plate_mass(subject):
   return float(np.median(fz)) / 9.81 if len(fz) else None
 
 
-def force_plates(trial, n):
-  """Calibrated force plates stored with the conditioned markers (C3D inputs), or None."""
+def force_plates(trial, n, rate):
+  """Calibrated force plates stored with the conditioned markers (C3D inputs), or None;
+  low-passed like the body motion (M2M_KIN_FILTER_PLATES, kinetics.lowpass_plates)."""
   f = os.path.join(config.NPZ_DIR, f"{trial}.npz")
   if not os.path.exists(f):
     return None
@@ -77,7 +79,14 @@ def force_plates(trial, n):
     return None
   a = int(config.IK_FRAMES.split(":")[0]) if config.IK_FRAMES else 0
   cut = lambda x: x[a:a + n].astype(np.float64)
-  return dict(force=cut(D["fp_force"]), cop=cut(D["fp_cop"]), free=cut(D["fp_free"]))
+  pl = dict(force=cut(D["fp_force"]), cop=cut(D["fp_cop"]), free=cut(D["fp_free"]))
+  if not config.KIN_FILTER_PLATES:
+    return pl
+  if "fp_corners" not in D.files:
+    raise SystemExit(f"{f}: no fp_corners (plate geometry) to filter the plates with; run "
+                     "prepare_markers.py again, or M2M_KIN_FILTER_PLATES=0")
+  return kinetics.lowpass_plates(dict(pl, corners=D["fp_corners"]), rate, config.KIN_LOWPASS_HZ,
+                                 config.FP_MIN_FZ)
 
 
 def init():
@@ -117,7 +126,8 @@ def run(trial):
   if "model_profile" in K.files and str(K["model_profile"]) != KIN.mm.profile.name:
     raise SystemExit(f"{cal}: IK of {K['model_profile']}, not M2M_MODEL={KIN.mm.profile.name}")
   out = KIN.solve(kin, rate, scale, body, {carried_body(KIN.m): extra} if extra > 0 else None,
-                  loads, lp_hz=config.KIN_LOWPASS_HZ, plates=force_plates(trial, len(Q)))
+                  loads, lp_hz=config.KIN_LOWPASS_HZ, plates=force_plates(trial, len(Q), rate),
+                  split=config.KIN_SPLIT)
   out.update(more)
   out["unsolved"] = bad
   out["uncertain"] = out.get("uncertain", np.zeros(len(Q), bool)) | bad

@@ -17,9 +17,14 @@ frames and the pelvis turning at most PELVIS_W_MAX (where the model cannot reach
 pose -- deep squats past its 120 deg knee / hip limits -- the IK fit loses the pelvis
 and snaps back), and not excluded by the manual review (EXCLUDE).
 
+Model: M2M_MODEL (one with hands, tasks/box_lift/body.py); gts holds the bodies of
+motion_io.TRACKED (MyoFullBody's names; another model: the bodies of the same canonical
+segments, tracked_bodies), qpos_joints the model's joints.
+
   python tasks/box_lift/build_dataset.py
 Input: <M2M_REF_DIR>, <M2M_IK_DIR>. Output: data/<M2M_DATA>/ (motion_<M2M_DATA_STEM>
-[_ok]_100hz.npz, initial_poses_..., index.json).
+[_ok]_100hz.npz, initial_poses_..., index.json); another model than MyoFullBody:
+data/<M2M_DATA>_<model>/.
 """
 
 import json
@@ -32,11 +37,11 @@ from scipy.spatial.transform import Rotation
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 from mocap2myo import markerset as ms  # noqa: E402
-from mocap2myo.model import MYOFULLBODY_XML  # noqa: E402
 from pipeline import config  # noqa: E402
-from tasks.box_lift.motion_io import FPS, TRACKED, write  # noqa: E402
+from tasks.box_lift.body import TaskBody, is_myofullbody, tracked_bodies  # noqa: E402
+from tasks.box_lift.motion_io import FPS, write  # noqa: E402
 
-OUT = config.DATA_DIR
+OUT = config.DATA_DIR  # another model than MyoFullBody: <M2M_DATA>_<model>/
 STEM = config.DATA_STEM
 QUALITY_P95 = 0.06
 ROOT_STEP_MAX = 0.05  # m per 10 ms frame (5 m/s; walking is ~0.015)
@@ -54,9 +59,11 @@ SHELF_BOARD_MARGIN = 0.02  # m added around the 4 shelf markers
 
 def main():
   config.usage(__doc__)
-  m = mujoco.MjModel.from_xml_path(str(MYOFULLBODY_XML))
-  d = mujoco.MjData(m)
-  tb = [m.body(b).id for b in TRACKED]
+  task = TaskBody(mm=config.marker_model())  # refuses a model without hands
+  m, d, prof = task.m, task.d, task.mm.profile
+  tracked = tracked_bodies(prof, m)
+  out_dir = OUT if is_myofullbody(prof) else f"{OUT}_{prof.name}"
+  tb = [m.body(b).id for b in tracked]
   out = {k: [] for k in ("gts", "root_pos", "root_quat", "qj", "box_pos", "box_quat",
                          "grasp", "phase")}
   extra = {k: [] for k in ("obj_mass", "grip_local", "has_shelf", "shelf_pos", "shelf_half")}
@@ -75,7 +82,7 @@ def main():
     lo, hi = sh.min(0) - SHELF_BOARD_MARGIN, sh.max(0) + SHELF_BOARD_MARGIN
     for c, (a, b) in enumerate(R["clips"]):
       q = Q[a:b]
-      G = np.zeros((len(q), len(TRACKED), 3))
+      G = np.zeros((len(q), len(tracked), 3))
       for i in range(len(q)):
         d.qpos[:] = q[i]
         mujoco.mj_kinematics(m, d)
@@ -124,12 +131,12 @@ def main():
                                        and root_step <= ROOT_STEP_MAX
                                        and pel_off <= PELVIS_OFF_MAX
                                        and pel_w <= PELVIS_W_MAX)})
-  os.makedirs(OUT, exist_ok=True)
+  os.makedirs(out_dir, exist_ok=True)
   ok = [c["clip"] for c in index if c["quality_ok"]]
   for tag, keep in (("", list(range(len(index)))), ("_ok", ok)):
     obj_mass = np.array([extra["obj_mass"][i] for i in keep], np.float32)
-    write(OUT, tag, out, index, m, keep, STEM, box_mass=np.median(obj_mass))
-    f = os.path.join(OUT, f"motion_{STEM}{tag}_100hz.npz")
+    write(out_dir, tag, out, index, m, keep, STEM, box_mass=np.median(obj_mass), tracked=tracked)
+    f = os.path.join(out_dir, f"motion_{STEM}{tag}_100hz.npz")
     z = dict(np.load(f))
     z["obj_mass"] = obj_mass
     z["grip_local"] = np.array([extra["grip_local"][i] for i in keep], np.float32)
@@ -140,7 +147,7 @@ def main():
     np.savez(f, **z)
   json.dump({"clips": index, "ok_clips_in_order": ok,
              "source": "tasks/box_lift/build_reference.py references"},
-            open(os.path.join(OUT, "index.json"), "w"), indent=1)
+            open(os.path.join(out_dir, "index.json"), "w"), indent=1)
   n = sum(c["frames"] for c in index)
   print(f"{len(index)} clips, {n / FPS / 60:.1f} min; {len(ok)} quality-ok "
         f"({sum(index[i]['frames'] for i in ok) / FPS / 60:.1f} min); clip length "

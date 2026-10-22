@@ -11,7 +11,10 @@ enters as external loads on the hands. The same sum over the whole body gives th
 ground reaction (force, centre of pressure, free moment). Bottom-up for the legs: the
 total ground reaction is assigned to the loaded foot; in double support it is shared by
 the lever rule along the line between the two feet's contact centres (an estimate: the
-split is not determined by kinematics), each foot's share applied under that foot.
+split is not determined by kinematics), each foot's share applied under that foot; with
+split="vpp" from graded sole contacts, the horizontal forces converging above the centre
+of mass (Kinetics.ground_split). Force plates, where a foot is on one, replace the estimate
+(feet_from_plates; lowpass_plates filters them like the motion).
 
 Conventions: moments are internal (net muscle) moments in N m, reported with the sign
 named in the key (e.g. knee_r_ext > 0 = net extensor moment). Which joints, at which
@@ -30,6 +33,13 @@ from scipy.signal import butter, filtfilt
 
 G = np.array([0.0, 0.0, -9.81])
 D_EXT, D_FLEX = 0.05, 0.08  # erector spinae / abdominal moment arms about L5/S1 (m)
+# split "vpp" (Kinetics.ground_split): graded sole contact up to CONTACT_Z above the floor and
+# CONTACT_V (Skals et al. 2017), and the feet's forces converging VPP_ABOVE_COM above the
+# centre of mass (the force lines of the two plates crossed 0.35 m (level walking, Vielemeyer
+# et al. 2026) and 0.52 m (Moissenet & Schreiber 2019) above it in double support; 0.2-0.35 m
+# gave the smallest joint-moment errors on both)
+CONTACT_Z, CONTACT_V = 0.04, 1.3  # m, m/s
+VPP_ABOVE_COM = 0.35  # m
 
 
 def lowpass(x, rate, hz):
@@ -153,7 +163,7 @@ class Kinetics:
     return dict(C=C, R=R, P=P, Fr=Fr, Ax=Ax, palm=palm, sole=sole)
 
   def solve(self, K, rate, scale, body_kg, extra_kg=None, loads=(), floor_z=None, lp_hz=6.0, plates=None,
-            legs=True):
+            legs=True, split="lever"):
     """K: self.kinematics(Q) for IK qpos Q in model units (the model is uniformly `scale` x
     the subject).
     extra_kg: {body name: kg} carried on the body (lumped at that body's centre of mass).
@@ -205,10 +215,9 @@ class Kinetics:
     ext = list(loads)
     if legs:
       sole = K["sole"] * k
-      share, foot_cop, contact = self.split_feet(sole, cop, rate, floor_z)
-      foot_F = share[..., None] * F[:, None, :]
-      foot_free = share * free[:, None]
-      source = np.zeros((T, 2), np.int8)  # 0 estimated (lever rule), 1 measured, 2 remainder
+      share, foot_F, foot_cop, foot_free, contact = self.ground_split(
+        split, sole, F, cop, free, rate, floor_z, com=(C * mass[None, :, None]).sum(1) / mass.sum())
+      source = np.zeros((T, 2), np.int8)  # 0 estimated (split), 1 measured, 2 remainder
       if plates is not None:
         foot_F, foot_cop, foot_free, source, contact = feet_from_plates(
           plates, foot_F, foot_cop, foot_free, contact, sole, self.sole, F, M, floor_z)
@@ -246,12 +255,50 @@ class Kinetics:
       out["L5S1_shear_ap"] = along(ant)
     return out
 
-  def split_feet(self, sole, cop, rate, floor_z, dz=0.025, v_max=0.6):
+  def ground_split(self, method, sole, F, cop, free, rate, floor_z, com=None):
+    """The total ground reaction (force F [T, 3], centre of pressure cop, free moment free)
+    shared between the feet: (share [T, 2] of the vertical force, force [T, 2, 3], centre of
+    pressure [T, 2, 3], free moment [T, 2], contact [T, 2]); l, r. com: the whole-body
+    centre of mass [T, 3] (method "vpp").
+
+    "lever": split_feet with its hard contact test; every component of the force shared
+    like the vertical one.
+    "vpp": split_feet with graded contact weights (soft=True), and the horizontal force of
+    each foot directed at one point V above the feet (a virtual pivot point: Maus et al.
+    2010, Nat Commun 1:70; in walking the feet's ground reactions converge above the centre
+    of mass, Gruben & Boehm 2012, J Biomech 45:1661; used to share them in double support
+    by Wagner, Schmitz & Bostrom 2024, Front Bioeng Biotechnol 12:1286644). V lies on the
+    total force's line of action, VPP_ABOVE_COM above the centre of mass, so the two
+    forces add up to the total and their moments to its moment: F_i = Fz_i (V - p_i) / h
+    horizontally, p_i the foot's centre of pressure, h the height of V above the floor. In
+    single support it is the lever rule. With the trailing foot pushing forward and the
+    leading foot braking, the horizontal shares differ in sign, which the lever rule cannot
+    give."""
+    if method == "lever":
+      share, foot_cop, contact = self.split_feet(sole, cop, rate, floor_z)
+      return share, share[..., None] * F[:, None, :], foot_cop, share * free[:, None], contact
+    if method != "vpp":
+      raise ValueError(f"split {method!r}: expected lever or vpp")
+    share, foot_cop, contact = self.split_feet(sole, cop, rate, floor_z, soft=True)
+    foot_F = share[..., None] * F[:, None, :]
+    up = (F[:, 2] > 1.0) & np.isfinite(cop).all(1)
+    h = com[:, 2] - floor_z + VPP_ABOVE_COM
+    V = cop[:, :2] + h[:, None] * F[:, :2] / np.where(up, F[:, 2], 1.0)[:, None]
+    hor = foot_F[..., 2:] * (V[:, None] - foot_cop[..., :2]) / h[:, None, None]
+    foot_F[up, :, :2] = hor[up]
+    return share, foot_F, foot_cop, share * free[:, None], contact
+
+  def split_feet(self, sole, cop, rate, floor_z, dz=0.025, v_max=0.6, soft=False):
     """Share of the ground reaction per foot [T, 2] (l, r), each foot's centre of pressure
     [T, 2, 3], and the contact flags [T, 2]. A foot is loaded when one of its sole points
     is within dz of the floor and moving slower than v_max; in double support the share
     follows the lever rule along the line between the feet's contact centres, and both
-    feet's pressure centres shift together so their weighted mean is the total one."""
+    feet's pressure centres shift together so their weighted mean is the total one.
+    soft: graded contact instead, each sole point weighted (1 - z / CONTACT_Z)(1 - v /
+    CONTACT_V) (zero beyond either limit; the limits of Skals et al. 2017, Multibody Syst
+    Dyn 39:175): the contact centre leans to the points down and still (the heel of the
+    leading foot, the forefoot of the trailing one), and a heel landing at up to 1.3 m/s
+    counts as down (with v_max = 0.6 m/s about 30 ms late on the public gait data)."""
     T = len(sole)
     z = sole[..., 2] - floor_z[:, None]
     v = np.linalg.norm(np.gradient(sole, axis=0), axis=-1) * rate
@@ -259,9 +306,14 @@ class Kinetics:
     centre = np.zeros((T, 2, 3))
     for i, s in enumerate("lr"):
       idx = self.sole[s]
-      near = (z[:, idx] < dz) & (v[:, idx] < v_max)
+      if soft:
+        w = np.clip(1 - z[:, idx] / CONTACT_Z, 0, 1) * np.clip(1 - v[:, idx] / CONTACT_V, 0, 1)
+        near = w > 0
+      else:
+        near = (z[:, idx] < dz) & (v[:, idx] < v_max)
+        w = np.where(near, 1.0, 0.0)
       contact[:, i] = near.any(1)
-      wgt = np.where(near, 1.0, 0.0) + 1e-9
+      wgt = w + 1e-9
       centre[:, i] = (sole[:, idx] * wgt[..., None]).sum(1) / wgt.sum(1)[:, None]
     share = np.zeros((T, 2))
     only = contact.sum(1) == 1
@@ -343,6 +395,51 @@ def feet_from_plates(plates, foot_F, foot_cop, foot_free, contact, sole, sole_id
         foot_F[t, o] = 0.0
         foot_free[t, o] = 0.0
   return foot_F, foot_cop, foot_free, source, contact
+
+
+def lowpass_plates(plates, rate, hz, min_fz=20.0):
+  """The force plates low-passed with the filter solve() puts on the body positions
+  (lowpass: 4th-order Butterworth, zero phase, `hz`). Motion and force filtered differently
+  put impact artefacts into the joint moments around heel strike, the hip's most
+  (Kristianslund, Krosshaug & van den Bogert 2012, J Biomech 45:666-671); filtered alike,
+  the two sides of the equations of motion carry the same frequencies.
+
+  plates: dict(force [T, P, 3], cop [T, P, 3], free [T, P], corners [P, 4, 3]) as
+  pipeline/kinetics.py reads them (frames with no centre of pressure: the plate carries less
+  than min_fz). Per plate, the force and its moment about the plate centre (both zero while
+  the plate is unloaded, rather than filtered through NaN) are filtered over each finite run
+  of frames; the centre of pressure on the plate surface and the free moment about the
+  vertical are then solved from the filtered force and moment where the filtered vertical
+  force reaches min_fz (exactly: no change without the filter, inclined plates included).
+  Returns a dict like `plates` (without corners)."""
+  F = np.asarray(plates["force"], float)
+  cop, free = np.asarray(plates["cop"], float), np.asarray(plates["free"], float)
+  corners = np.asarray(plates["corners"], float)
+  centre = corners.mean(1)  # [P, 3]
+  ez = np.array([0.0, 0.0, 1.0])
+  loaded = np.isfinite(F).all(-1) & np.isfinite(cop).all(-1) & np.isfinite(free)
+  M = np.cross(cop - centre[None], F) + free[..., None] * ez  # about the plate centre
+  F, M = np.where(loaded[..., None], F, 0.0), np.where(loaded[..., None], M, 0.0)
+  ok = np.isfinite(plates["force"]).all(-1).all(-1)  # frames the plates recorded
+  Ff, Mf = F.copy(), M.copy()
+  idx = np.flatnonzero(ok)
+  pad = 3 * 5  # filtfilt's default padding for a 4th-order filter
+  for r in np.split(idx, np.flatnonzero(np.diff(idx) != 1) + 1):
+    if len(r) > pad:
+      Ff[r], Mf[r] = lowpass(F[r], rate, hz), lowpass(M[r], rate, hz)
+  Ff[~ok], Mf[~ok] = np.nan, np.nan
+  # centre of pressure c + a u + b v on the plate's plane and free moment f about the
+  # vertical: (a u + b v) x F + f ez = M, three equations in (a, b, f)
+  out_cop, out_free = np.full_like(cop, np.nan), np.full_like(free, np.nan)
+  for p in range(len(corners)):
+    u, v = np.linalg.svd(corners[p] - centre[p])[2][:2]
+    on = np.flatnonzero(Ff[:, p, 2] >= min_fz)
+    A = np.stack([np.cross(u, Ff[on, p]), np.cross(v, Ff[on, p]),
+                  np.broadcast_to(ez, (len(on), 3))], -1)
+    x = np.linalg.solve(A, Mf[on, p][..., None])[..., 0]
+    out_cop[on, p] = centre[p] + x[:, :1] * u + x[:, 1:2] * v
+    out_free[on, p] = x[:, 2]
+  return dict(force=Ff, cop=out_cop, free=out_free)
 
 
 def plates_check(plates, contact, source, F):
