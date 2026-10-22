@@ -51,6 +51,5 @@ emg_map = ["R_tibialis_anterior=tibant_r@-ankle_r_plantar", "R_soleus=soleus_r@a
            "R_gluteus_medius=glmed1_r+glmed2_r+glmed3_r@hip_r_abd"]
 
 [ik]
-ik_ankle_smooth = 0.08            # walking moves the ankle fast; the lifting study's 0.3 lagged it (ankle vs Vicon Plug-in-Gait r 0.38-0.51 -> 0.80-0.84)
 static = true
 static_markers = "legs"

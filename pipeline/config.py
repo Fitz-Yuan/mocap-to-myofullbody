@@ -468,11 +468,12 @@ STATIC_MARKERS = _choice("M2M_STATIC_MARKERS", "legs", ("legs", "legs_only", "al
 FOOT_CAP = float(_env("M2M_FOOT_CAP", 0.10))
 FLAT_W = float(_env("M2M_FLAT_W", 30.0))
 # frame-to-frame smoothing of the profile's smooth_heavy joints (ankle, subtalar), per frame at
-# 100 Hz (ik.ik_trial ankle_smooth). 0.3 held the ankle still in the case study's deep squats;
-# walking moves the ankle faster, and gait datasets set less in their profile
+# 100 Hz (ik.ik_trial ankle_smooth). 0.08: chosen on walking (ramp dataset, leave-one-subject-out
+# against Vicon Plug-in-Gait) and confirmed on the lifting case study (foot-marker residual
+# 6.8 -> 6.0 mm, no chatter in deep squats); 0.3, the earlier value, lagged fast ankle motion
 # frame-to-frame smoothing of every other joint (ik.ik_trial smooth), per frame at 100 Hz
 IK_SMOOTH = float(_env("M2M_IK_SMOOTH", 0.05))
-IK_ANKLE_SMOOTH = float(_env("M2M_IK_ANKLE_SMOOTH", 0.3))
+IK_ANKLE_SMOOTH = float(_env("M2M_IK_ANKLE_SMOOTH", 0.08))
 # opt-in: a 3-hinge neck in the IK model (ik.NECK), so the head follows its markers; the
 # IK output keeps the plain model's qpos layout plus neck_qpos [T, 3]
 NECK = _flag("M2M_NECK", "0")

@@ -50,6 +50,5 @@ marker_set = "plug_in_gait"
 task = "none"
 
 [ik]
-ik_ankle_smooth = 0.08            # walking moves the ankle fast; the lifting study's 0.3 lagged it (ankle vs Vicon Plug-in-Gait r 0.38-0.51 -> 0.80-0.84)
 static = true
 static_markers = "legs"

@@ -727,7 +727,7 @@ def first_frame(mm, P, restarts=8, seed=0, outlier=None, mtp_prior=0.0, robust=N
 
 def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
              v_joint=15.0, w_floor=10.0, w_anchor=3.0,
-             ankle_smooth=0.3, outlier=None, mtp_prior=0.0, anchor_centroid=False,
+             ankle_smooth=0.08, outlier=None, mtp_prior=0.0, anchor_centroid=False,
              pelvis_gap="carry", robust=None, root_init="prev"):
   """Per-frame IK over a whole trial. Returns qpos [T, nq] and marker err [T, n]
   (NaN where a marker is missing or was rejected, see MarkerModel.solve).

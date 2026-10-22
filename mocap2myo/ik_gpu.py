@@ -719,7 +719,7 @@ def ik_trial_gpu(mm, P, rate=None, stats=None, **kw):
 
 
 def ik_trials_gpu(mm, Ps, smooth=0.05, restarts=8, seed=0, rate=None, contact=True,
-                  v_joint=15.0, w_floor=10.0, w_anchor=3.0, ankle_smooth=0.3, outlier=None,
+                  v_joint=15.0, w_floor=10.0, w_anchor=3.0, ankle_smooth=0.08, outlier=None,
                   mtp_prior=0.0, anchor_centroid=False, pelvis_gap="carry", robust=None,
                   root_init="prev", offsets=None, active=None, first=None, device="cuda:0",
                   chunk=64, burn_in=64, max_passes=20, tol=1e-3, xtol=1e-5, sweep_xtol=1e-3,
