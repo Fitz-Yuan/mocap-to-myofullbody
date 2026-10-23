@@ -34,7 +34,7 @@ Every `M2M_*` setting and `IK_WORKERS` is read in `pipeline/config.py`; `MYOFULL
 | `M2M_GAP_FILL`, `M2M_MAX_GAP_S` | `spline`, `0.2` | short marker gaps: cubic spline (or `linear`) up to this many seconds ({doc}`../pipeline/gap-filling`) |
 | `M2M_IK_SMOOTH`, `M2M_IK_ANKLE_SMOOTH` | `0.05`, `0.08` | frame-to-frame smoothing per frame at 100 Hz: most joints, and the ankle and subtalar joints |
 | `M2M_CALIB_MID_STANCE` | `1` | a subject without a static trial or any standing: calibrate the feet on mid-stance frames, one foot flat ({ref}`no-standing`) |
-| `M2M_IK_RECOVER` | `1` | a frame leaving 2+ markers more than 6 cm off is solved again from scratch (CPU; the GPU IK runs without it; {ref}`recovery`) |
+| `M2M_IK_RECOVER`, `M2M_IK_RECOVER_DIST` | `1`, `0.10` | a frame leaving 2+ markers more than this far (m) off is solved again from scratch (CPU; the GPU IK runs without it; {ref}`recovery`) |
 | `M2M_SCALE`, `M2M_SCALE_UNIFORM` | `uniform`, (none) | `segments`: each segment scaled to the subject from the static trial (one model per subject); groups kept uniform |
 | `M2M_CONF_DIR`, `M2M_CONF_STEP_S` | `ik/confidence/`, `0.04` | per-joint confidence of the IK (`pipeline/confidence.py`) and its time step |
 | `M2M_KIN_FILTER_PLATES` | `1` | force plates low-passed like the motion (Kristianslund et al. 2012) |
