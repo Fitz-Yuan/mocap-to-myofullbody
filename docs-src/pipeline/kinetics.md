@@ -20,10 +20,10 @@ MyoFullBody inherits from MyoArm eight massless shoulder "phantom" bodies (clavp
 
 | Joint loads (median over 22 trials) | Value |
 |---|---|
-| Ground force / weight while not carrying | 0.999 (range 0.996–1.002) |
-| L5/S1 extension moment, 95th pct | 178 N m (trials 137–205) |
-| L5/S1 extension moment, peak | 268 N m (trials 210–343) |
-| L5/S1 compression (single-muscle estimate), 95th pct | 3.9 kN (trials 3.1–4.4; NIOSH action limit 3.4 kN) |
+| Ground force / weight while not carrying | 0.999 (range 0.995–1.000) |
+| L5/S1 extension moment, 95th pct | 187 N m (trials 140–216) |
+| L5/S1 extension moment, peak | 274 N m (trials 224–356) |
+| L5/S1 compression (single-muscle estimate), 95th pct | 4.0 kN (trials 3.2–4.5; NIOSH action limit 3.4 kN) |
 | Elbow flexion moment, 95th pct (R / L) | 30 / 30 N m |
 | Shoulder flexion moment, 95th pct (R / L) | 31 / 30 N m |
 

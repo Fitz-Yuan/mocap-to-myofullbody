@@ -177,9 +177,9 @@ Settings are keys in the dataset profile, or environment variables with `M2M_` i
 
 | Check | Result |
 |---|---|
-| Marker fit, 22 lifting trials | median 9.2 mm; OpenSim IK on the same markers 19.8 mm |
+| Marker fit, 22 lifting trials | median 9.0 mm; OpenSim IK on the same markers 19.8 mm |
 | Quiet-standing knee flexion | 0.1°; OpenSim 10.6° |
-| Low-back moment vs OpenSim Inverse Dynamics | r = 0.984 |
+| Low-back moment vs OpenSim Inverse Dynamics | r = 0.987 |
 | Total ground force vs force plates | 1.8 % of body weight |
 | Knee flexion vs Vicon Plug-in-Gait, 36 public walking trials | r = 0.996 |
 | Knee flexion vs an Xsens suit worn at the same time, 13 people | r = 0.99 |

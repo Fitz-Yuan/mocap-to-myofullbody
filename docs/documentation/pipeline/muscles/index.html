@@ -234,6 +234,8 @@
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/installation/">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/demo/">The demo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/your-data/">Your own data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/optitrack/">From OptiTrack (Motive)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/video/">From video</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/results/">Reading the results</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/troubleshooting/">When something goes wrong</a></li>
 </ul>
@@ -365,9 +367,9 @@
 <section id="what-it-shows-on-the-case-study">
 <h2>What it shows on the case study<a class="headerlink" href="#what-it-shows-on-the-case-study" title="Link to this heading">#</a></h2>
 <ul class="simple">
-<li><p><strong>The back extensors are too weak for heavy lifting.</strong> MyoFullBody’s erector spinae at full activation give about 150 N m of extension, while the lifts need 178 N m at the 95th percentile and up to about 270 N m. In the median trial 21 % of the frames need an L5/S1 reserve above 1 N m (8–35 % by trial). Scaling every muscle’s strength with the subject’s body mass (<code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_SCALE=mass</span></code>; Handsfield et al. 2014) does not change this overall (median 23 %): it helps the heavier subjects and hurts the lighter ones, so it stays off by default.</p></li>
+<li><p><strong>The back extensors are too weak for heavy lifting.</strong> MyoFullBody’s erector spinae at full activation give about 150 N m of extension, while the lifts need 187 N m at the 95th percentile and about 270 N m at their peak (medians over the trials). In the median trial 29 % of the frames need an L5/S1 reserve above 1 N m (14–42 % by trial). Scaling every muscle’s strength with the subject’s body mass (<code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_SCALE=mass</span></code>; Handsfield et al. 2014) does not help overall (median 32 %, 16–55 % by trial): it makes the heavier subjects stronger and the lighter ones weaker, so it stays off by default.</p></li>
 <li><p><strong>A passive flexor.</strong> The rectus abdominis sits at 1.39 times its optimal fibre length in the model’s neutral pose, so its passive force alone gives about 40 N m of trunk flexion.</p></li>
-<li><p><strong>L5/S1 compression from the muscles</strong>: 95th percentile 4.2–4.8 kN by trial, against 3.9 kN from the single-muscle estimate (NIOSH action limit 3.4 kN).</p></li>
+<li><p><strong>L5/S1 compression from the muscles</strong>: 95th percentile 4.7–5.1 kN by trial, against 4.0 kN from the single-muscle estimate (median; NIOSH action limit 3.4 kN).</p></li>
 </ul>
 </section>
 <section id="against-emg">

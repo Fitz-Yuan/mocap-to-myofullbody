@@ -20,9 +20,9 @@ An optional step (`mocap2myo run --muscles`): each frame's muscle activations by
 
 ## What it shows on the case study
 
-- **The back extensors are too weak for heavy lifting.** MyoFullBody's erector spinae at full activation give about 150 N m of extension, while the lifts need 178 N m at the 95th percentile and up to about 270 N m. In the median trial 21 % of the frames need an L5/S1 reserve above 1 N m (8–35 % by trial). Scaling every muscle's strength with the subject's body mass (`M2M_MUSCLE_SCALE=mass`; Handsfield et al. 2014) does not change this overall (median 23 %): it helps the heavier subjects and hurts the lighter ones, so it stays off by default.
+- **The back extensors are too weak for heavy lifting.** MyoFullBody's erector spinae at full activation give about 150 N m of extension, while the lifts need 187 N m at the 95th percentile and about 270 N m at their peak (medians over the trials). In the median trial 29 % of the frames need an L5/S1 reserve above 1 N m (14–42 % by trial). Scaling every muscle's strength with the subject's body mass (`M2M_MUSCLE_SCALE=mass`; Handsfield et al. 2014) does not help overall (median 32 %, 16–55 % by trial): it makes the heavier subjects stronger and the lighter ones weaker, so it stays off by default.
 - **A passive flexor.** The rectus abdominis sits at 1.39 times its optimal fibre length in the model's neutral pose, so its passive force alone gives about 40 N m of trunk flexion.
-- **L5/S1 compression from the muscles**: 95th percentile 4.2–4.8 kN by trial, against 3.9 kN from the single-muscle estimate (NIOSH action limit 3.4 kN).
+- **L5/S1 compression from the muscles**: 95th percentile 4.7–5.1 kN by trial, against 4.0 kN from the single-muscle estimate (median; NIOSH action limit 3.4 kN).
 
 ## Against EMG
 

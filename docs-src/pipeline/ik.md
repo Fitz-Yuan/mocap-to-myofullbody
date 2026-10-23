@@ -23,7 +23,7 @@ IK finds the joint angles that bring the model's virtual markers as close as pos
 ```{admonition} Fit (final run)
 :class: tip
 
-Body-marker residual per trial: median 7.7–14.3 mm, 95th percentile 25–48 mm (the IK's own measure, on the height-scaled, filtered markers). Against the raw markers in the subject's own size, as used for the OpenSim comparison: median 7.9–14.3 mm per trial (9.2 mm, median over trials); OpenSim IK on the same markers 14.6–27.5 mm (19.8 mm; S09: 16.0 and 14.9 mm).
+Body-marker residual per trial: median 7.5–14.0 mm, 95th percentile 25–38 mm (the IK's own measure, on the height-scaled, filtered markers). Against the raw markers in the subject's own size, as used for the OpenSim comparison: median 7.9–14.3 mm per trial (9.2 mm, median over trials); OpenSim IK on the same markers 14.6–27.5 mm (19.8 mm; S09: 16.0 and 14.9 mm).
 ```
 
 ```{admonition} Why the static trial

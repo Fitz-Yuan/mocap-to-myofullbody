@@ -234,6 +234,8 @@
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/installation/">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/demo/">The demo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/your-data/">Your own data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/optitrack/">From OptiTrack (Motive)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/video/">From video</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/results/">Reading the results</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/troubleshooting/">When something goes wrong</a></li>
 </ul>
@@ -358,7 +360,7 @@
 <tbody>
 <tr class="row-even"><td><p>Joint angles, public walking data</p></td>
 <td><p>Vicon Plug-in-Gait output in the same C3D files (36 trials, 3 subjects)</p></td>
-<td><p>knee flexion r = 0.995–0.997, hip flexion 0.991–0.994 (RMS after the offset 1.6–2.5°)</p></td>
+<td><p>knee flexion r = 0.995–0.997, hip flexion 0.991–0.994 (RMS after the offset 1.6–2.6°)</p></td>
 <td><p><a class="reference internal" href="../public-data/"><span class="doc">Public data: Vicon Plug-in-Gait and every model</span></a></p></td>
 </tr>
 <tr class="row-odd"><td><p>Joint angles and moments, public data</p></td>
@@ -378,12 +380,12 @@
 </tr>
 <tr class="row-even"><td><p>Joint moments</p></td>
 <td><p>OpenSim Inverse Dynamics with the same external loads</p></td>
-<td><p>L5/S1 r = 0.984, shoulders and hips 0.97–0.99</p></td>
+<td><p>L5/S1 r = 0.987, shoulders and hips 0.97–0.99</p></td>
 <td><p><a class="reference internal" href="../inverse-dynamics/"><span class="doc">Inverse dynamics against OpenSim and force plates</span></a></p></td>
 </tr>
 <tr class="row-odd"><td><p>Whole-body dynamics</p></td>
 <td><p>force plates (22 lifting trials)</p></td>
-<td><p>total vertical force within 1.9 % of body weight; the box’s mass from the plates 13.2 kg (13.6 weighed)</p></td>
+<td><p>total vertical force within 1.8 % of body weight; the box’s mass from the plates 13.2 kg (13.6 weighed)</p></td>
 <td><p><a class="reference internal" href="../inverse-dynamics/"><span class="doc">Inverse dynamics against OpenSim and force plates</span></a></p></td>
 </tr>
 <tr class="row-even"><td><p>Marker prediction</p></td>
@@ -411,7 +413,7 @@
 <li><p><strong>Offsets are not errors by themselves.</strong> Against Plug-in-Gait the hip flexion is about 10° lower and the elbow 6–12°; against Xsens the elbow is about 20° lower. These come from different definitions of the segments (Plug-in-Gait’s pelvis from the ASIS and PSIS markers, Xsens’ elbow from its own skeleton); the correlations and the RMS after the offset are the comparable part.</p></li>
 <li><p><strong>Quiet-standing hip flexion</strong> of 9° (median over the case study’s trials; up to 19°) is partly where the pelvis markers sit on the body and partly real posture; OpenSim gives 12°.</p></li>
 <li><p><strong>Knee moment</strong> in the case study is lower than OpenSim’s (95th percentile 52–56 vs 75–76 N m): the two models put the knee’s centre of rotation differently.</p></li>
-<li><p><strong>Muscle forces</strong> are an estimate: MyoFullBody’s back extensors cannot supply the low-back moment of heavy lifting in about a fifth of the frames, which then need reserve torques (<a class="reference internal" href="../../pipeline/muscles/"><span class="doc">Muscle forces</span></a>).</p></li>
+<li><p><strong>Muscle forces</strong> are an estimate: MyoFullBody’s back extensors cannot supply the low-back moment of heavy lifting in about 30 % of the frames, which then need reserve torques (<a class="reference internal" href="../../pipeline/muscles/"><span class="doc">Muscle forces</span></a>).</p></li>
 <li><p><strong>Raw-take defects</strong> of the case study (a wrong skeleton template, rotated head labels, labelling gaps) are listed on <a class="reference internal" href="../case-study/"><span class="doc">The case study: box lifting with OptiTrack</span></a>.</p></li>
 </ul>
 </section>

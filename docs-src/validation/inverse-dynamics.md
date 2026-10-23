@@ -14,7 +14,7 @@ Second, the lab's force plates. The plates were stored as raw voltages without t
 |---|---|
 | Plate delay behind the motion capture | 100 ms (median; 60–130 ms by trial) |
 | Vertical gain from quiet standing (body + K5 weight) | 292.6 N/V (median; mean 292.9), standard deviation 0.4 % across 22 trials of 11 subjects |
-| Total vertical force, ours vs plates (both feet on the AMTI plates) | RMS 15.4 N = 1.9 % of body weight (median) |
+| Total vertical force, ours vs plates (both feet on the AMTI plates) | RMS 15.2 N = 1.8 % of body weight (median) |
 | Dynamic part (force minus static weight), correlation | r = 0.88 (median) |
 | Box mass from the plates (with box minus without, quiet standing) | 13.2 kg (median; 11.3–14.3 kg by trial) vs 13.6 kg nominal |
 | Right-foot share of the vertical force, ours vs plates | RMS error 0.08, r = 0.88 (median) |

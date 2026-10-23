@@ -234,6 +234,8 @@
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/installation/">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/demo/">The demo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/your-data/">Your own data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/optitrack/">From OptiTrack (Motive)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/video/">From video</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/results/">Reading the results</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/troubleshooting/">When something goes wrong</a></li>
 </ul>
@@ -354,7 +356,7 @@
 <section id="per-trial-grades">
 <h2>Per-trial grades<a class="headerlink" href="#per-trial-grades" title="Link to this heading">#</a></h2>
 <p>The report of the current version (<a class="reference internal" href="../../pipeline/qa/"><span class="doc">Quality checks and the report</span></a> explains each check). Clips kept: the lifting dataset’s own per-cycle checks, which are stricter.</p>
-<p>5 PASS, 16 WARN, 1 FAIL.</p>
+<p>0 PASS, 15 WARN, 7 FAIL.</p>
 <div class="pst-scrollable-table-container"><table class="table">
 <thead>
 <tr class="row-odd"><th class="head"><p>Trial</p></th>
@@ -370,229 +372,229 @@
 </thead>
 <tbody>
 <tr class="row-even"><td><p>S01_Solid</p></td>
-<td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
+<td><p><span class="sd-sphinx-override sd-badge sd-bg-danger sd-bg-text-danger">FAIL</span></p></td>
 <td><p>10.3 / 30</p></td>
 <td><p>14.3 / 32</p></td>
-<td><p>—</p></td>
+<td><p>1.25</p></td>
 <td><p>5.1 / 12.4</p></td>
 <td><p>24 % LTIB</p></td>
 <td><p>0/5</p></td>
-<td><p>gap_max, flips, stand_hip_deg</p></td>
+<td><p>gap_max, flips, limb_lost_s, stand_hip_deg</p></td>
 </tr>
 <tr class="row-odd"><td><p>S01_Spring</p></td>
-<td><p><span class="sd-sphinx-override sd-badge sd-bg-success sd-bg-text-success">PASS</span></p></td>
-<td><p>10.7 / 28</p></td>
+<td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
+<td><p>10.6 / 27</p></td>
 <td><p>13.4 / 30</p></td>
-<td><p>—</p></td>
+<td><p>0.37</p></td>
 <td><p>0.0 / 9.9</p></td>
 <td><p>6 % LASI</p></td>
 <td><p>0/5</p></td>
-<td><p>—</p></td>
+<td><p>limb_lost_s</p></td>
 </tr>
 <tr class="row-even"><td><p>S02_Solid</p></td>
 <td><p><span class="sd-sphinx-override sd-badge sd-bg-danger sd-bg-text-danger">FAIL</span></p></td>
-<td><p>8.0 / 31</p></td>
+<td><p>8.0 / 30</p></td>
 <td><p>12.4 / 34</p></td>
-<td><p>—</p></td>
+<td><p>0.20</p></td>
 <td><p>0.2 / 10.4</p></td>
 <td><p>98 % C7</p></td>
-<td><p>5/5</p></td>
-<td><p>gap_max, stand_hip_deg</p></td>
+<td><p>4/5</p></td>
+<td><p>gap_max, limb_lost_s, stand_hip_deg</p></td>
 </tr>
 <tr class="row-odd"><td><p>S02_Spring</p></td>
 <td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
 <td><p>8.3 / 27</p></td>
 <td><p>11.8 / 30</p></td>
-<td><p>—</p></td>
+<td><p>0.46</p></td>
 <td><p>0.0 / 6.7</p></td>
 <td><p>75 % C7</p></td>
-<td><p>5/5</p></td>
-<td><p>gap_max</p></td>
+<td><p>4/5</p></td>
+<td><p>gap_max, limb_lost_s</p></td>
 </tr>
 <tr class="row-even"><td><p>S03_Solid</p></td>
 <td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
 <td><p>8.4 / 31</p></td>
 <td><p>12.1 / 34</p></td>
-<td><p>—</p></td>
+<td><p>0.24</p></td>
 <td><p>0.0 / 12.8</p></td>
 <td><p>26 % CLAV</p></td>
-<td><p>5/5</p></td>
-<td><p>gap_max, stand_hip_deg</p></td>
+<td><p>3/5</p></td>
+<td><p>gap_max, limb_lost_s, stand_hip_deg</p></td>
 </tr>
 <tr class="row-odd"><td><p>S03_Spring</p></td>
 <td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
 <td><p>7.9 / 30</p></td>
 <td><p>11.2 / 30</p></td>
-<td><p>—</p></td>
+<td><p>0.28</p></td>
 <td><p>0.0 / 11.4</p></td>
 <td><p>18 % CLAV</p></td>
 <td><p>3/5</p></td>
-<td><p>stand_hip_deg</p></td>
+<td><p>limb_lost_s, stand_hip_deg</p></td>
 </tr>
 <tr class="row-even"><td><p>S04_Solid</p></td>
-<td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
-<td><p>13.7 / 39</p></td>
-<td><p>17.7 / 41</p></td>
-<td><p>—</p></td>
+<td><p><span class="sd-sphinx-override sd-badge sd-bg-danger sd-bg-text-danger">FAIL</span></p></td>
+<td><p>13.5 / 36</p></td>
+<td><p>17.4 / 40</p></td>
+<td><p>0.93</p></td>
 <td><p>0.0 / 1.5</p></td>
 <td><p>12 % CLAV</p></td>
-<td><p>4/5</p></td>
-<td><p>resid_med_mm, frame_max_med_mm</p></td>
+<td><p>0/5</p></td>
+<td><p>resid_med_mm, limb_lost_s</p></td>
 </tr>
 <tr class="row-odd"><td><p>S04_Spring</p></td>
-<td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
+<td><p><span class="sd-sphinx-override sd-badge sd-bg-danger sd-bg-text-danger">FAIL</span></p></td>
 <td><p>14.0 / 38</p></td>
 <td><p>18.0 / 39</p></td>
-<td><p>—</p></td>
+<td><p>1.19</p></td>
 <td><p>0.2 / 13.6</p></td>
 <td><p>28 % LWRB</p></td>
-<td><p>2/5</p></td>
-<td><p>gap_max, resid_med_mm, lomo_med_mm, stand_hip_deg</p></td>
+<td><p>0/5</p></td>
+<td><p>gap_max, resid_med_mm, limb_lost_s, lomo_med_mm, stand_hip_deg</p></td>
 </tr>
 <tr class="row-even"><td><p>S05_Solid</p></td>
 <td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
 <td><p>9.0 / 29</p></td>
 <td><p>12.7 / 31</p></td>
-<td><p>—</p></td>
+<td><p>0.17</p></td>
 <td><p>0.8 / 17.0</p></td>
 <td><p>19 % CLAV</p></td>
 <td><p>5/5</p></td>
-<td><p>stand_hip_deg</p></td>
+<td><p>limb_lost_s, stand_hip_deg</p></td>
 </tr>
 <tr class="row-odd"><td><p>S05_Spring</p></td>
 <td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
 <td><p>8.2 / 29</p></td>
 <td><p>12.6 / 33</p></td>
-<td><p>—</p></td>
-<td><p>0.0 / 13.0</p></td>
+<td><p>0.21</p></td>
+<td><p>0.0 / 13.1</p></td>
 <td><p>19 % CLAV</p></td>
-<td><p>5/5</p></td>
-<td><p>stand_hip_deg</p></td>
+<td><p>4/5</p></td>
+<td><p>limb_lost_s, stand_hip_deg</p></td>
 </tr>
 <tr class="row-even"><td><p>S06_Solid</p></td>
 <td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
 <td><p>7.8 / 27</p></td>
 <td><p>10.9 / 28</p></td>
-<td><p>—</p></td>
+<td><p>0.27</p></td>
 <td><p>0.0 / 9.1</p></td>
 <td><p>72 % RUPA</p></td>
-<td><p>3/5</p></td>
-<td><p>gap_max</p></td>
+<td><p>1/5</p></td>
+<td><p>gap_max, limb_lost_s</p></td>
 </tr>
 <tr class="row-odd"><td><p>S06_Spring</p></td>
 <td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
 <td><p>7.5 / 27</p></td>
 <td><p>10.8 / 28</p></td>
-<td><p>—</p></td>
+<td><p>0.18</p></td>
 <td><p>0.3 / 6.5</p></td>
 <td><p>65 % RUPA</p></td>
 <td><p>3/5</p></td>
-<td><p>gap_max</p></td>
+<td><p>gap_max, limb_lost_s</p></td>
 </tr>
 <tr class="row-even"><td><p>S07_Solid</p></td>
-<td><p><span class="sd-sphinx-override sd-badge sd-bg-success sd-bg-text-success">PASS</span></p></td>
+<td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
 <td><p>7.8 / 28</p></td>
 <td><p>11.2 / 27</p></td>
-<td><p>—</p></td>
+<td><p>0.43</p></td>
 <td><p>0.9 / 3.1</p></td>
 <td><p>15 % LWRB</p></td>
 <td><p>3/5</p></td>
-<td><p>—</p></td>
+<td><p>limb_lost_s</p></td>
 </tr>
 <tr class="row-odd"><td><p>S07_Spring</p></td>
-<td><p><span class="sd-sphinx-override sd-badge sd-bg-success sd-bg-text-success">PASS</span></p></td>
+<td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
 <td><p>8.1 / 27</p></td>
 <td><p>11.6 / 27</p></td>
-<td><p>—</p></td>
+<td><p>0.21</p></td>
 <td><p>0.0 / 2.1</p></td>
 <td><p>11 % LWRB</p></td>
 <td><p>1/5</p></td>
-<td><p>—</p></td>
+<td><p>limb_lost_s</p></td>
 </tr>
 <tr class="row-even"><td><p>S08_Solid</p></td>
 <td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
 <td><p>9.4 / 33</p></td>
 <td><p>14.6 / 42</p></td>
-<td><p>—</p></td>
+<td><p>0.33</p></td>
 <td><p>0.7 / 9.8</p></td>
 <td><p>42 % RTHI</p></td>
-<td><p>5/5</p></td>
-<td><p>gap_max, frame_max_med_mm</p></td>
+<td><p>3/5</p></td>
+<td><p>gap_max, frame_max_med_mm, limb_lost_s</p></td>
 </tr>
 <tr class="row-odd"><td><p>S08_Spring</p></td>
 <td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
 <td><p>9.1 / 32</p></td>
 <td><p>14.2 / 41</p></td>
-<td><p>—</p></td>
+<td><p>0.33</p></td>
 <td><p>0.2 / 7.5</p></td>
 <td><p>34 % RTHI</p></td>
-<td><p>5/5</p></td>
-<td><p>gap_max, frame_max_med_mm</p></td>
+<td><p>2/5</p></td>
+<td><p>gap_max, frame_max_med_mm, limb_lost_s</p></td>
 </tr>
 <tr class="row-even"><td><p>S09_Solid</p></td>
-<td><p><span class="sd-sphinx-override sd-badge sd-bg-success sd-bg-text-success">PASS</span></p></td>
+<td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
 <td><p>7.9 / 26</p></td>
 <td><p>10.8 / 30</p></td>
-<td><p>—</p></td>
+<td><p>0.39</p></td>
 <td><p>1.6 / 6.3</p></td>
 <td><p>3 % STRN</p></td>
-<td><p>5/5</p></td>
-<td><p>—</p></td>
+<td><p>4/5</p></td>
+<td><p>limb_lost_s</p></td>
 </tr>
 <tr class="row-odd"><td><p>S09_Spring</p></td>
-<td><p><span class="sd-sphinx-override sd-badge sd-bg-success sd-bg-text-success">PASS</span></p></td>
+<td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
 <td><p>8.1 / 25</p></td>
 <td><p>11.2 / 31</p></td>
-<td><p>—</p></td>
+<td><p>0.44</p></td>
 <td><p>0.0 / 7.0</p></td>
 <td><p>5 % STRN</p></td>
-<td><p>3/5</p></td>
-<td><p>—</p></td>
+<td><p>1/5</p></td>
+<td><p>limb_lost_s</p></td>
 </tr>
 <tr class="row-even"><td><p>S10_Solid</p></td>
-<td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
-<td><p>11.5 / 48</p></td>
-<td><p>17.0 / 40</p></td>
-<td><p>—</p></td>
+<td><p><span class="sd-sphinx-override sd-badge sd-bg-danger sd-bg-text-danger">FAIL</span></p></td>
+<td><p>10.7 / 37</p></td>
+<td><p>16.8 / 39</p></td>
+<td><p>1.49</p></td>
 <td><p>0.0 / 18.6</p></td>
 <td><p>47 % RWRB</p></td>
 <td><p>0/5</p></td>
-<td><p>gap_max, resid_p95_mm, stand_hip_deg</p></td>
+<td><p>gap_max, limb_lost_s, stand_hip_deg</p></td>
 </tr>
 <tr class="row-odd"><td><p>S10_Spring</p></td>
-<td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
-<td><p>10.1 / 46</p></td>
-<td><p>15.4 / 39</p></td>
-<td><p>—</p></td>
+<td><p><span class="sd-sphinx-override sd-badge sd-bg-danger sd-bg-text-danger">FAIL</span></p></td>
+<td><p>9.5 / 36</p></td>
+<td><p>15.4 / 38</p></td>
+<td><p>2.41</p></td>
 <td><p>0.0 / 17.8</p></td>
 <td><p>19 % RWRB</p></td>
 <td><p>0/5</p></td>
-<td><p>resid_p95_mm, stand_hip_deg</p></td>
+<td><p>limb_lost_s, stand_hip_deg</p></td>
 </tr>
 <tr class="row-even"><td><p>S11_Solid</p></td>
-<td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
+<td><p><span class="sd-sphinx-override sd-badge sd-bg-danger sd-bg-text-danger">FAIL</span></p></td>
 <td><p>8.1 / 27</p></td>
-<td><p>11.8 / 30</p></td>
-<td><p>—</p></td>
+<td><p>11.7 / 29</p></td>
+<td><p>0.59</p></td>
 <td><p>2.3 / 3.6</p></td>
 <td><p>88 % C7</p></td>
 <td><p>0/5</p></td>
-<td><p>gap_max, flips</p></td>
+<td><p>gap_max, flips, limb_lost_s</p></td>
 </tr>
 <tr class="row-odd"><td><p>S11_Spring</p></td>
 <td><p><span class="sd-sphinx-override sd-badge sd-bg-warning sd-bg-text-warning">WARN</span></p></td>
-<td><p>8.6 / 30</p></td>
-<td><p>13.0 / 32</p></td>
-<td><p>—</p></td>
+<td><p>8.5 / 27</p></td>
+<td><p>12.5 / 30</p></td>
+<td><p>0.36</p></td>
 <td><p>1.6 / 3.8</p></td>
 <td><p>15 % LWRB</p></td>
 <td><p>0/5</p></td>
-<td><p>flips</p></td>
+<td><p>flips, limb_lost_s</p></td>
 </tr>
 </tbody>
 </table>
 </div>
-<p><strong>How to read it.</strong> The most common flag is a <strong>marker missing in many frames</strong> (C7 in S02, the upper-arm wands in S06, a thigh wand in S08): a property of the recording, which the IK bridges with the other markers. The second is <strong>hip flexion while standing</strong> above 10° (S01–S05 and S10): the static trial pins the knees, but the hip angle also depends on where the pelvis markers sit on the body, and part of it may be real posture. S04 and S10 have the highest residuals (soft-tissue and marker placement); S02 Solid’s only FAIL is C7 missing in 98 % of frames. <strong>Cycles kept</strong> is the dataset’s own per-cycle check (95th-percentile marker residual, unsolved frames, root jumps, pelvis markers far off, pelvis turning speed, and the manual review that removed S10 and S11); it is stricter than the trial grade.</p>
+<p><strong>How to read it.</strong> Every trial has a stretch in which a limb counts as <strong>lost</strong> (two or more of its markers more than 6 cm off, or set aside as mislabelled): 0.36 s in the median trial (0.17–2.4 s), most often the left leg, mostly through samples set aside as mislabelled (the left thigh wand, toe and heel). Six trials have such a stretch of 0.5 s or more and fail on it (S01 Solid, S04, S10, S11 Solid); without the tracking-loss recovery the longest was 7.8 s (<a class="reference internal" href="../../pipeline/gap-filling/#recovery"><span class="std std-ref">Tracking-loss recovery</span></a>). The dataset drops the carry cycles that contain one of 0.2 s or more. The next most common flag is a <strong>marker missing in many frames</strong> (C7 in S02, the upper-arm wands in S06, a thigh wand in S08): a property of the recording, which the IK bridges with the other markers. The second is <strong>hip flexion while standing</strong> above 10° (S01–S05 and S10): the static trial pins the knees, but the hip angle also depends on where the pelvis markers sit on the body, and part of it may be real posture. S04 and S10 have the highest residuals (soft-tissue and marker placement); S02 Solid’s only FAIL is C7 missing in 98 % of frames. <strong>Cycles kept</strong> is the dataset’s own per-cycle check (95th-percentile marker residual, unsolved frames, root jumps, pelvis markers far off, pelvis turning speed, and the manual review that removed S10 and S11); it is stricter than the trial grade.</p>
 </section>
 <section id="input-data-raw-motive-takes-vs-a-hand-processed-export">
 <span id="sources"></span><h2>Input data: raw Motive takes vs a hand-processed export<a class="headerlink" href="#input-data-raw-motive-takes-vs-a-hand-processed-export" title="Link to this heading">#</a></h2>

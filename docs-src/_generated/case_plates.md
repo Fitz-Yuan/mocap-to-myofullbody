@@ -1,5 +1,5 @@
 - plates lag the motion capture by 100 ms
 - vertical gain 292.6 N/V (from quiet standing, body + equipment weight)
-- total vertical force, prediction vs plates: RMS 15.4 N (1.9 % of body weight), r = 0.88 for the part that is not body weight
-- right-foot share of the vertical force: RMS error 0.079, r = 0.88
+- total vertical force, prediction vs plates: RMS 15.2 N (1.8 % of body weight), r = 0.88 for the part that is not body weight
+- right-foot share of the vertical force: RMS error 0.077, r = 0.88
 - box mass from the plates: 13.2 kg
