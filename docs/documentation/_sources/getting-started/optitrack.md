@@ -65,5 +65,5 @@ writes every trial's motion as clips at a fixed rate, with the feet on the floor
 | `several people in this take (Alice, Bob)` | two skeletons in one take: leave all but one out with `points_exclude = 'Bob:.*'` in the profile; for the other person, a second profile |
 | `marker set ...: 30 of 37 markers` | some markers were renamed in Motive: add the names as an alias set (`[aliases.<name>]` in the marker set's TOML) |
 | `360 Hz: the IK solves every frame` | set `rate = 120` in the profile's `[input]`: every 3rd frame, three times faster, and still well above human movement's frequencies |
-| `no static trial and no quiet standing` (calibration) | the person never stood still: the joint angles may be offset. Record a few seconds of standing still, as its own take or at the start of a take |
+| `no static trial and no quiet standing` (calibration) | the person never stood still: the joint angles may be offset by several degrees ({ref}`no-standing`). Record a few seconds of standing still, as its own take or at the start of a take |
 | `up axis: no head / upper-trunk or no foot marker labels` | set `up = "y"` in the profile (Motive's default) |

@@ -445,75 +445,79 @@
 <td><p><code class="docutils literal notranslate"><span class="pre">0.05</span></code>, <code class="docutils literal notranslate"><span class="pre">0.08</span></code></p></td>
 <td><p>frame-to-frame smoothing per frame at 100 Hz: most joints, and the ankle and subtalar joints</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_IK_RECOVER</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_CALIB_MID_STANCE</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">1</span></code></p></td>
-<td><p>a frame leaving 2+ markers more than 6 cm off is solved again from scratch (CPU; the GPU IK runs without it; <a class="reference internal" href="../../pipeline/gap-filling/#recovery"><span class="std std-ref">Tracking-loss recovery</span></a>)</p></td>
+<td><p>a subject without a static trial or any standing: calibrate the feet on mid-stance frames, one foot flat (<a class="reference internal" href="../../validation/joint-angles/#no-standing"><span class="std std-ref">Without a static trial or any standing</span></a>)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_SCALE</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_SCALE_UNIFORM</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_IK_RECOVER</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_IK_RECOVER_DIST</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">0.10</span></code></p></td>
+<td><p>a frame leaving 2+ markers more than this far (m) off is solved again from scratch (CPU; the GPU IK runs without it; <a class="reference internal" href="../../pipeline/gap-filling/#recovery"><span class="std std-ref">Tracking-loss recovery</span></a>)</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_SCALE</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_SCALE_UNIFORM</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">uniform</span></code>, (none)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">segments</span></code>: each segment scaled to the subject from the static trial (one model per subject); groups kept uniform</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_CONF_DIR</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_CONF_STEP_S</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_CONF_DIR</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_CONF_STEP_S</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">ik/confidence/</span></code>, <code class="docutils literal notranslate"><span class="pre">0.04</span></code></p></td>
 <td><p>per-joint confidence of the IK (<code class="docutils literal notranslate"><span class="pre">pipeline/confidence.py</span></code>) and its time step</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_KIN_FILTER_PLATES</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_KIN_FILTER_PLATES</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">1</span></code></p></td>
 <td><p>force plates low-passed like the motion (Kristianslund et al. 2012)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_KIN_SPLIT</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_KIN_SPLIT</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">lever</span></code></p></td>
 <td><p>double support off the plates: <code class="docutils literal notranslate"><span class="pre">lever</span></code> rule, or <code class="docutils literal notranslate"><span class="pre">vpp</span></code> (contact detection and the virtual pivot point)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_KIN_BSIP</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_KIN_BSIP</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">deleva</span></code></p></td>
 <td><p>segment masses: <code class="docutils literal notranslate"><span class="pre">deleva</span></code> (de Leva 1996), <code class="docutils literal notranslate"><span class="pre">dempster</span></code> (Dempster / Winter), <code class="docutils literal notranslate"><span class="pre">model</span></code></p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_DIR</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_JOINTS</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_RESERVE</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_DIR</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_JOINTS</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_RESERVE</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kin/muscles/</span></code>, <code class="docutils literal notranslate"><span class="pre">auto</span></code>, <code class="docutils literal notranslate"><span class="pre">1.0</span></code></p></td>
 <td><p>muscle forces: output, the matched joints, the reserve torques’ scale (N m)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_WEIGHT</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_FV</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_PASSIVE</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_WEIGHT</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_FV</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_PASSIVE</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">none</span></code>, <code class="docutils literal notranslate"><span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">1</span></code></p></td>
 <td><p>the cost’s weighting (<code class="docutils literal notranslate"><span class="pre">volume</span></code>), force–velocity, passive forces</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_STRENGTH</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_SCALE</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_STRENGTH</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_MUSCLE_SCALE</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">1.0</span></code>, <code class="docutils literal notranslate"><span class="pre">none</span></code></p></td>
 <td><p>a factor on every maximum isometric force; <code class="docutils literal notranslate"><span class="pre">mass</span></code>: scaled with body mass / model mass</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_EMG_MAP</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_EMG_MAP</span></code></p></td>
 <td><p>(none)</p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">validate/emg_compare.py</span></code>: EMG channel → model muscles</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_LOMO_EVERY_S</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_LOMO_EVERY_S</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">1.0</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">validate/lomo.py</span></code>: one frame per this many seconds</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_KIN_DIR</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_KIN_LOWPASS_HZ</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_KIN_DIR</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_KIN_LOWPASS_HZ</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kin/</span></code>, <code class="docutils literal notranslate"><span class="pre">6</span></code></p></td>
 <td><p>inverse-dynamics output; low-pass (Hz) before differentiating positions (also the OpenSim ID’s)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_CARRIED_COLUMN</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_CARRIED_BODY</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_CARRIED_COLUMN</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_CARRIED_BODY</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">Wgt+K5</span></code>, <code class="docutils literal notranslate"><span class="pre">torso</span></code></p></td>
 <td><p>a CSV column with the mass while recorded (equipment worn, here a metabolic system); the extra mass is lumped at that body (a body of the model, else that canonical segment’s body); ignored when the CSV has no such column</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_XSENS_TRIAL</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_XSENS_C3D</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_XSENS_TRIAL</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_XSENS_C3D</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">S11_Spring_NE</span></code>, <code class="docutils literal notranslate"><span class="pre">xsens_s11/&lt;trial&gt;.c3d</span></code></p></td>
 <td><p>the Xsens check (<code class="docutils literal notranslate"><span class="pre">validate/xsens.py</span></code>, <code class="docutils literal notranslate"><span class="pre">opensim_compare.py</span></code>)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_OSIM_SETUP_DIR</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_OSIM_SCALE_SETUP</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">M2M_OSIM_SETUP_DIR</span></code>, <code class="docutils literal notranslate"><span class="pre">M2M_OSIM_SCALE_SETUP</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">opensim_setup/</span></code>, <code class="docutils literal notranslate"><span class="pre">Sub_09__Scalingsetup_09.xml</span></code></p></td>
 <td><p>the OpenSim inputs (below)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">IK_WORKERS</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">IK_WORKERS</span></code></p></td>
 <td><p>12</p></td>
 <td><p>parallel processes of every parallel stage (~1-2 GB each for the IK)</p></td>
 </tr>
-<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">MYOFULLBODY_MODEL</span></code></p></td>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">MYOFULLBODY_MODEL</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">kneefix</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">original</span></code>: MyoFullBody with the left knee coupling as released (<a class="reference internal" href="../license/"><span class="doc">License and credits</span></a>)</p></td>
 </tr>
-<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">PY</span></code>, <code class="docutils literal notranslate"><span class="pre">OSIM_PY</span></code></p></td>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">PY</span></code>, <code class="docutils literal notranslate"><span class="pre">OSIM_PY</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">python</span></code>, <code class="docutils literal notranslate"><span class="pre">$PY</span></code></p></td>
 <td><p><code class="docutils literal notranslate"><span class="pre">run_all.sh</span></code>: the Python for the stages, and the one with <code class="docutils literal notranslate"><span class="pre">opensim</span></code></p></td>
 </tr>

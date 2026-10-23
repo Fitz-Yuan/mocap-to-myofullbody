@@ -43,3 +43,18 @@ Each subject was recorded standing still and upright for 5 s before the task (`r
 ```
 
 All three static variants remove the knee offset. Placing every marker with the static trial cost upper-body fit: with the arms hanging loosely in the static pose, the hand markers were placed poorly. Letting the static trial place only the pelvis and leg markers recovers that (the lowest residual, by either measure), and is the default of `run_all.sh` (`M2M_STATIC=1`, `M2M_STATIC_MARKERS=legs`). Against Xsens the three static variants are about the same: offsets within 2.4°, RMS after the offset 3.8–4.1° on the right and 2.9–3.5° on the left, slightly above the 3.2 / 2.8° of the motion-trial calibration, whose offset is much larger. Placing only the legs (pelvis from the motion trials) keeps three more carry cycles, mostly in subjects whose pelvis markers are unreliable, at a slightly higher residual; it is an option. The raw-marker residual is against the unfiltered markers in the subject's own size, so it reads higher than the IK's own measure.
+
+(no-standing)=
+## Without a static trial or any standing
+
+A recording in which the person never stands still has nothing that fixes the joints' zero: the calibration then places the leg markers from the motion alone, and every hip, knee and ankle angle carries an offset. The report flags it (`calib_stand` 0, WARN). In that case the calibration uses mid-stance frames of walking instead, with only the foot on the floor held flat (`M2M_CALIB_MID_STANCE`, on by default; frames where one foot's heel and toe are slow and on the floor for at least 0.3 s). That fixes how high the foot markers sit on the foot, but not the hip and knee zero, so it narrows the offset without removing it.
+
+Ramp data (36 level-walking trials, 3 subjects), offset of our angles from Vicon Plug-in-Gait (left / right):
+
+| Calibration | Hip flexion | Knee flexion | Ankle dorsiflexion |
+|---|---|---|---|
+| Static trial (default) | −10.1 / −11.6° | +1.7 / +0.8° | +2.8 / +3.3° |
+| No static trial, motion only | −14.9 / −14.1° | +6.5 / +3.9° | +10.5 / +11.3° |
+| No static trial, mid-stance flat foot | −13.9 / −12.6° | +6.2 / +3.4° | +8.3 / +10.9° |
+
+The correlations do not change (knee r = 0.99–1.00). On a public OptiTrack recording with two markers per foot (Motive Baseline 37) and no standing, the median ankle angle went from 16–17° to 10–14° of dorsiflexion and the time at the ankle's limit halved; the hips did not change. A few seconds of standing still, recorded as its own trial or at the start of a trial, remain the remedy.

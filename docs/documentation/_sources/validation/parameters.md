@@ -22,7 +22,8 @@ Where the field has an established value, the pipeline uses it. Where it does no
 | Frame-to-frame smoothing | 0.05 per frame at 100 Hz (`M2M_IK_SMOOTH`) | this pipeline's choice; the marker prediction error is flat from 0.0125 to 0.1 |
 | Ankle and subtalar smoothing | 0.08 per frame at 100 Hz (`M2M_IK_ANKLE_SMOOTH`) | chosen leave-one-subject-out against Vicon Plug-in-Gait on the ramp data (0.08 chosen every time; ankle r on the subject left out 0.63–0.85 vs 0.11–0.57 with 0.3), confirmed on the case study (foot-marker residual 6.8 → 6.0 mm) |
 | Joint speed limit | 15 rad/s | this pipeline's choice: above the joint speeds of the tasks analysed, below a fit jumping between two solutions |
-| Tracking loss | 2 or more markers more than 6 cm off: solve the frame again from scratch | 1.5 times the largest marker error OpenSim's IK guidelines accept (2–4 cm) |
+| Tracking loss | 2 or more markers more than 10 cm off: solve the frame again from scratch (`M2M_IK_RECOVER_DIST`) | this pipeline's choice: 2.5 times the largest marker error OpenSim's IK guidelines accept (2–4 cm); 6 cm was tried too and switched loosely fitting arms between poses ({ref}`recovery`) |
+| Lost limb (QA) | 2 or more of a limb's markers more than 6 cm off or rejected | 1.5 times OpenSim's largest accepted marker error |
 
 ## Quality checks
 

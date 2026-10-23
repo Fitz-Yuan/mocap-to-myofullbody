@@ -234,6 +234,8 @@
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/installation/">Installation</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/demo/">The demo</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/your-data/">Your own data</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/optitrack/">From OptiTrack (Motive)</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting-started/video/">From video</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/results/">Reading the results</a></li>
 <li class="toctree-l1"><a class="reference internal" href="../../getting-started/troubleshooting/">When something goes wrong</a></li>
 </ul>
@@ -419,8 +421,12 @@
 <td><p>this pipeline’s choice: above the joint speeds of the tasks analysed, below a fit jumping between two solutions</p></td>
 </tr>
 <tr class="row-odd"><td><p>Tracking loss</p></td>
-<td><p>2 or more markers more than 6 cm off: solve the frame again from scratch</p></td>
-<td><p>1.5 times the largest marker error OpenSim’s IK guidelines accept (2–4 cm)</p></td>
+<td><p>2 or more markers more than 10 cm off: solve the frame again from scratch (<code class="docutils literal notranslate"><span class="pre">M2M_IK_RECOVER_DIST</span></code>)</p></td>
+<td><p>this pipeline’s choice: 2.5 times the largest marker error OpenSim’s IK guidelines accept (2–4 cm); 6 cm was tried too and switched loosely fitting arms between poses (<a class="reference internal" href="../../pipeline/gap-filling/#recovery"><span class="std std-ref">Tracking-loss recovery</span></a>)</p></td>
+</tr>
+<tr class="row-even"><td><p>Lost limb (QA)</p></td>
+<td><p>2 or more of a limb’s markers more than 6 cm off or rejected</p></td>
+<td><p>1.5 times OpenSim’s largest accepted marker error</p></td>
 </tr>
 </tbody>
 </table>
