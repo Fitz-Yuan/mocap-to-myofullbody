@@ -507,6 +507,9 @@ IK_SMOOTH = float(_env("M2M_IK_SMOOTH", 0.05))
 # the GPU IK runs without it when it is on by default, and stops when it was asked for
 IK_RECOVER = _flag("M2M_IK_RECOVER", "1")
 IK_RECOVER_GIVEN = "M2M_IK_RECOVER" in os.environ or "M2M_IK_RECOVER" in _PROFILE
+# how far (m) 2+ body markers must be from the model to try the recovery (the QA's lost-limb
+# check keeps 6 cm, ik.LOST_DIST)
+IK_RECOVER_DIST = float(_env("M2M_IK_RECOVER_DIST", 0.06))
 IK_ANKLE_SMOOTH = float(_env("M2M_IK_ANKLE_SMOOTH", 0.08))
 # opt-in: a 3-hinge neck in the IK model (ik.NECK), so the head follows its markers; the
 # IK output keeps the plain model's qpos layout plus neck_qpos [T, 3]

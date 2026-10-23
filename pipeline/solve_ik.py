@@ -250,7 +250,7 @@ def track_args():
   return dict(contact=True, outlier=TRACK_OUTLIER or None, mtp_prior=MTP_PRIOR,
               anchor_centroid=ANCHOR_CENTROID, pelvis_gap=PELVIS_GAP, robust=ROBUST or None,
               root_init=ROOT_INIT, smooth=config.IK_SMOOTH, ankle_smooth=config.IK_ANKLE_SMOOTH,
-              recover=config.IK_RECOVER)
+              recover=config.IK_RECOVER, recover_dist=config.IK_RECOVER_DIST)
 
 
 def save(t, mm, active, Q, E, device="cpu", recover=None):
@@ -271,6 +271,7 @@ def save(t, mm, active, Q, E, device="cpu", recover=None):
                       anchor_centroid=ANCHOR_CENTROID, pelvis_gap=PELVIS_GAP,
                       robust=ROBUST, robust_pelvis=False, root_init=ROOT_INIT,
                       lowpass_hz=LOWPASS_HZ, recover=config.IK_RECOVER if recover is None else recover,
+                      recover_dist=config.IK_RECOVER_DIST,
                       unsolved=int((~solved).sum()), unsolved_frames=~solved,
                       scale=t["s"], rate=t["rate"], labels=np.array(mm.ms.LABELS),
                       frame0=int(rng.split(":")[0]) if rng else 0,

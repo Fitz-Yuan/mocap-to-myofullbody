@@ -782,19 +782,20 @@ def fit_score(mm, x, q_ref, P):
   return float(np.sum(np.minimum(d[use], LOST_CAP) ** 2)), d, int(np.sum(d[use] > LOST_DIST))
 
 
-def far_markers(mm, x, q_ref, P):
-  """The seen body markers farther than LOST_DIST from the model (indices, a frozenset)."""
+def far_markers(mm, x, q_ref, P, dist=LOST_DIST):
+  """The seen body markers farther than dist from the model (indices, a frozenset)."""
   d = fit_score(mm, x, q_ref, P)[1]
   use = np.isfinite(d) & mm.active & ~mm.ms.HEAD
-  return frozenset(np.flatnonzero(use & (np.nan_to_num(d) > LOST_DIST)).tolist())
+  return frozenset(np.flatnonzero(use & (np.nan_to_num(d) > dist)).tolist())
 
 
 def recover_frame(mm, P, xs, q_ref, x, err, seed, t, contact=None, outlier=None, mtp_prior=0.0,
-                  robust=None):
+                  robust=None, dist=LOST_DIST):
   """ik_trial's tracking-loss step for frame t: (x, err, recovered) -- x unchanged unless
-  LOST_N or more markers are lost and a fresh solve fits better (see LOST_DIST)."""
-  s0, _, lost = fit_score(mm, x, q_ref, P)
-  if lost < LOST_N:
+  LOST_N or more markers are farther than dist (default LOST_DIST) and a fresh solve fits
+  better."""
+  s0 = fit_score(mm, x, q_ref, P)[0]
+  if len(far_markers(mm, x, q_ref, P, dist)) < LOST_N:
     return x, err, False
   rng = np.random.default_rng([seed, t])
   best = (s0, x, err)
@@ -817,7 +818,8 @@ def recover_frame(mm, P, xs, q_ref, x, err, seed, t, contact=None, outlier=None,
 def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
              v_joint=15.0, w_floor=10.0, w_anchor=3.0,
              ankle_smooth=0.08, outlier=None, mtp_prior=0.0, anchor_centroid=False,
-             pelvis_gap="carry", robust=None, root_init="prev", recover=False, progress=None):
+             pelvis_gap="carry", robust=None, root_init="prev", recover=False, recover_dist=LOST_DIST,
+             progress=None):
   """Per-frame IK over a whole trial. progress: called as progress(t, T) every tenth of the
   trial. Returns qpos [T, nq] and marker err [T, n]
   (NaN where a marker is missing or was rejected, see MarkerModel.solve).
@@ -929,10 +931,10 @@ def ik_trial(mm, P, smooth=0.05, restarts=8, seed=0, rate=None, contact=False,
                         smooth=smooth_at(xs) if contact else smooth,
                         contact=ca, outlier=outlier, mtp_prior=mtp_prior, robust=robust)
       if recover:
-        far = far_markers(mm, x, q_ref, P[t])
+        far = far_markers(mm, x, q_ref, P[t], recover_dist)
         if len(far) >= LOST_N and not (far == miss[0] and t - miss[1] < RECOVER_RETRY):
           x, err, ok = recover_frame(mm, P[t], xs, q_ref, x, err, seed, t, contact=ca,
-                                     outlier=outlier, mtp_prior=mtp_prior, robust=robust)
+                                     outlier=outlier, mtp_prior=mtp_prior, robust=robust, dist=recover_dist)
           if not ok:
             miss = (far, t)
     Q[t] = mm.pose(x, q_ref)
